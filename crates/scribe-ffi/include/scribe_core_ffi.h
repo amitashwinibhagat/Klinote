@@ -56,6 +56,17 @@ char *scribe_note_from_transcript(const char *request_json);
  */
 char *scribe_note_to_markdown(const char *note_json);
 
+/*
+ * The plain-text path: a pasted or human-typed transcript in, a note out.
+ * No audio, no model. Used by the app's bundled demonstration and by any
+ * clinician who already has a transcript.
+ *
+ * Input:  {"template_id":"soap","patient_ref":"opaque",
+ *          "discipline":"general_practice","text":"CLINICIAN: ...\nPATIENT: ..."}
+ * Output: {"ok":true,"note":{...},"transcript":{...}} | {"ok":false,"error":"..."}
+ */
+char *scribe_note_from_text(const char *request_json);
+
 /* Free any string returned by this library. NULL is a no-op. */
 void scribe_string_free(char *pointer);
 

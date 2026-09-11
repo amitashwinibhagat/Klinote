@@ -23,6 +23,22 @@ impl ReviewState {
     }
 }
 
+/// One sentence of a note, with the transcript segments it came from.
+///
+/// Sentence-level evidence is what makes the note checkable rather than
+/// merely plausible: a clinician can select any sentence and see the exact
+/// words that produced it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoteSentence {
+    pub text: String,
+    #[serde(default)]
+    pub evidence: Vec<SegmentId>,
+    /// True when the routing had more than one plausible home for this
+    /// sentence. Surfaced to the reviewer rather than silently decided.
+    #[serde(default)]
+    pub ambiguous: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoteSection {
     pub key: String,
@@ -32,6 +48,10 @@ pub struct NoteSection {
     /// any sentence back to what was actually said.
     #[serde(default)]
     pub evidence: Vec<SegmentId>,
+    /// The same content as `body`, split into sentences that each carry their
+    /// own evidence.
+    #[serde(default)]
+    pub sentences: Vec<NoteSentence>,
     pub complete: bool,
 }
 
@@ -42,6 +62,7 @@ impl NoteSection {
             title: title.to_owned(),
             body: String::new(),
             evidence: Vec::new(),
+            sentences: Vec::new(),
             complete: false,
         }
     }
@@ -188,6 +209,7 @@ mod tests {
             title: key.to_owned(),
             body: body.to_owned(),
             evidence: Vec::new(),
+            sentences: Vec::new(),
             complete: true,
         }
     }

@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use scribe_core::{
-    ClinicalNote, NoteId, NoteSection, Result, ReviewState, SectionSpec, SegmentId, SpeakerRole,
-    Template, UnassignedItem,
+    ClinicalNote, NoteId, NoteSection, NoteSentence, Result, ReviewState, SectionSpec, SegmentId,
+    SpeakerRole, Template, UnassignedItem,
 };
 
 use crate::generator::{GenerationRequest, NoteGenerator};
@@ -28,13 +28,11 @@ impl NoteGenerator for RuleBasedGenerator {
     fn generate(&self, request: &GenerationRequest<'_>) -> Result<ClinicalNote> {
         let template = request.template;
 
-        let mut bodies: BTreeMap<&str, Vec<String>> = BTreeMap::new();
-        let mut evidence: BTreeMap<&str, Vec<SegmentId>> = BTreeMap::new();
+        let mut routed: BTreeMap<&str, Vec<(String, SegmentId)>> = BTreeMap::new();
         let mut unassigned: Vec<UnassignedItem> = Vec::new();
 
         for section in &template.sections {
-            bodies.insert(section.key.as_str(), Vec::new());
-            evidence.insert(section.key.as_str(), Vec::new());
+            routed.insert(section.key.as_str(), Vec::new());
         }
 
         for segment in &request.transcript.segments {
@@ -47,11 +45,10 @@ impl NoteGenerator for RuleBasedGenerator {
 
                 match route(&sentence, role, template) {
                     Some(key) => {
-                        if let Some(bucket) = bodies.get_mut(key) {
-                            bucket.push(sentence);
-                        }
-                        if let Some(ids) = evidence.get_mut(key) {
-                            ids.push(segment.id);
+                        if let Some(bucket) = routed.get_mut(key) {
+                            // Keep the source segment with the sentence so the
+                            // note can cite it sentence by sentence.
+                            bucket.push((sentence, segment.id));
                         }
                     }
                     None => unassigned.push(UnassignedItem {
@@ -68,11 +65,24 @@ impl NoteGenerator for RuleBasedGenerator {
 
         for spec in &template.sections {
             let key = spec.key.as_str();
-            let body = bodies
-                .get(key)
-                .map(|parts| parts.join(" "))
-                .unwrap_or_default();
-            let mut ids = evidence.remove(key).unwrap_or_default();
+            let entries = routed.remove(key).unwrap_or_default();
+
+            let sentences: Vec<NoteSentence> = entries
+                .iter()
+                .map(|(text, segment_id)| NoteSentence {
+                    text: text.clone(),
+                    evidence: vec![*segment_id],
+                    ambiguous: false,
+                })
+                .collect();
+
+            let body = sentences
+                .iter()
+                .map(|sentence| sentence.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            let mut ids: Vec<SegmentId> = entries.iter().map(|(_, id)| *id).collect();
             ids.dedup();
 
             let complete = !body.trim().is_empty();
@@ -85,6 +95,7 @@ impl NoteGenerator for RuleBasedGenerator {
                 title: spec.title.clone(),
                 body,
                 evidence: ids,
+                sentences,
                 complete,
             });
         }
@@ -459,6 +470,39 @@ CLINICIAN: Follow up in one week if not improving.
 
         assert_eq!(note.unassigned.len(), 1);
         assert!(note.unassigned[0].text.to_lowercase().contains("weather"));
+    }
+
+    #[test]
+    fn every_sentence_carries_its_own_evidence() {
+        let note = generate(
+            "soap",
+            "CLINICIAN: On examination the throat shows erythema.\n\
+             CLINICIAN: Chest is clear on auscultation.",
+        );
+        let objective = note.section("objective").unwrap();
+        assert_eq!(objective.sentences.len(), 2, "{objective:?}");
+        for sentence in &objective.sentences {
+            assert_eq!(
+                sentence.evidence.len(),
+                1,
+                "sentence without its own evidence: {sentence:?}"
+            );
+        }
+        // The two sentences came from two different transcript segments.
+        assert_ne!(
+            objective.sentences[0].evidence[0],
+            objective.sentences[1].evidence[0]
+        );
+        // `body` stays the joined sentences, so Markdown output is unchanged.
+        assert_eq!(
+            objective.body,
+            objective
+                .sentences
+                .iter()
+                .map(|s| s.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
     }
 
     #[test]

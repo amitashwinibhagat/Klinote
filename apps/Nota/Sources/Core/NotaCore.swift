@@ -1,0 +1,219 @@
+//
+// NotaCore.swift
+//
+// The Swift face of the Rust engine. Everything clinical — transcription,
+// diarisation, templates, routing, completeness, storage — lives on the other
+// side of this file. The shell renders; it does not generate.
+//
+// Contract (see crates/scribe-ffi/include/scribe_core_ffi.h):
+//   - every returned string must be freed with scribe_string_free
+//   - every payload is an envelope: {"ok": true, ...} or {"ok": false, "error": "..."}
+//
+
+import Foundation
+
+// MARK: - Decoded models
+
+struct EngineEnvelope<Payload: Decodable>: Decodable {
+    let ok: Bool
+    let error: String?
+}
+
+struct NoteEnvelope: Decodable {
+    let ok: Bool
+    let error: String?
+    let note: ClinicalNote?
+    let transcript: Transcript?
+}
+
+struct TemplatesEnvelope: Decodable {
+    let ok: Bool
+    let error: String?
+    let templates: [TemplateSummary]?
+}
+
+struct MarkdownEnvelope: Decodable {
+    let ok: Bool
+    let error: String?
+    let markdown: String?
+}
+
+struct ClinicalNote: Codable, Identifiable, Hashable {
+    let id: String
+    let encounterId: String
+    let templateId: String
+    let sections: [NoteSection]
+    let unassigned: [UnassignedStatement]
+    let generatedAt: String
+    let engine: String
+    let reviewState: String
+    let missingRequired: [String]
+    let machineGenerated: Bool
+
+    static func == (lhs: ClinicalNote, rhs: ClinicalNote) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+struct NoteSection: Codable, Identifiable, Hashable {
+    let key: String
+    let title: String
+    let body: String
+    let evidence: [String]
+    let sentences: [NoteSentence]
+    let complete: Bool
+
+    var id: String { key }
+}
+
+struct NoteSentence: Codable, Hashable, Identifiable {
+    let text: String
+    let evidence: [String]
+    let ambiguous: Bool
+
+    /// Stable within a note: the sentence text plus its first evidence id.
+    var id: String { "\(evidence.first ?? "none")::\(text)" }
+}
+
+struct UnassignedStatement: Codable, Identifiable, Hashable {
+    let text: String
+    let speakerRole: String
+    let evidence: [String]
+
+    var id: String { "\(evidence.first ?? "none")::\(text)" }
+}
+
+struct Transcript: Decodable {
+    let encounterId: String
+    let speakers: [TranscriptSpeaker]
+    let segments: [TranscriptSegment]
+    let language: String
+    let engine: String
+    let humanSupplied: Bool
+}
+
+struct TranscriptSpeaker: Decodable, Identifiable {
+    let id: UInt32
+    let role: String
+    let label: String?
+}
+
+struct TranscriptSegment: Decodable, Identifiable {
+    let id: String
+    let speaker: UInt32
+    let startMs: UInt64
+    let endMs: UInt64
+    let text: String
+    let confidence: Double?
+}
+
+struct TemplateSummary: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let discipline: String
+    let version: String
+    let description: String
+    let sections: [TemplateSectionSummary]
+}
+
+struct TemplateSectionSummary: Decodable, Identifiable {
+    let key: String
+    let title: String
+    let guidance: String
+    let required: Bool
+
+    var id: String { key }
+}
+
+// MARK: - Errors
+
+enum NotaCoreError: LocalizedError {
+    case engine(String)
+    case malformedResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .engine(let message): message
+        case .malformedResponse: "The engine returned a response Nota could not read."
+        }
+    }
+}
+
+// MARK: - The bridge
+
+enum NotaCore {
+    private static let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }()
+
+    static var schemaVersion: String {
+        string(from: scribe_schema_version())
+    }
+
+    static func templates() throws -> [TemplateSummary] {
+        let payload: TemplatesEnvelope = try envelope(from: scribe_list_templates())
+        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
+        return payload.templates ?? []
+    }
+
+    /// The plain-text path: a transcript in, a draft note and its transcript out.
+    static func note(
+        fromText text: String,
+        templateId: String,
+        discipline: String,
+        patientRef: String
+    ) throws -> (note: ClinicalNote, transcript: Transcript) {
+        let request: [String: String] = [
+            "template_id": templateId,
+            "discipline": discipline,
+            "patient_ref": patientRef,
+            "text": text,
+        ]
+        let requestData = try JSONSerialization.data(withJSONObject: request)
+        guard let requestJSON = String(data: requestData, encoding: .utf8) else {
+            throw NotaCoreError.malformedResponse
+        }
+
+        let payload: NoteEnvelope = try envelope(from: scribe_note_from_text(requestJSON))
+        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
+        guard let note = payload.note, let transcript = payload.transcript else {
+            throw NotaCoreError.malformedResponse
+        }
+        return (note, transcript)
+    }
+
+    /// Renders the note as Markdown using the engine's own renderer, so the
+    /// copied text is identical to what the CLI produces.
+    static func markdown(for note: ClinicalNote) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(note)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw NotaCoreError.malformedResponse
+        }
+        let payload: MarkdownEnvelope = try envelope(from: scribe_note_to_markdown(json))
+        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
+        return payload.markdown ?? ""
+    }
+
+    // MARK: - Plumbing
+
+    private static func envelope<T: Decodable>(from pointer: UnsafeMutablePointer<CChar>?) throws -> T {
+        let json = string(from: pointer)
+        guard let data = json.data(using: .utf8) else { throw NotaCoreError.malformedResponse }
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw NotaCoreError.engine("Could not read the engine response: \(error)")
+        }
+    }
+
+    /// Copies the engine's string and frees the original. Never leaks, never
+    /// frees twice.
+    private static func string(from pointer: UnsafeMutablePointer<CChar>?) -> String {
+        guard let pointer else { return #"{"ok":false,"error":"the engine returned nothing"}"# }
+        defer { scribe_string_free(pointer) }
+        return String(cString: pointer)
+    }
+}

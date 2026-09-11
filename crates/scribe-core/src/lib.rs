@@ -22,7 +22,7 @@ pub mod transcript;
 pub use encounter::{Discipline, Encounter};
 pub use error::{Result, ScribeError};
 pub use ids::{EncounterId, NoteId, SegmentId, SpeakerId, TemplateId};
-pub use note::{ClinicalNote, NoteSection, ReviewState, UnassignedItem};
+pub use note::{ClinicalNote, NoteSection, NoteSentence, ReviewState, UnassignedItem};
 pub use template::{SectionSpec, Template};
 pub use transcript::{Segment, Speaker, SpeakerRole, Transcript, Utterance, parse_transcript_text};
 

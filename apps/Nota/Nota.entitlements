@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  M1 ships unsandboxed so the Rust core can read its own database path
+	  without a container dance, matching the sibling apps' shipping posture.
+	  Before Mac App Store distribution: enable the sandbox and move the
+	  database under the container. Tracked in docs/compliance/PRIVACY.md.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+</dict>
+</plist>

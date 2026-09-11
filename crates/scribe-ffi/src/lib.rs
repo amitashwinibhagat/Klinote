@@ -146,6 +146,68 @@ pub unsafe extern "C" fn scribe_note_to_markdown(note_json: *const c_char) -> *m
     into_c_string(&payload.to_string())
 }
 
+#[derive(Debug, Deserialize)]
+struct TextRequest {
+    #[serde(default)]
+    template_id: Option<String>,
+    #[serde(default)]
+    patient_ref: Option<String>,
+    #[serde(default)]
+    discipline: Option<String>,
+    text: String,
+}
+
+/// The plain-text path: a pasted or human-typed transcript in, a note out. No
+/// audio, no model. This is the entry point the app uses for its bundled
+/// demonstration and for a clinician who already has a transcript.
+///
+/// Input JSON:
+/// `{"template_id":"soap","patient_ref":"opaque","discipline":"general_practice","text":"..."}`
+/// Output: `{"ok":true,"note":{...},"transcript":{...}}`.
+///
+/// # Safety
+/// `request_json` must be null or a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_note_from_text(request_json: *const c_char) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let raw = unsafe { cstr_to_string(request_json) }?;
+        let request: TextRequest =
+            serde_json::from_str(&raw).map_err(|err| format!("invalid request json: {err}"))?;
+
+        if request.text.trim().is_empty() {
+            return Err("`text` is empty".to_owned());
+        }
+
+        let discipline = request
+            .discipline
+            .as_deref()
+            .map(Discipline::from_key)
+            .unwrap_or(Discipline::GeneralPractice);
+        let patient_ref = request
+            .patient_ref
+            .unwrap_or_else(|| "local-anonymous".to_owned());
+
+        let mut encounter = Encounter::new(patient_ref, discipline);
+        if let Some(template_id) = request.template_id {
+            encounter.template_id = scribe_core::TemplateId::new(template_id);
+        }
+
+        let pipeline = ScribePipeline::new().map_err(|err| err.to_string())?;
+        let output = pipeline
+            .process_text(&encounter, &request.text)
+            .map_err(|err| err.to_string())?;
+
+        Ok(json!({
+            "ok": true,
+            "note": output.note,
+            "transcript": output.transcript,
+        }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
 /// Free a string returned by this library. Passing null is a no-op.
 ///
 /// # Safety
@@ -249,6 +311,47 @@ mod tests {
 
         assert_eq!(json["ok"], true);
         assert!(json["templates"].as_array().unwrap().len() >= 5);
+    }
+
+    #[test]
+    fn generates_a_note_from_plain_text() {
+        let request = serde_json::json!({
+            "template_id": "soap",
+            "patient_ref": "demo-001",
+            "discipline": "general_practice",
+            "text": "CLINICIAN: On examination the throat shows erythema.\nCLINICIAN: Plan: rest and fluids, paracetamol 1g four times a day.",
+        })
+        .to_string();
+
+        let input = CString::new(request).unwrap();
+        let output = unsafe { scribe_note_from_text(input.as_ptr()) };
+        let json: Value =
+            serde_json::from_str(&unsafe { cstr_to_string(output) }.unwrap()).unwrap();
+        unsafe { scribe_string_free(output) };
+
+        assert_eq!(json["ok"], true, "{json}");
+        assert_eq!(json["note"]["template_id"], "soap");
+        assert_eq!(json["transcript"]["engine"], "human-transcript");
+        assert!(
+            json["note"]["sections"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|s| s["key"] == "plan" && s["body"].as_str().unwrap().contains("paracetamol")),
+            "{json}"
+        );
+    }
+
+    #[test]
+    fn empty_text_is_an_error_envelope() {
+        let input = CString::new(r#"{"template_id":"soap","text":"   "}"#).unwrap();
+        let output = unsafe { scribe_note_from_text(input.as_ptr()) };
+        let json: Value =
+            serde_json::from_str(&unsafe { cstr_to_string(output) }.unwrap()).unwrap();
+        unsafe { scribe_string_free(output) };
+
+        assert_eq!(json["ok"], false);
+        assert!(json["error"].as_str().unwrap().contains("empty"));
     }
 
     #[test]

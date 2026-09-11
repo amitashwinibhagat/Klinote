@@ -1,0 +1,56 @@
+name: Nota
+options:
+  bundleIdPrefix: one.nota
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ALWAYS_SEARCH_USER_PATHS: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+targets:
+  Nota:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Sources
+      - path: Resources
+        excludes:
+          - "Info.plist"
+    settings:
+      base:
+        PRODUCT_NAME: Nota
+        PRODUCT_BUNDLE_IDENTIFIER: one.nota.mac
+        INFOPLIST_FILE: Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Nota.entitlements
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Core/Nota-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/../../crates/scribe-ffi/include"
+        LIBRARY_SEARCH_PATHS:
+          - "$(SRCROOT)/../../target/nota-link"
+        OTHER_LDFLAGS:
+          - "-lscribe_core_ffi"
+        SWIFT_STRICT_CONCURRENCY: minimal
+    preBuildScripts:
+      - name: Build Rust core
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          cd "$SRCROOT/../.."
+          cargo build --release -p scribe-ffi
+          # Link the static library, never the dylib: cargo emits both, and the
+          # linker prefers the dylib, which would leave the app bundle pointing
+          # at an absolute path in target/ and unable to run anywhere else.
+          mkdir -p target/nota-link
+          cp target/release/libscribe_core_ffi.a target/nota-link/

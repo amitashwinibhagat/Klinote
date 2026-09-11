@@ -6,15 +6,22 @@ invariants, the commands, and the gotchas.
 
 ## What this is
 
-**On-device ambient clinical documentation for macOS.** A recording goes in; a
-structured, template-matched clinical note comes out, with every sentence
+**Nota** — on-device ambient clinical documentation for macOS. A recording goes
+in; a structured, template-matched clinical note comes out, with every sentence
 traceable to what was said. Nothing leaves the Mac.
 
+- **Public name:** Nota. Internal crate names stay `scribe-*` (the same
+  convention as WriteAmp over `WriteAmpTyping`).
 - **Engine:** Rust, Cargo workspace under `crates/`. Complete and tested.
-- **Shell:** Swift/SwiftUI (next milestone). Calls the Rust core over the C ABI
-  in `crates/scribe-ffi/`.
-- **Status:** engine v0, no UI yet. Validation is concierge-first — see
-  `docs/product/VALIDATION-PLAN.md`.
+- **Shell:** Swift/SwiftUI under `apps/Nota/`. M1 complete: menu bar, recording
+  strip, review window with evidence margin, settings. Builds and launches.
+- **Status:** no real ASR engine yet — the shipped default is a mock, and the
+  app labels its sample note as synthetic. Encryption at rest is not built.
+  Validation is concierge-first: `docs/product/VALIDATION-PLAN.md`.
+
+**Design first.** Before changing anything visual, read `PRODUCT.md`,
+`DESIGN.md` and `docs/design/UX-PLAN.md`. They are the source of truth; if code
+disagrees with `DESIGN.md`, the code is wrong.
 
 ## THE CONTRACTS (do not weaken, ever)
 
@@ -55,7 +62,7 @@ a clinician signs an incomplete note.
 
 ```bash
 cargo check --workspace --all-targets          # fast feedback
-cargo test --workspace                         # 38 tests, no model needed
+cargo test --workspace                         # 41 tests, no model needed
 cargo clippy --workspace --all-targets -- -D warnings   # must stay clean
 cargo fmt --all
 
@@ -64,7 +71,17 @@ cargo run -p scribe-cli -- templates
 cargo run -p scribe-cli -- note --transcript fixtures/sample-transcript.txt
 cargo run -p scribe-cli -- note --transcript - --db ./scribe.db   # stdin
 cargo run -p scribe-cli -- audit --db ./scribe.db --subject <note-id>
+
+# Build the macOS app (XcodeGen generates the project; do not commit it)
+cd apps/Nota && xcodegen generate
+xcodebuild -project apps/Nota/Nota.xcodeproj -scheme Nota \
+  -configuration Release -derivedDataPath /tmp/nota-dd build CODE_SIGNING_ALLOWED=NO
 ```
+
+The app's build phase compiles the Rust core and links
+`libscribe_core_ffi.a` **statically** from `target/nota-link/`. Never link the
+`.dylib`: the linker prefers it, and the bundle then points at an absolute path
+in `target/` and cannot run anywhere else.
 
 Nothing in the default build downloads a model or requires one. Keep it that
 way: `MockAsrEngine` is the default so CI and the concierge workflow run with
@@ -83,11 +100,14 @@ zero setup, and real engines are opt-in.
 | `crates/scribe-store/` | SQLite (rusqlite, bundled) + append-only `audit_log` | JSON blobs for transcripts/notes. |
 | `crates/scribe-ffi/` | C ABI, JSON envelopes | `crate-type = ["staticlib","cdylib","rlib"]`. |
 | `crates/scribe-cli/` | `scribe` binary | Also the concierge tool. |
+| `apps/Nota/` | Swift/SwiftUI shell | `project.yml` is the source of truth; the `.xcodeproj` is generated and gitignored. |
 | `templates/` | TOML note templates | Add a discipline here, then register it in `TemplateLibrary::BUILTIN`. |
 | `fixtures/` | Synthetic transcripts | **Never real patient data.** |
+| `docs/design/` | UX-PLAN (shape brief + direction contract) | Read before any UI change. |
 | `docs/product/` | PRODUCT-TRUTH, VALIDATION-PLAN, ROADMAP | |
 | `docs/engineering/` | ARCHITECTURE, ASR, ADR/ | |
 | `docs/compliance/` | PRIVACY | Encryption-at-rest and retention gaps are tracked here. |
+| `PRODUCT.md`, `DESIGN.md` | Product truth and the visual system | `DESIGN.md` wins over code. |
 
 ## How to change things
 
@@ -119,12 +139,22 @@ zero setup, and real engines are opt-in.
 - **`scribe-store` currently relies on FileVault for encryption at rest.** Do
   not put real patient data through it until SQLCipher + Keychain is wired in
   (`docs/compliance/PRIVACY.md`).
-- **`ReviewState::Approved` must never be reachable from generated code.**
+- **`ReviewState::Approved` must never be reachable from generated code.** In the
+  shell, only the `File note` action (⌘↩) writes it.
+- **The app must label synthetic output.** If `MockAsrEngine` or the bundled
+  sample produced the draft, the document says so, in `caution`. Do not ship a
+  build where a clinician could mistake sample text for a transcription.
+- **Never link the Rust dylib.** Xcode's linker prefers it over the static
+  library, and the app bundle then depends on an absolute path under `target/`.
+  The pre-build script copies the `.a` into `target/nota-link/` for this reason.
 
 ## Doc map
 
 | Document | Read it when |
 |---|---|
+| `PRODUCT.md` | You need product truth: users, positioning, brand commitments, accessibility bar. |
+| `DESIGN.md` | You are changing anything visual. It wins over code. |
+| `docs/design/UX-PLAN.md` | You are working on a surface: direction contract, states, keyboard map, anti-goals. |
 | `docs/product/PRODUCT-TRUTH.md` | You need to know what may and may not be claimed externally. |
 | `docs/product/VALIDATION-PLAN.md` | You are doing the 10-clinic concierge sprint. |
 | `docs/product/ROADMAP.md` | You are deciding what to build next. |
