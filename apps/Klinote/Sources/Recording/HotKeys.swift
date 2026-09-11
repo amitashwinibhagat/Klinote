@@ -99,7 +99,9 @@ enum ActivationPolicy {
     /// A menu-bar app is .accessory. With a window open it has to be a regular
     /// app, or the window has no menu bar and cannot take focus.
     static func becomeRegular() {
-        depth += 1
+        // Idempotent: this is called on every show and every retry, and a
+        // counter that grows with each one never returns to accessory.
+        depth = max(depth, 1)
         NSApp.setActivationPolicy(.regular)
     }
 
@@ -127,9 +129,12 @@ enum ActivationPolicy {
     private static func retry(attempts: Int) {
         guard attempts > 0 else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            guard NSApp.windows.contains(where: { $0.isVisible }),
-                  !NSRunningApplication.current.isActive
-            else { return }
+            // Activation is about the app, not the window. This used to
+            // require a visible window before retrying, which meant that in
+            // the one case that mattered — a window created but never ordered
+            // on screen — it gave up immediately. Surfacing the window is
+            // ReviewWindowController's job; see `surface()`.
+            guard !NSRunningApplication.current.isActive else { return }
             bringForward()
             retry(attempts: attempts - 1)
         }

@@ -37,11 +37,35 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         window?.isVisible == true && window?.isMiniaturized == false
     }
 
-    func show() {
-        if let window {
-            ActivationPolicy.becomeRegular()
+    /// Order the letter front and take focus, asking more than once.
+    ///
+    /// A window ordered front before the activation policy has settled can be
+    /// left created-but-not-shown: correct size, correct position, invisible.
+    /// The window server reports it in the list and never on screen. One
+    /// `makeKeyAndOrderFront` is not enough on a cold launch, so keep asking
+    /// until it is visible, then stop.
+    private func surface() {
+        guard let window else { return }
+        ActivationPolicy.becomeRegular()
+        window.makeKeyAndOrderFront(nil)
+        ActivationPolicy.activate()
+        retrySurface(attempts: 10)
+    }
+
+    private func retrySurface(attempts: Int) {
+        guard attempts > 0, let window else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self, let window = self.window else { return }
+            guard !window.isVisible else { return }
             window.makeKeyAndOrderFront(nil)
             ActivationPolicy.activate()
+            self.retrySurface(attempts: attempts - 1)
+        }
+    }
+
+    func show() {
+        if window != nil {
+            surface()
             return
         }
 
@@ -78,13 +102,7 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         window.delegate = self
         self.window = window
 
-        // Policy first, then the window, then activate. Activating before the
-        // window is on screen is dropped by the window server, which leaves a
-        // visible window with no menu bar and the focus still in whatever app
-        // the clinician came from.
-        ActivationPolicy.becomeRegular()
-        window.makeKeyAndOrderFront(nil)
-        ActivationPolicy.activate()
+        surface()
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -348,7 +366,7 @@ struct EncounterSidebar: View {
 
             Hairline()
             DisclosureGroup {
-                if model.openTaskRows.isEmpty {
+                if model.board.openRows.isEmpty {
                     Text("Nothing outstanding. Plan sentences from a note are listed here.")
                         .font(KlinoteFont.caption())
                         .foregroundStyle(KlinoteColor.tertiary)
@@ -356,7 +374,7 @@ struct EncounterSidebar: View {
                         .padding(.vertical, KlinoteMetrics.space4)
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(model.openTaskRows, id: \.task.id) { row in
+                        ForEach(model.board.openRows, id: \.task.id) { row in
                             HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.inline6) {
                                 Button {
                                     model.setTask(row.task, done: true)
@@ -398,7 +416,7 @@ struct EncounterSidebar: View {
                     HStack {
                         TabLabel(text: "Still to do")
                         Spacer()
-                        Text("\(model.openTaskRows.count)")
+                        Text("\(model.board.openRows.count)")
                             .font(KlinoteFont.microData())
                             .foregroundStyle(KlinoteColor.ink)
                     }

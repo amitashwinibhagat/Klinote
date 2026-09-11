@@ -111,12 +111,12 @@ final class AppModel: ObservableObject {
     /// name is set, because my list should be mine.
     @AppStorage("klinote.showAllClinicians") var showAllClinicians = false
 
-    /// Every task, open or done, as of the last store read.
-    @Published private(set) var allTasks: [ConsultTask] = []
-    /// Open tasks paired with their consult, derived, never re-read.
-    @Published private(set) var openTaskRows: [(task: ConsultTask, encounter: Encounter)] = []
-    /// The selected consult's tasks, keyed by the sentence they came from.
-    @Published private(set) var taskIndex: [String: ConsultTask] = [:]
+    /// The checklist and the ticks, derived from one store read.
+    @Published private(set) var board = TaskBoard()
+
+    /// Every read and write of the encrypted store. AppModel does not know
+    /// about paths, keys or the C ABI.
+    private let store = SessionStore()
     /// Set when a copy is requested for a consult that is not on screen. The
     /// clinician confirms before the clipboard changes.
     @Published var pendingCopy: Encounter?
@@ -185,43 +185,30 @@ final class AppModel: ObservableObject {
     /// history rather than a denied key. (nil means all is well.)
     @Published var storeError: String?
 
-    private struct StoredLoad {
-        var sessions: [StoredSession] = []
-        var tasks: [ConsultTask] = []
-        var purged = 0
-        var error: String?
-    }
-
     private func loadStoredData() async {
         let months = retentionMonths
-        let outcome = await Task.detached(priority: .userInitiated) { () -> StoredLoad in
-            var out = StoredLoad()
-            do {
-                if months > 0,
-                   let cutoff = Calendar.current.date(
-                       byAdding: .month,
-                       value: -months,
-                       to: Date()
-                   )
-                {
-                    out.purged = try KlinoteCore.purge(before: cutoff)
-                }
-                out.sessions = try KlinoteCore.loadSessions()
-                out.tasks = try KlinoteCore.tasks(encounterId: nil)
-            } catch {
-                out.error = error.localizedDescription
+        let store = self.store
+        let outcome = await Task.detached(priority: .userInitiated) { () -> StoredWorld? in
+            do { return try store.load(retentionMonths: months) } catch {
+                NSLog("Klinote: could not read the store: %@", error.localizedDescription)
+                return nil
             }
-            return out
         }.value
 
-        storeError = outcome.error
-        applySessions(outcome.sessions)
-        allTasks = outcome.tasks
-        rebuildTaskViews()
-        if outcome.purged > 0 {
-            copyBanner = outcome.purged == 1
+        // A store that cannot be read is a banner, not a dead end. The letter
+        // below still opens, with the sample in it, because a clinician who
+        // denied the Keychain prompt should be told what happened rather than
+        // shown an empty window.
+        let world = outcome ?? StoredWorld()
+        storeError = outcome == nil
+            ? "The encrypted store could not be read. Your consults are still on this Mac."
+            : nil
+        applySessions(world.sessions)
+        rebuildBoard(tasks: world.tasks)
+        if world.purgedNotes > 0 {
+            copyBanner = world.purgedNotes == 1
                 ? "Deleted 1 note past the retention period."
-                : "Deleted \(outcome.purged) notes past the retention period."
+                : "Deleted \(world.purgedNotes) notes past the retention period."
         }
         if encounters.isEmpty {
             prepareDemoNote()
@@ -301,13 +288,7 @@ final class AppModel: ObservableObject {
     /// Retention runs at launch and on demand. A real delete, not a flag.
     @discardableResult
     func purgeExpiredNotes() -> Int {
-        guard retentionMonths > 0 else { return 0 }
-        guard let cutoff = Calendar.current.date(
-            byAdding: .month,
-            value: -retentionMonths,
-            to: Date()
-        ) else { return 0 }
-        let removed = (try? KlinoteCore.purge(before: cutoff)) ?? 0
+        let removed = (try? store.purge(months: retentionMonths)) ?? 0
         if removed > 0 {
             copyBanner = removed == 1
                 ? "Deleted 1 note past the retention period."
@@ -487,8 +468,11 @@ final class AppModel: ObservableObject {
     }
 
     func deleteEncounter(_ id: String) {
-        if !encounters.contains(where: { $0.id == id && $0.isSyntheticDemo }) {
-            try? KlinoteCore.deleteSession(id: id)
+        // The bundled sample was never recorded, so there is nothing in the
+        // store to remove for it.
+        let isBundledSample = encounters.contains { $0.id == id && $0.isSyntheticDemo }
+        if !isBundledSample {
+            try? store.delete(encounterID: id)
         }
         encounters.removeAll { $0.id == id }
         if selection == id {
@@ -499,16 +483,7 @@ final class AppModel: ObservableObject {
     }
 
     func persist(_ encounter: Encounter) {
-        guard let note = encounter.note, let transcript = encounter.transcript else { return }
-        try? KlinoteCore.saveSession(
-            patientRef: encounter.patientRef,
-            discipline: encounter.discipline,
-            templateId: encounter.templateId,
-            startedAt: encounter.startedAt,
-            note: note,
-            transcript: transcript,
-            clinician: clinicianName
-        )
+        try? store.save(encounter, clinician: clinicianName)
         // Keeps the derived lists in step with the consult list without
         // another store read: this is all in memory.
         rebuildTaskViews()
@@ -529,8 +504,8 @@ final class AppModel: ObservableObject {
                 .actions ?? false
             guard isAction else { continue }
             for sentence in section.sentences {
-                try? KlinoteCore.addTask(
-                    encounterId: encounter.id,
+                try? store.addTask(
+                    encounterID: encounter.id,
                     text: sentence.text,
                     sourceKey: section.key
                 )
@@ -548,28 +523,22 @@ final class AppModel: ObservableObject {
     /// clicked a sentence in a thirteen-sentence note. The store is not free,
     /// so it is read once and the answers are kept.
     func reloadTasks() {
-        let fetched = (try? KlinoteCore.tasks(encounterId: "")) ?? []
-        allTasks = fetched
-        rebuildTaskViews()
+        rebuildBoard(tasks: (try? KlinoteCore.tasks(encounterId: "")) ?? [])
     }
 
+    /// One read fills the board; everything the interface shows is derived.
+    private func rebuildBoard(tasks: [ConsultTask]) {
+        board = TaskBoard.build(tasks: tasks, encounters: encounters, selection: selection)
+    }
+
+    /// The consult list or the selection changed. Rebuilt from what is already
+    /// in memory — never another read.
     private func rebuildTaskViews() {
-        let byId = Dictionary(uniqueKeysWithValues: encounters.map { ($0.id, $0) })
-        openTaskRows = allTasks.compactMap { task in
-            guard !task.done, let encounter = byId[task.encounterId] else { return nil }
-            return (task, encounter)
-        }
-        rebuildTaskIndex()
+        rebuildBoard(tasks: board.all)
     }
 
     private func rebuildTaskIndex() {
-        guard let id = selection else {
-            taskIndex = [:]
-            return
-        }
-        taskIndex = allTasks
-            .filter { $0.encounterId == id }
-            .reduce(into: [:]) { index, task in index[task.text] = task }
+        rebuildTaskViews()
     }
 
     /// The task a given sentence became, if its section is work to do.
@@ -578,16 +547,16 @@ final class AppModel: ObservableObject {
     /// sentence, so it must never touch the store.
     func task(for encounterID: String, sentence: String) -> ConsultTask? {
         guard encounterID == selection else { return nil }
-        return taskIndex[sentence]
+        return board.task(for: sentence, in: encounterID)
     }
 
     func setTask(_ task: ConsultTask, done: Bool) {
-        try? KlinoteCore.setTaskDone(id: task.id, done: done)
+        try? store.setTaskDone(id: task.id, done: done)
         reloadTasks()
     }
 
     func deleteTask(_ task: ConsultTask) {
-        try? KlinoteCore.deleteTask(id: task.id)
+        try? store.deleteTask(id: task.id)
         reloadTasks()
     }
 

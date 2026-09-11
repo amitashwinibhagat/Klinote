@@ -182,6 +182,61 @@ final class DecisionsTests: XCTestCase {
         XCTAssertTrue(TaskViews.index(tasks: tasks, encounterID: nil).isEmpty)
     }
 
+    // MARK: - The board
+
+    /// The invariant the perf fix rests on: one read in, everything out.
+    func testBoardDerivesEverythingFromOneRead() {
+        let mine = UUID().uuidString
+        let other = UUID().uuidString
+        let tasks = [
+            ConsultTask(id: "1", encounterId: mine, text: "Arrange a swab",
+                        sourceKey: "plan", createdAt: "t", done: false),
+            ConsultTask(id: "2", encounterId: mine, text: "Review in a week",
+                        sourceKey: "plan", createdAt: "t", done: true),
+            ConsultTask(id: "3", encounterId: other, text: "Refer to ENT",
+                        sourceKey: "plan", createdAt: "t", done: false),
+        ]
+        let board = TaskBoard.build(
+            tasks: tasks,
+            encounters: [encounter(id: mine), encounter(id: other)],
+            selection: mine
+        )
+        // The still-to-do list is open tasks only.
+        XCTAssertEqual(board.openRows.map(\.task.id), ["1", "3"])
+        XCTAssertEqual(board.openCount, 2)
+        // The index is the selected consult's, and includes what is done so the
+        // letter can strike it through.
+        XCTAssertEqual(Set(board.index.keys), ["Arrange a swab", "Review in a week"])
+        XCTAssertEqual(board.task(for: "Review in a week", in: mine)?.done, true)
+        XCTAssertNil(board.task(for: "Refer to ENT", in: mine))
+    }
+
+    func testBoardWithNoSelectionHasNoIndex() {
+        let board = TaskBoard.build(tasks: [], encounters: [], selection: nil)
+        XCTAssertTrue(board.index.isEmpty)
+        XCTAssertEqual(board.openCount, 0)
+    }
+
+    func testMovingSelectionMovesTheIndex() {
+        let first = UUID().uuidString
+        let second = UUID().uuidString
+        let tasks = [
+            ConsultTask(id: "1", encounterId: first, text: "One",
+                        sourceKey: "plan", createdAt: "t", done: false),
+            ConsultTask(id: "2", encounterId: second, text: "Two",
+                        sourceKey: "plan", createdAt: "t", done: false),
+        ]
+        let encounters = [encounter(id: first), encounter(id: second)]
+        XCTAssertEqual(
+            TaskBoard.build(tasks: tasks, encounters: encounters, selection: first).index.keys.sorted(),
+            ["One"]
+        )
+        XCTAssertEqual(
+            TaskBoard.build(tasks: tasks, encounters: encounters, selection: second).index.keys.sorted(),
+            ["Two"]
+        )
+    }
+
     // MARK: - Grouping
 
     private func day(_ offset: Int) -> Date {
