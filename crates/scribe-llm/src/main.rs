@@ -214,17 +214,28 @@ fn refine_prompt(draft: &LlmDraft) -> (String, String) {
 }
 
 fn render_chat(model: &LlamaModel, system: &str, user: &str) -> Result<(String, AddBos), String> {
-    let content = format!("{system}\n\n{user}");
     if let Ok(tmpl) = model.chat_template(None) {
-        let messages =
-            vec![LlamaChatMessage::new("user".into(), content).map_err(|err| err.to_string())?];
-        let prompt = model
+        let messages = vec![
+            LlamaChatMessage::new("system".into(), system.to_owned())
+                .map_err(|err| err.to_string())?,
+            LlamaChatMessage::new("user".into(), user.to_owned()).map_err(|err| err.to_string())?,
+        ];
+        let mut prompt = model
             .apply_chat_template(&tmpl, &messages, true)
             .map_err(|err| err.to_string())?;
+        // MiniCPM5 hybrid-reasoning: empty think block = no-think.
+        // llama.cpp does not pass enable_thinking=false through this template.
+        if prompt.ends_with("<|im_start|>assistant\n")
+            || prompt.ends_with("<|im_start|>assistant\n\n")
+        {
+            prompt.push_str("<think>\n\n</think>\n\n");
+        }
         return Ok((prompt, AddBos::Never));
     }
     Ok((
-        format!("<|im_start|>user\n{content}<|im_end|>\n<|im_start|>assistant\n"),
+        format!(
+            "<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+        ),
         AddBos::Always,
     ))
 }
@@ -400,7 +411,14 @@ fn assemble(
         sections,
         unassigned,
         generated_at: chrono::Utc::now(),
-        engine: "minicpm5-1b-phlox".to_owned(),
+        engine: format!(
+            "{}-phlox",
+            model_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("gguf")
+                .to_ascii_lowercase()
+        ),
         review_state: ReviewState::Draft,
         missing_required,
         machine_generated: true,

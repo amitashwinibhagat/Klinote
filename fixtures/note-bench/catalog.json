@@ -1,6 +1,6 @@
 {
   "description": "Small local instruct GGUFs under ~1 GB for SOAP drafting. Same Phlox extract→refine job.",
-  "max_bytes": 1100000000,
+  "max_bytes": 1600000000,
   "models": [
     {
       "id": "minicpm5-1b-q4",
@@ -9,6 +9,14 @@
       "url": "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf",
       "bytes": 688065920,
       "why": "1B-class on-device SOTA (OpenBMB, 2026-05). Default for Nota."
+    },
+    {
+      "id": "minicpm5-2b-q4",
+      "name": "MiniCPM5-2B Q4_K_M",
+      "file": "MiniCPM5-2B-Q4_K_M.gguf",
+      "url": "https://huggingface.co/openbmb/MiniCPM5-2B-GGUF/resolve/main/MiniCPM5-2B-Q4_K_M.gguf",
+      "bytes": 1561318368,
+      "why": "2B-class on-device SOTA (OpenBMB, 2026-09-07). Competitive with 4B; 1.56 GB Q4."
     },
     {
       "id": "llama32-1b-q4",

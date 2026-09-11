@@ -20,6 +20,7 @@ See `fixtures/note-bench/catalog.json`.
 | id | Model | Size |
 |---|---|---|
 | minicpm5-1b-q4 | MiniCPM5-1B Q4_K_M | 0.69 GB |
+| minicpm5-2b-q4 | MiniCPM5-2B Q4_K_M | 1.56 GB |
 | llama32-1b-q4 | Llama 3.2 1B Instruct Q4_K_M | 0.81 GB |
 | gemma3-1b-q4 | Gemma 3 1B IT Q4_K_M | 0.81 GB |
 | qwen25-1.5b-q4 | Qwen2.5-1.5B Instruct Q4_K_M | 0.99 GB |
