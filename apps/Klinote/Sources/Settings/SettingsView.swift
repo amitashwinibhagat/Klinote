@@ -176,26 +176,18 @@ private struct RecordingSettings: View {
 }
 
 private struct PrivacySettings: View {
-    @AppStorage("klinote.teachingBuildAcknowledged") private var teachingBuildAcknowledged = false
-
     var body: some View {
         Form {
-            Section("This build") {
-                Toggle("I understand this build is for teaching only", isOn: $teachingBuildAcknowledged)
-                Text("Nothing is encrypted at rest yet. Do not record real patients. Recording stays off until you confirm this.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
             Section("Where it lives") {
-                Text("Notes stay on this Mac. There is no account, no sync, and no server. The only download is listening and Quire, once each. Audio and notes are never uploaded.")
+                Text("Notes stay on this Mac, encrypted. There is no account, no sync, and no server. The only download is listening and Quire, once each. Audio and notes are never uploaded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Section("Not yet") {
-                Text("No encryption at rest. No retention policy. Do not use real patient data in this build.")
+                Text("No retention policy yet. Delete old consults yourself for now.")
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Names") {

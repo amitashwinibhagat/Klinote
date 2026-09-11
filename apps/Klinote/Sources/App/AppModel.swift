@@ -115,8 +115,6 @@ final class AppModel: ObservableObject {
     @Published var copyBanner: String?
     @Published var isSwapping = false
     @Published var templates: [TemplateSummary] = []
-    /// Until encryption at rest exists, recording real patients is forbidden.
-    @AppStorage("klinote.teachingBuildAcknowledged") var teachingBuildAcknowledged = false
 
     /// A recording captured before the speech model finished downloading,
     /// held until the download completes so it is transcribed for real.
@@ -299,10 +297,6 @@ final class AppModel: ObservableObject {
 
     func startRecording() {
         guard recordingState.isIdle else { return }
-        guard teachingBuildAcknowledged else {
-            lastError = "This build is for teaching. Confirm that in Settings → Privacy, then record."
-            return
-        }
         switch ModelDownloader.shared.state {
         case .ready:
             break

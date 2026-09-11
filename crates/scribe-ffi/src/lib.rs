@@ -312,10 +312,12 @@ struct StoreSaveRequest {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn scribe_store_save(
     db_path: *const c_char,
+    key: *const c_char,
     request_json: *const c_char,
 ) -> *mut c_char {
     let payload = (|| -> Result<Value, String> {
         let path = unsafe { cstr_to_string(db_path) }?;
+        let key = unsafe { optional_cstr(key) }?;
         let raw = unsafe { cstr_to_string(request_json) }?;
         let request: StoreSaveRequest =
             serde_json::from_str(&raw).map_err(|err| format!("invalid request json: {err}"))?;
@@ -336,7 +338,8 @@ pub unsafe extern "C" fn scribe_store_save(
             }
         }
 
-        let store = scribe_store::Store::open(&path).map_err(|err| err.to_string())?;
+        let store = scribe_store::Store::open_with_key(&path, key.as_deref())
+            .map_err(|err| err.to_string())?;
         store
             .save_encounter(&encounter)
             .map_err(|err| err.to_string())?;
@@ -367,10 +370,15 @@ pub unsafe extern "C" fn scribe_store_save(
 /// # Safety
 /// `db_path` must be null or valid NUL-terminated UTF-8.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_store_list(db_path: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn scribe_store_list(
+    db_path: *const c_char,
+    key: *const c_char,
+) -> *mut c_char {
     let payload = (|| -> Result<Value, String> {
         let path = unsafe { cstr_to_string(db_path) }?;
-        let store = scribe_store::Store::open(&path).map_err(|err| err.to_string())?;
+        let key = unsafe { optional_cstr(key) }?;
+        let store = scribe_store::Store::open_with_key(&path, key.as_deref())
+            .map_err(|err| err.to_string())?;
         let sessions = store.list_sessions().map_err(|err| err.to_string())?;
         let items: Vec<Value> = sessions
             .into_iter()
@@ -421,6 +429,13 @@ unsafe fn cstr_to_string(pointer: *const c_char) -> Result<String, String> {
         .to_str()
         .map(|s| s.to_owned())
         .map_err(|err| format!("input was not valid UTF-8: {err}"))
+}
+
+unsafe fn optional_cstr(pointer: *const c_char) -> Result<Option<String>, String> {
+    if pointer.is_null() {
+        return Ok(None);
+    }
+    unsafe { cstr_to_string(pointer) }.map(Some)
 }
 
 fn into_c_string(value: &str) -> *mut c_char {

@@ -323,12 +323,16 @@ enum KlinoteCore {
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
             throw KlinoteCoreError.malformedResponse
         }
-        let envelope: EngineEnvelope<Bool> = try envelope(from: scribe_store_save(storePath(), requestJSON))
+        let envelope: EngineEnvelope<Bool> = try envelope(
+            from: scribe_store_save(storePath(), try StoreKey.hex(), requestJSON)
+        )
         guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not save") }
     }
 
     static func loadSessions() throws -> [StoredSession] {
-        let payload: StoreListEnvelope = try envelope(from: scribe_store_list(storePath()))
+        let payload: StoreListEnvelope = try envelope(
+            from: scribe_store_list(storePath(), try StoreKey.hex())
+        )
         guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "could not load") }
         return payload.sessions ?? []
     }

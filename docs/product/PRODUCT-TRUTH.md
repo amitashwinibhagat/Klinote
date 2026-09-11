@@ -36,7 +36,7 @@ was said and every draft requiring human review before it enters the record.
 | "HIPAA / GDPR compliant" | Not assessed. We have a strong privacy posture; compliance is a separate, legal workstream. |
 | "Integrates with Epic / Cerner / your EHR" | No EHR integration exists. Today the output is Markdown/JSON for copy-paste. |
 | "Medical device" / "diagnosis" | This is documentation software. It must not be positioned as clinical decision support. |
-| "Encrypted" | Data at rest relies on FileVault today. SQLCipher is not wired in. |
+| "Encrypted at rest" | ✅ SQLCipher; Keychain-held key. Not a HIPAA determination. |
 
 ## Positioning
 

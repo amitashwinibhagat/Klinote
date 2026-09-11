@@ -88,13 +88,13 @@ char *scribe_note_from_audio(const char *request_json);
  * Input JSON: {patient_ref, discipline, template_id, started_at, note, transcript}
  * Output: {"ok":true} | {"ok":false,"error":"..."}
  */
-char *scribe_store_save(const char *db_path, const char *request_json);
+char *scribe_store_save(const char *db_path, const char *key, const char *request_json);
 
 /*
  * List persisted sessions, newest first.
  * Output: {"ok":true,"sessions":[{patient_ref,discipline,template_id,started_at,note,transcript}]}
  */
-char *scribe_store_list(const char *db_path);
+char *scribe_store_list(const char *db_path, const char *key);
 
 /* Free any string returned by this library. NULL is a no-op. */
 void scribe_string_free(char *pointer);

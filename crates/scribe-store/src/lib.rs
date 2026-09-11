@@ -6,10 +6,8 @@
 //!
 //! ## Not yet done, and knowingly so
 //!
-//! - **Encryption at rest.** Today this relies on FileVault. Before any real
-//!   patient data touches this, add SQLCipher (`rusqlite`'s
-//!   `bundled-sqlcipher-vendored-openssl` feature) with a key held in the
-//!   macOS Keychain. Tracked in `docs/compliance/PRIVACY.md`.
+//! - **Encryption at rest.** SQLCipher. The Mac shell holds the key in the
+//!   Keychain and passes it in on open. Never write the key next to the db.
 //! - **Retention policy.** Rows are never deleted. The shell must offer
 //!   per-practice retention and a real delete that also vacuums.
 
@@ -35,13 +33,29 @@ pub struct Store {
 
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
+        Self::open_with_key(path, None)
+    }
+
+    /// `key` is a passphrase for SQLCipher. The Mac app passes a Keychain-held
+    /// hex secret. CLI tools may omit it (unencrypted teaching fixtures only).
+    pub fn open_with_key(path: impl AsRef<Path>, key: Option<&str>) -> Result<Self> {
         let path = path.as_ref();
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() {
                 std::fs::create_dir_all(parent)?;
             }
         }
+        retire_plaintext_sqlite(path)?;
         let conn = Connection::open(path).map_err(storage_error)?;
+        if let Some(key) = key {
+            if key.is_empty() {
+                return Err(ScribeError::Storage(
+                    "store key must not be empty".into(),
+                ));
+            }
+            conn.pragma_update(None, "key", key)
+                .map_err(storage_error)?;
+        }
         let store = Self { conn };
         store.migrate()?;
         Ok(store)
@@ -349,6 +363,20 @@ pub struct StoredSession {
     pub note: Option<ClinicalNote>,
 }
 
+/// Teaching-era files were plaintext SQLite. SQLCipher cannot open them.
+/// Move aside rather than try to convert; those rows were never real patients.
+fn retire_plaintext_sqlite(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let header = std::fs::read(path).map_err(|err| ScribeError::Storage(err.to_string()))?;
+    if header.starts_with(b"SQLite format 3") {
+        let backup = path.with_extension("sqlite.unencrypted-bak");
+        std::fs::rename(path, backup).map_err(|err| ScribeError::Storage(err.to_string()))?;
+    }
+    Ok(())
+}
+
 fn storage_error(err: rusqlite::Error) -> ScribeError {
     ScribeError::Storage(err.to_string())
 }
@@ -404,6 +432,23 @@ mod tests {
         assert_eq!(loaded.id, pipeline.id);
         assert_eq!(loaded.encounter_id, encounter.id);
         assert_eq!(loaded.review_state, ReviewState::Draft);
+    }
+
+    #[test]
+    fn encrypted_file_is_not_plain_sqlite() {
+        let path = std::env::temp_dir().join(format!("scribe-enc-{}.sqlite", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        {
+            let store =
+                Store::open_with_key(&path, Some("test-key-not-for-production")).unwrap();
+            store.audit("test", "probe", None, None).unwrap();
+        }
+        let header = std::fs::read(&path).unwrap();
+        assert!(
+            !header.starts_with(b"SQLite format 3"),
+            "ciphertext must not look like a sqlite file"
+        );
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

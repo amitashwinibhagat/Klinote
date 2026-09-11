@@ -43,16 +43,15 @@ repository or in the app database.
 
 | Gap | Why it matters | Fix |
 |---|---|---|
-| **No encryption at rest** | The SQLite file is readable by anything running as the user; protection depends on FileVault. | `rusqlite` with `bundled-sqlcipher-vendored-openssl`; key in the macOS Keychain, never on disk in the app's directory. |
+| **Encryption at rest** | SQLCipher. Key in the Keychain (`one.klinote.mac` / `sqlite-key`). | Done. Teaching-era plaintext files are renamed `*.unencrypted-bak` and a new ciphertext db is created. |
 | **No retention policy** | Rows are never deleted. Clinical data has statutory retention and deletion obligations. | Per-practice policy (retain N months/years), automated purge, `VACUUM`. |
 | **No real delete** | A delete must be verifiable, not a soft flag. | Hard delete + vacuum + an audit entry recording the deletion (without the content). |
 | **No access control** | Any process running as the user can read the database. | Keychain-gated key; consider per-practice database files. |
 | **No export/portability story** | Clinicians have a right to their data. | Documented export format and a one-command backup. |
 | **No BAA/DPA position** | Even though no data is processed by us, some practices require paperwork. | Written data-handling statement; counsel review before enterprise sales. |
 
-**Until encryption at rest and retention are implemented, real patient data
-must not be processed by this software.** Use synthetic or fully de-identified
-fixtures during development and the concierge sprint.
+**Retention is still missing.** Notes are encrypted, but they are never deleted.
+Practices still need a retention policy before long-running real-patient use.
 
 ## Concierge-sprint rules
 

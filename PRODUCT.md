@@ -73,9 +73,7 @@ once on first use). A Swift/SwiftUI macOS shell: menu bar, patient-visible
 recording strip, review window with evidence margin, settings. SQLite storage
 with an append-only audit log. A C ABI for the shell.
 
-**Not built.** A model-backed generator. EHR integration. Encryption at rest.
-Retention and deletion. Persistence of encounters across app relaunch in the
-shell (the engine store exists; the app does not wire it yet).
+**Not built.** EHR integration. Retention and deletion.
 
 **Constraints.**
 
@@ -86,8 +84,7 @@ shell (the engine store exists; the app does not wire it yet).
 - A machine never sets a note to approved. Only a human does.
 - Nothing is silently dropped: text that cannot be confidently routed is
   surfaced to the clinician, not discarded.
-- Encryption at rest is not yet implemented, so real patient data must not be
-  processed by this build.
+- Notes at rest are SQLCipher-encrypted. The key lives in the Keychain.
 
 **Undecided.** Which EHRs to integrate with. Whether the product ships on the
 Mac App Store or direct only. Pricing beyond the $99/month validation offer.
