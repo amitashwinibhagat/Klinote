@@ -1,5 +1,5 @@
 //
-// NotaCore.swift
+// KlinoteCore.swift
 //
 // The Swift face of the Rust engine. Everything clinical — transcription,
 // diarisation, templates, routing, completeness, storage — lives on the other
@@ -153,21 +153,21 @@ struct TemplateSectionSummary: Decodable, Identifiable {
 
 // MARK: - Errors
 
-enum NotaCoreError: LocalizedError {
+enum KlinoteCoreError: LocalizedError {
     case engine(String)
     case malformedResponse
 
     var errorDescription: String? {
         switch self {
         case .engine(let message): message
-        case .malformedResponse: "The engine returned a response Nota could not read."
+        case .malformedResponse: "The engine returned a response Klinote could not read."
         }
     }
 }
 
 // MARK: - The bridge
 
-enum NotaCore {
+enum KlinoteCore {
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -180,7 +180,7 @@ enum NotaCore {
 
     static func templates() throws -> [TemplateSummary] {
         let payload: TemplatesEnvelope = try envelope(from: scribe_list_templates())
-        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
         return payload.templates ?? []
     }
 
@@ -199,13 +199,13 @@ enum NotaCore {
         ]
         let requestData = try JSONSerialization.data(withJSONObject: request)
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
 
         let payload: NoteEnvelope = try envelope(from: scribe_note_from_text(requestJSON))
-        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
         guard let note = payload.note, let transcript = payload.transcript else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
         return (note, transcript)
     }
@@ -217,10 +217,10 @@ enum NotaCore {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let data = try encoder.encode(note)
         guard let json = String(data: data, encoding: .utf8) else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
         let payload: MarkdownEnvelope = try envelope(from: scribe_note_to_markdown(json))
-        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
         return payload.markdown ?? ""
     }
 
@@ -244,13 +244,13 @@ enum NotaCore {
 
         let requestData = try JSONSerialization.data(withJSONObject: request)
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
 
         let payload: NoteEnvelope = try envelope(from: scribe_note_from_audio(requestJSON))
-        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
         guard let note = payload.note, let transcript = payload.transcript else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
         return (note, transcript)
     }
@@ -268,7 +268,7 @@ enum NotaCore {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let transcriptData = try encoder.encode(transcript)
         guard let transcriptObject = try JSONSerialization.jsonObject(with: transcriptData) as? [String: Any] else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
         let request: [String: Any] = [
             "template_id": templateId,
@@ -276,19 +276,24 @@ enum NotaCore {
         ]
         let requestData = try JSONSerialization.data(withJSONObject: request)
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
         let payload: NoteEnvelope = try envelope(from: scribe_note_from_transcript(requestJSON))
-        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
-        guard let note = payload.note else { throw NotaCoreError.malformedResponse }
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
+        guard let note = payload.note else { throw KlinoteCoreError.malformedResponse }
         return note
     }
 
     static func storePath() -> String {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("Nota", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("nota.sqlite").path
+        let dir = ModelDownloader.supportDirectory
+        let dest = dir.appendingPathComponent("klinote.sqlite")
+        let legacy = dir.appendingPathComponent("nota.sqlite")
+        if !FileManager.default.fileExists(atPath: dest.path),
+           FileManager.default.fileExists(atPath: legacy.path)
+        {
+            try? FileManager.default.moveItem(at: legacy, to: dest)
+        }
+        return dest.path
     }
 
     static func saveSession(
@@ -316,15 +321,15 @@ enum NotaCore {
         payload["transcript"] = try JSONSerialization.jsonObject(with: transcriptData)
         let requestData = try JSONSerialization.data(withJSONObject: payload)
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
         let envelope: EngineEnvelope<Bool> = try envelope(from: scribe_store_save(storePath(), requestJSON))
-        guard envelope.ok else { throw NotaCoreError.engine(envelope.error ?? "could not save") }
+        guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not save") }
     }
 
     static func loadSessions() throws -> [StoredSession] {
         let payload: StoreListEnvelope = try envelope(from: scribe_store_list(storePath()))
-        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "could not load") }
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "could not load") }
         return payload.sessions ?? []
     }
 
@@ -332,11 +337,11 @@ enum NotaCore {
 
     private static func envelope<T: Decodable>(from pointer: UnsafeMutablePointer<CChar>?) throws -> T {
         let json = string(from: pointer)
-        guard let data = json.data(using: .utf8) else { throw NotaCoreError.malformedResponse }
+        guard let data = json.data(using: .utf8) else { throw KlinoteCoreError.malformedResponse }
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
-            throw NotaCoreError.engine("Could not read the engine response: \(error)")
+            throw KlinoteCoreError.engine("Could not read the engine response: \(error)")
         }
     }
 

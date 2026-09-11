@@ -14,7 +14,7 @@
 
 import SwiftUI
 
-enum NotaColor {
+enum KlinoteColor {
     // Ground
     static let desk = Color(nsColor: .windowBackgroundColor)
     static let document = Color(nsColor: .textBackgroundColor)
@@ -59,7 +59,7 @@ enum NotaColor {
     }
 }
 
-enum NotaFont {
+enum KlinoteFont {
     /// The letter itself.
     static func document(_ size: CGFloat = 14, weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .serif)
@@ -84,7 +84,7 @@ enum NotaFont {
     }
 }
 
-enum NotaMetrics {
+enum KlinoteMetrics {
     static let space4: CGFloat = 4
     static let space8: CGFloat = 8
     static let space12: CGFloat = 12
@@ -116,7 +116,7 @@ private struct ReduceMotionKey: EnvironmentKey {
 extension EnvironmentValues {
     /// True when the user has asked for reduced motion. Read once, honour
     /// everywhere.
-    var notaReduceMotion: Bool {
+    var klinoteReduceMotion: Bool {
         get { self[ReduceMotionKey.self] }
         set { self[ReduceMotionKey.self] = newValue }
     }

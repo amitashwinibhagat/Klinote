@@ -1,6 +1,6 @@
-# DESIGN.md — Nota
+# DESIGN.md — Klinote
 
-The durable visual system for Nota. Product truth lives in `PRODUCT.md`; the
+The durable visual system for Klinote. Product truth lives in `PRODUCT.md`; the
 direction and its contract live in `docs/design/UX-PLAN.md`.
 
 Written from the built world. Tokens below are the source of truth; if code and
@@ -12,7 +12,7 @@ this file disagree, this file wins and the code is wrong.
 
 **The clinical letter.** A note is a formal document addressed to the record:
 letterhead, ruled field grid, structure, marginal annotation, a signature block,
-a filing stamp. Nota renders the generated note as that document and puts the
+a filing stamp. Klinote renders the generated note as that document and puts the
 evidence in the margin, where careful readers have always put it.
 
 Two consequences that govern every decision:

@@ -3,14 +3,14 @@
 //
 // System-wide shortcuts. Carbon is the only API that registers a hotkey which
 // fires while another application is frontmost — which is the whole point:
-// the clinician is looking at the record system, not at Nota.
+// the clinician is looking at the record system, not at Klinote.
 //
 
 import AppKit
 import Carbon.HIToolbox
 
-/// `NOTA` as an OSType signature.
-private let notaSignature: OSType = 0x4E4F5441
+/// `KLNT` as an OSType signature.
+private let klinoteSignature: OSType = 0x4B4C4E54
 
 final class HotKeyCenter {
     static let shared = HotKeyCenter()
@@ -18,7 +18,7 @@ final class HotKeyCenter {
     enum ID: UInt32 {
         case toggleRecording = 1
         case togglePause = 2
-        case openNota = 3
+        case openKlinote = 3
         case copyNote = 4
         case swapSpeakers = 5
     }
@@ -66,7 +66,7 @@ final class HotKeyCenter {
     func register(_ id: ID, keyCode: Int, modifiers: Int, action: @escaping () -> Void) {
         handlers[id.rawValue] = action
         var reference: EventHotKeyRef?
-        let hotKeyID = EventHotKeyID(signature: notaSignature, id: id.rawValue)
+        let hotKeyID = EventHotKeyID(signature: klinoteSignature, id: id.rawValue)
         let status = RegisterEventHotKey(
             UInt32(keyCode),
             UInt32(modifiers),
@@ -78,7 +78,7 @@ final class HotKeyCenter {
         if status == noErr {
             references.append(reference)
         } else {
-            NSLog("Nota: could not register hotkey \(id.rawValue) (status \(status))")
+            NSLog("Klinote: could not register hotkey \(id.rawValue) (status \(status))")
         }
     }
 

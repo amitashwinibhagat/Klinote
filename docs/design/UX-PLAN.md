@@ -1,4 +1,4 @@
-# UX Plan — Nota
+# UX Plan — Klinote
 
 **Shape brief + direction contract.** Surface: the macOS app shell and its first
 authoritative surface, the note review window.
@@ -48,7 +48,7 @@ breaking. That is what the assignment is selecting for.
 ### Challengers weighed
 
 Each fused with the product's facts before judging — challenger supplies the
-form, Nota supplies the content, clarity wins conflicts.
+form, Klinote supplies the content, clarity wins conflicts.
 
 | Challenger | Audience identification | Product clarity | Verdict | Kept line (raise) |
 |---|---|---|---|---|
@@ -69,7 +69,7 @@ oscilloscope) remain available as full alternates if the build stalls.
 
 **The clinical letter.** A note is a formal document addressed to the record:
 letterhead, ruled field grid, structure, marginal annotation, a signature, and
-a filing stamp. Nota treats the generated note as that document — and puts the
+a filing stamp. Klinote treats the generated note as that document — and puts the
 evidence in the margin, where a careful reader has always put it.
 
 Raises carried in, each named for its donor:
@@ -142,7 +142,7 @@ provenance.
 **The proof this product must demonstrate, and no competitor can copy-paste:**
 the note is *checkable*. Select any sentence and the margin shows the exact
 utterance it came from, with speaker and timestamp. That single interaction is
-the whole trust argument. A cloud scribe can claim privacy; Nota can prove
+the whole trust argument. A cloud scribe can claim privacy; Klinote can prove
 provenance.
 
 **Completeness is the second proof.** Sections the template requires but the
@@ -164,7 +164,7 @@ always-present affordance.
   the only place red appears in the menu bar.
 - Menu: **Start recording** (⌥⌘R) · **Pause** (while recording) · **Stop and
   draft** · separator · recent encounters (last five, by pseudonym and time) ·
-  **Open Nota** (⌘⇧N) · **Settings…** (⌘,) · **Quit**.
+  **Open Klinote** (⌘⇧N) · **Settings…** (⌘,) · **Quit**.
 - The status item must remain legible with Reduce Transparency on.
 
 ### 5.2 Recording strip (the patient-visible indicator)
@@ -253,7 +253,7 @@ A clinician must be able to record, review and file without a mouse.
 |---|---|---|
 | `⌥⌘R` | Global (Carbon hotkey) | Start / stop recording |
 | `⌥⌘P` | Global | Pause / resume (recording only) |
-| `⌘⇧N` | Global | Open Nota (review window) |
+| `⌘⇧N` | Global | Open Klinote (review window) |
 | `Esc` | Global, while recording | Stop immediately |
 | `⌘,` | App | Settings |
 | `⌘↩` | Review window | File note (approve) — the only path to `Approved` |

@@ -46,7 +46,7 @@ final class Recorder: ObservableObject {
         let sampleRate = format.sampleRate
 
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nota-recording-\(UUID().uuidString).wav")
+            .appendingPathComponent("klinote-recording-\(UUID().uuidString).wav")
 
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatLinearPCM),
@@ -64,7 +64,7 @@ final class Recorder: ObservableObject {
             do {
                 try file.write(from: buffer)
             } catch {
-                NSLog("Nota: could not write recording: \(error)")
+                NSLog("Klinote: could not write recording: \(error)")
             }
 
             let channel = buffer.floatChannelData?[0]

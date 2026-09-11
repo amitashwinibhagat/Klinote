@@ -94,19 +94,14 @@ Mac App Store or direct only. Pricing beyond the $99/month validation offer.
 
 ## Brand Commitments
 
-**Name: Nota.** From the Latin for a note, and recognisable as "note" across
-the Romance languages — a register that is native to clinical language. Short,
-calm, and pronounceable in one syllable pair. Internal crate names remain
-`scribe-*`; the public name is Nota, the same way the sibling product ships as
-WriteAmp over an internal `WriteAmpTyping` identity.
+**Name: Klinote.** Clinical + note. Site [klinote.one](https://klinote.one).
+The mark is a lowercase sans wordmark — no rule, no serif, no domain line.
+Internal crate names remain `scribe-*`; the public name is Klinote, the same
+way the sibling product ships as WriteAmp over an internal `WriteAmpTyping`
+identity.
 
-Known consideration: the name sits near "Notability" in the Mac note-taking
-category. Accepted for now; the clinical market and the product category are
-distinct, and the name was chosen for fit rather than collision-avoidance.
-
-No logo, palette, typeface or voice exists yet. Nothing visual is inherited
-from the sibling products (WriteAmp, Echo Flow); this is a separate clinical
-brand and must not look like a consumer writing tool.
+Nothing visual is inherited from the sibling products (WriteAmp, Echo Flow);
+this is a separate clinical brand and must not look like a consumer writing tool.
 
 ## Evidence on Hand
 

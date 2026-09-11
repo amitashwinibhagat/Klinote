@@ -1,7 +1,7 @@
 //
 // ModelDownloader.swift
 //
-// The one inward network in the product: on first use, Nota downloads the
+// The one inward network in the product: on first use, Klinote downloads the
 // open-source whisper small (en) tinydiarize model so speaker diarisation can
 // run on device. Audio and text never leave the Mac — the model is the only
 // thing that crosses the network, and it crosses it in one direction.
@@ -14,7 +14,7 @@ import Foundation
 
 extension Notification.Name {
     /// Posted on the main thread when the speech model finishes downloading.
-    static let notaModelDownloadFinished = Notification.Name("one.nota.mac.model-download-finished")
+    static let klinoteModelDownloadFinished = Notification.Name("one.klinote.mac.model-download-finished")
 }
 
 enum ModelState: Equatable {
@@ -72,9 +72,21 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
     private var resumeData: Data?
     private var progressObservation: NSKeyValueObservation?
 
-    nonisolated static var modelsDirectory: URL {
+    nonisolated static var supportDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return base.appendingPathComponent("Nota/Models", isDirectory: true)
+        let dest = base.appendingPathComponent("Klinote", isDirectory: true)
+        let legacy = base.appendingPathComponent("Nota", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: dest.path),
+           FileManager.default.fileExists(atPath: legacy.path)
+        {
+            try? FileManager.default.moveItem(at: legacy, to: dest)
+        }
+        try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        return dest
+    }
+
+    nonisolated static var modelsDirectory: URL {
+        supportDirectory.appendingPathComponent("Models", isDirectory: true)
     }
 
     nonisolated static var modelFile: URL {
@@ -84,7 +96,7 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
     private override init() {
         super.init()
         let configuration = URLSessionConfiguration.background(
-            withIdentifier: "one.nota.mac.model-download"
+            withIdentifier: "one.klinote.mac.model-download"
         )
         configuration.isDiscretionary = false
         session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
@@ -197,7 +209,7 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
                     self.noteState = .ready
                 } else {
                     self.state = .ready
-                    NotificationCenter.default.post(name: .notaModelDownloadFinished, object: nil)
+                    NotificationCenter.default.post(name: .klinoteModelDownloadFinished, object: nil)
                 }
                 self.task = nil
                 self.progressObservation = nil

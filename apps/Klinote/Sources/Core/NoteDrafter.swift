@@ -76,7 +76,7 @@ enum NoteDrafter {
 
         // Phlox-style (MIT, bloodworks-io/phlox): small local models one-shot a whole
         // note poorly. Extract per template field as JSON, then a brevity pass.
-        // Nota's addition: every sentence cites transcript indices so the margin works.
+        // Klinote's addition: every sentence cites transcript indices so the margin works.
         let extractInstructions = """
         You extract clinical documentation from a consultation transcript for a qualified clinician.
         Work only from the transcript. Do not invent findings, diagnoses, drugs, or plans.
@@ -139,7 +139,7 @@ enum NoteDrafter {
                 encounterId: encounterId
             )
         } catch {
-            NSLog("Nota: on-device note draft failed: \(error.localizedDescription)")
+            NSLog("Klinote: on-device note draft failed: \(error.localizedDescription)")
             return nil
         }
     }
@@ -181,7 +181,7 @@ enum NoteDrafter {
             json = trimmed
         }
         guard let data = json.data(using: .utf8) else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
         return try JSONDecoder().decode(LLMDraft.self, from: data)
     }
@@ -189,7 +189,7 @@ enum NoteDrafter {
     private static func jsonString(from draft: LLMDraft) throws -> String {
         let data = try JSONEncoder().encode(draft)
         guard let string = String(data: data, encoding: .utf8) else {
-            throw NotaCoreError.malformedResponse
+            throw KlinoteCoreError.malformedResponse
         }
         return string
     }

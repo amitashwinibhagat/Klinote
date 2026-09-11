@@ -29,11 +29,11 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Nota"
+        window.title = "Klinote"
         window.subtitle = "Clinical notes that never leave the room"
         window.minSize = NSSize(width: 1040, height: 640)
         window.contentView = NSHostingView(rootView: ReviewWindow(model: AppModel.shared))
-        window.setFrameAutosaveName("NotaReviewWindow")
+        window.setFrameAutosaveName("KlinoteReviewWindow")
         window.center()
         window.delegate = self
         self.window = window
@@ -54,10 +54,10 @@ struct ReviewWindow: View {
     var body: some View {
         NavigationSplitView {
             EncounterSidebar(model: model)
-                .background(NotaColor.desk, ignoresSafeAreaEdges: .all)
+                .background(KlinoteColor.desk, ignoresSafeAreaEdges: .all)
                 .navigationSplitViewColumnWidth(
                     min: 220,
-                    ideal: NotaMetrics.sidebarWidth,
+                    ideal: KlinoteMetrics.sidebarWidth,
                     max: 320
                 )
         } detail: {
@@ -65,47 +65,47 @@ struct ReviewWindow: View {
         }
         .inspector(isPresented: $showMargin) {
             MarginView(model: model)
-                .background(NotaColor.margin, ignoresSafeAreaEdges: .all)
+                .background(KlinoteColor.margin, ignoresSafeAreaEdges: .all)
                 .inspectorColumnWidth(
                     min: 260,
-                    ideal: NotaMetrics.marginColumnWidth,
+                    ideal: KlinoteMetrics.marginColumnWidth,
                     max: 420
                 )
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if let error = model.lastError {
-                HStack(alignment: .firstTextBaseline, spacing: NotaMetrics.space12) {
+                HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
                     Text(error)
-                        .font(NotaFont.ui(12))
-                        .foregroundStyle(NotaColor.primary)
+                        .font(KlinoteFont.ui(12))
+                        .foregroundStyle(KlinoteColor.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                     Button("Dismiss") { model.lastError = nil }
                         .controlSize(.small)
                 }
-                .padding(.horizontal, NotaMetrics.space16)
-                .padding(.vertical, NotaMetrics.space8)
-                .background(NotaColor.caution.opacity(0.14))
+                .padding(.horizontal, KlinoteMetrics.space16)
+                .padding(.vertical, KlinoteMetrics.space8)
+                .background(KlinoteColor.caution.opacity(0.14))
                 .overlay(alignment: .bottom) { Hairline() }
             } else if let banner = model.copyBanner {
-                HStack(alignment: .firstTextBaseline, spacing: NotaMetrics.space12) {
+                HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
                     Text(banner)
-                        .font(NotaFont.ui(12, weight: .medium))
-                        .foregroundStyle(NotaColor.ink)
+                        .font(KlinoteFont.ui(12, weight: .medium))
+                        .foregroundStyle(KlinoteColor.ink)
                     Spacer(minLength: 0)
                     Button("Dismiss") { model.copyBanner = nil }
                         .controlSize(.small)
                 }
-                .padding(.horizontal, NotaMetrics.space16)
-                .padding(.vertical, NotaMetrics.space8)
-                .background(NotaColor.ink.opacity(0.08))
+                .padding(.horizontal, KlinoteMetrics.space16)
+                .padding(.vertical, KlinoteMetrics.space8)
+                .background(KlinoteColor.ink.opacity(0.08))
                 .overlay(alignment: .bottom) { Hairline() }
             }
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
-                    withAnimation(.easeInOut(duration: NotaMetrics.motionLayout)) {
+                    withAnimation(.easeInOut(duration: KlinoteMetrics.motionLayout)) {
                         showMargin.toggle()
                     }
                 } label: {
@@ -123,8 +123,8 @@ struct ReviewWindow: View {
                 .help("Copy the note to paste into the record (⌘⇧C)")
             }
         }
-        .environment(\.notaReduceMotion, NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
-        .background(NotaColor.desk)
+        .environment(\.klinoteReduceMotion, NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        .background(KlinoteColor.desk)
         .frame(minWidth: 1040, minHeight: 640)
     }
 }
@@ -148,8 +148,8 @@ struct EncounterSidebar: View {
                 .buttonStyle(.borderless)
                 .help("Record a consultation (⌥⌘R)")
             }
-            .padding(.horizontal, NotaMetrics.space16)
-            .padding(.vertical, NotaMetrics.space12)
+            .padding(.horizontal, KlinoteMetrics.space16)
+            .padding(.vertical, KlinoteMetrics.space12)
 
             Hairline()
 
@@ -159,7 +159,7 @@ struct EncounterSidebar: View {
                     message: "Record a consultation, or open the bundled sample to see how a draft reads.",
                     action: (title: "Open the sample note", handler: { model.prepareDemoNote() })
                 )
-                .padding(NotaMetrics.space16)
+                .padding(KlinoteMetrics.space16)
                 Spacer()
             } else {
                 ScrollView {
@@ -179,7 +179,7 @@ struct EncounterSidebar: View {
                 }
             }
         }
-        .background(NotaColor.desk)
+        .background(KlinoteColor.desk)
     }
 }
 
@@ -191,29 +191,29 @@ struct EncounterSpine: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Text(encounter.isSyntheticDemo ? "Sample" : Self.time(encounter.startedAt))
-                    .font(NotaFont.data(12))
-                    .foregroundStyle(NotaColor.primary)
-                Spacer(minLength: NotaMetrics.space8)
+                    .font(KlinoteFont.data(12))
+                    .foregroundStyle(KlinoteColor.primary)
+                Spacer(minLength: KlinoteMetrics.space8)
                 Text(encounter.state.word)
-                    .font(NotaFont.label())
+                    .font(KlinoteFont.label())
                     .foregroundStyle(encounter.state.tone)
             }
-            HStack(spacing: NotaMetrics.space8) {
+            HStack(spacing: KlinoteMetrics.space8) {
                 Text(encounter.templateId)
-                    .font(NotaFont.label())
-                    .foregroundStyle(NotaColor.secondary)
+                    .font(KlinoteFont.label())
+                    .foregroundStyle(KlinoteColor.secondary)
                 Text(encounter.discipline.replacingOccurrences(of: "_", with: " "))
-                    .font(NotaFont.label())
-                    .foregroundStyle(NotaColor.tertiary)
+                    .font(KlinoteFont.label())
+                    .foregroundStyle(KlinoteColor.tertiary)
             }
         }
-        .padding(.horizontal, NotaMetrics.space16)
-        .padding(.vertical, NotaMetrics.space12)
+        .padding(.horizontal, KlinoteMetrics.space16)
+        .padding(.vertical, KlinoteMetrics.space12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? NotaColor.accent.opacity(0.12) : .clear)
+        .background(isSelected ? KlinoteColor.accent.opacity(0.12) : .clear)
         .overlay(alignment: .leading) {
             Rectangle()
-                .fill(isSelected ? NotaColor.accent : .clear)
+                .fill(isSelected ? KlinoteColor.accent : .clear)
                 .frame(width: 2)
         }
         .contentShape(Rectangle())

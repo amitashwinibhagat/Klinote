@@ -20,10 +20,10 @@ struct MarginView: View {
             if let transcript = model.selectedEncounter?.transcript {
                 if transcript.humanSupplied {
                     Text("This draft was produced from a typed transcript, not a recording.")
-                        .font(NotaFont.label())
-                        .foregroundStyle(NotaColor.tertiary)
-                        .padding(.horizontal, NotaMetrics.space16)
-                        .padding(.vertical, NotaMetrics.space8)
+                        .font(KlinoteFont.label())
+                        .foregroundStyle(KlinoteColor.tertiary)
+                        .padding(.horizontal, KlinoteMetrics.space16)
+                        .padding(.vertical, KlinoteMetrics.space8)
                 }
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -42,7 +42,7 @@ struct MarginView: View {
                     }
                     .onChange(of: model.selectedSentenceID) { _, _ in
                         guard let target = primaryEvidenceID else { return }
-                        withAnimation(.easeInOut(duration: NotaMetrics.motionLayout)) {
+                        withAnimation(.easeInOut(duration: KlinoteMetrics.motionLayout)) {
                             proxy.scrollTo(target, anchor: .center)
                         }
                     }
@@ -52,11 +52,11 @@ struct MarginView: View {
                     title: "No source",
                     message: "There is nothing to trace this note back to yet."
                 )
-                .padding(NotaMetrics.space16)
+                .padding(KlinoteMetrics.space16)
                 Spacer()
             }
         }
-        .background(NotaColor.margin)
+        .background(KlinoteColor.margin)
     }
 
     private var header: some View {
@@ -64,16 +64,16 @@ struct MarginView: View {
             TabLabel(text: "Evidence")
             if let sentenceNumber = selectedSentenceNumber {
                 Text("Words behind sentence \(sentenceNumber)")
-                    .font(NotaFont.ui(12, weight: .medium))
-                    .foregroundStyle(NotaColor.primary)
+                    .font(KlinoteFont.ui(12, weight: .medium))
+                    .foregroundStyle(KlinoteColor.primary)
             } else {
                 Text("Select a sentence to see the words behind it.")
-                    .font(NotaFont.ui(12))
-                    .foregroundStyle(NotaColor.secondary)
+                    .font(KlinoteFont.ui(12))
+                    .foregroundStyle(KlinoteColor.secondary)
             }
         }
-        .padding(.horizontal, NotaMetrics.space16)
-        .padding(.vertical, NotaMetrics.space12)
+        .padding(.horizontal, KlinoteMetrics.space16)
+        .padding(.vertical, KlinoteMetrics.space12)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -112,32 +112,32 @@ struct UtteranceRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: NotaMetrics.space8) {
+            HStack(spacing: KlinoteMetrics.space8) {
                 Text(role.uppercased())
-                    .font(NotaFont.label(9, weight: .semibold))
-                    .foregroundStyle(isEvidence ? NotaColor.ink : NotaColor.tertiary)
+                    .font(KlinoteFont.label(9, weight: .semibold))
+                    .foregroundStyle(isEvidence ? KlinoteColor.ink : KlinoteColor.tertiary)
                 Text(Self.timestamp(segment.startMs))
-                    .font(NotaFont.data(10))
-                    .foregroundStyle(NotaColor.tertiary)
+                    .font(KlinoteFont.data(10))
+                    .foregroundStyle(KlinoteColor.tertiary)
                 Spacer(minLength: 0)
                 if isPrimary {
                     Text("source")
-                        .font(NotaFont.label(9, weight: .semibold))
-                        .foregroundStyle(NotaColor.ink)
+                        .font(KlinoteFont.label(9, weight: .semibold))
+                        .foregroundStyle(KlinoteColor.ink)
                 }
             }
             Text(segment.text)
-                .font(NotaFont.ui(12.5, weight: isEvidence ? .medium : .regular))
-                .foregroundStyle(isEvidence ? NotaColor.primary : NotaColor.secondary)
+                .font(KlinoteFont.ui(12.5, weight: isEvidence ? .medium : .regular))
+                .foregroundStyle(isEvidence ? KlinoteColor.primary : KlinoteColor.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, NotaMetrics.space16)
-        .padding(.vertical, NotaMetrics.space8)
+        .padding(.horizontal, KlinoteMetrics.space16)
+        .padding(.vertical, KlinoteMetrics.space8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isEvidence ? NotaColor.accent.opacity(0.12) : Color.clear)
+        .background(isEvidence ? KlinoteColor.accent.opacity(0.12) : Color.clear)
         .overlay(alignment: .leading) {
             Rectangle()
-                .fill(isPrimary ? NotaColor.ink : Color.clear)
+                .fill(isPrimary ? KlinoteColor.ink : Color.clear)
                 .frame(width: 2)
         }
         .contentShape(Rectangle())

@@ -1,7 +1,7 @@
 //
-// NotaApp.swift
+// KlinoteApp.swift
 //
-// Menu-bar first. Nota has no Dock presence until a window is open, because
+// Menu-bar first. Klinote has no Dock presence until a window is open, because
 // the clinician's attention belongs to the patient, not to us.
 //
 
@@ -10,7 +10,7 @@ import Carbon.HIToolbox
 import SwiftUI
 
 @main
-struct NotaApp: App {
+struct KlinoteApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel.shared
 
@@ -19,7 +19,7 @@ struct NotaApp: App {
             MenuBarContent(model: model)
         } label: {
             Image(systemName: model.menuBarSymbol)
-                .accessibilityLabel("Nota — \(model.recordingState.word)")
+                .accessibilityLabel("Klinote — \(model.recordingState.word)")
         }
         .menuBarExtraStyle(.menu)
 
@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // ⌘⇧N — open the review window.
         HotKeyCenter.shared.register(
-            .openNota,
+            .openKlinote,
             keyCode: kVK_ANSI_N,
             modifiers: cmdKey | shiftKey
         ) {
@@ -153,14 +153,14 @@ struct MenuBarContent: View {
             .keyboardShortcut("s", modifiers: [.option, .command])
             .disabled(model.selectedEncounter?.isSyntheticDemo != false)
 
-        Button("Open Nota") { ReviewWindowController.shared.show() }
+        Button("Open Klinote") { ReviewWindowController.shared.show() }
             .keyboardShortcut("n", modifiers: [.command, .shift])
 
         SettingsLink { Text("Settings…") }
 
         Divider()
 
-        Button("Quit Nota") { NSApp.terminate(nil) }
+        Button("Quit Klinote") { NSApp.terminate(nil) }
             .keyboardShortcut("q")
     }
 }

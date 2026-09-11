@@ -1,5 +1,5 @@
 {
-  "description": "Production note engine for Nota. Same Phlox extract→refine SOAP job.",
+  "description": "Production note engine for Klinote. Same Phlox extract→refine SOAP job.",
   "models": [
     {
       "id": "quire",

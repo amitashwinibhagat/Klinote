@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Score small local GGUFs on Nota's SOAP job.
+"""Score small local GGUFs on Klinote's SOAP job.
 
 Same extract→refine pipeline (`scribe-llm`) for every model. No network in the
 Rust engine; this script may download catalog GGUFs when you pass --download.
 
   python3 scripts/note-bench.py
   python3 scripts/note-bench.py --download
-  python3 scripts/note-bench.py --models-dir ~/Library/Application\\ Support/Nota/Models
+  python3 scripts/note-bench.py --models-dir ~/Library/Application\\ Support/Klinote/Models
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "fixtures/note-bench/catalog.json"
 GOLD = ROOT / "fixtures/note-bench/gold-facts.json"
 TRANSCRIPT = ROOT / "fixtures/sample-transcript.txt"
-DEFAULT_MODELS = Path.home() / "Library/Application Support/Nota/Models"
+DEFAULT_MODELS = Path.home() / "Library/Application Support/Klinote/Models"
 
 
 def parse_transcript(text: str) -> dict:

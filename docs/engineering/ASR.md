@@ -24,7 +24,7 @@ pub trait AsrEngine {
 | **Cloud** | — | — | — | **Never.** Violates the product's only real promise. |
 
 **Shipped:** whisper.cpp (`ggml-small.en-tdrz.bin`) in the Rust core, downloaded
-once by the Swift shell into `~/Library/Application Support/Nota/Models/`.
+once by the Swift shell into `~/Library/Application Support/Klinote/Models/`.
 `SpeechAnalyzer` remains the upgrade path when macOS 27's SDK lands.
 
 ## Implementation notes, whichever backend

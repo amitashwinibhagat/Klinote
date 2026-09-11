@@ -56,10 +56,10 @@ enum NoteState: String {
 
     var tone: Color {
         switch self {
-        case .draft: NotaColor.secondary
-        case .edited: NotaColor.ink
-        case .approved: NotaColor.secondary
-        case .failed: NotaColor.caution
+        case .draft: KlinoteColor.secondary
+        case .edited: KlinoteColor.ink
+        case .approved: KlinoteColor.secondary
+        case .failed: KlinoteColor.caution
         }
     }
 }
@@ -116,7 +116,7 @@ final class AppModel: ObservableObject {
     @Published var isSwapping = false
     @Published var templates: [TemplateSummary] = []
     /// Until encryption at rest exists, recording real patients is forbidden.
-    @AppStorage("nota.teachingBuildAcknowledged") var teachingBuildAcknowledged = false
+    @AppStorage("klinote.teachingBuildAcknowledged") var teachingBuildAcknowledged = false
 
     /// A recording captured before the speech model finished downloading,
     /// held until the download completes so it is transcribed for real.
@@ -131,7 +131,7 @@ final class AppModel: ObservableObject {
         // When the first-use model finishes downloading, transcribe anything
         // we're holding.
         downloadObserver = NotificationCenter.default.addObserver(
-            forName: .notaModelDownloadFinished,
+            forName: .klinoteModelDownloadFinished,
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -152,7 +152,7 @@ final class AppModel: ObservableObject {
     // MARK: - Startup
 
     func bootstrap() {
-        if let loaded = try? NotaCore.templates() {
+        if let loaded = try? KlinoteCore.templates() {
             templates = loaded
         }
         loadPersistedSessions()
@@ -164,14 +164,14 @@ final class AppModel: ObservableObject {
 
     /// Opens the letter on first launch so the aha is not hidden behind the menu bar.
     func revealLetterIfFirstLaunch() {
-        let key = "nota.didRevealLetter"
+        let key = "klinote.didRevealLetter"
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
         ReviewWindowController.shared.show()
     }
 
     private func loadPersistedSessions() {
-        guard let sessions = try? NotaCore.loadSessions() else { return }
+        guard let sessions = try? KlinoteCore.loadSessions() else { return }
         let mapped: [Encounter] = sessions.compactMap { session in
             guard let note = session.note, let transcript = session.transcript else { return nil }
             let started = Self.parseTime(session.startedAt) ?? Date()
@@ -209,7 +209,7 @@ final class AppModel: ObservableObject {
 
     func persist(_ encounter: Encounter) {
         guard let note = encounter.note, let transcript = encounter.transcript else { return }
-        try? NotaCore.saveSession(
+        try? KlinoteCore.saveSession(
             patientRef: encounter.patientRef,
             discipline: encounter.discipline,
             templateId: encounter.templateId,
@@ -239,7 +239,7 @@ final class AppModel: ObservableObject {
             return
         }
         do {
-            let result = try NotaCore.note(
+            let result = try KlinoteCore.note(
                 fromText: text,
                 templateId: templateId,
                 discipline: discipline,
@@ -404,7 +404,7 @@ final class AppModel: ObservableObject {
 
         Task.detached {
             do {
-                let result = try NotaCore.note(
+                let result = try KlinoteCore.note(
                     fromAudio: url,
                     modelPath: modelPath,
                     templateId: templateId,
@@ -493,7 +493,7 @@ final class AppModel: ObservableObject {
     func copySelectedNote() {
         guard let note = selectedEncounter?.note else { return }
         do {
-            let markdown = try NotaCore.markdown(for: note)
+            let markdown = try KlinoteCore.markdown(for: note)
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(markdown, forType: .string)
             isCopying = true
@@ -520,7 +520,7 @@ final class AppModel: ObservableObject {
         let template = templates.first(where: { $0.id == templateId }) ?? templates.first
         Task.detached {
             do {
-                let rules = try NotaCore.note(fromTranscript: transcript, templateId: templateId)
+                let rules = try KlinoteCore.note(fromTranscript: transcript, templateId: templateId)
                 let note = await Self.preferLocalDraft(
                     transcript: transcript,
                     template: template,
@@ -612,5 +612,5 @@ final class AppModel: ObservableObject {
 }
 
 enum NotaWindowID {
-    static let review = "nota.review"
+    static let review = "klinote.review"
 }

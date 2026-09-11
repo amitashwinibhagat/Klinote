@@ -8,7 +8,7 @@
 //!
 //! The model does **not** ship with the app. The shell downloads it on first
 //! use from Hugging Face (`akashmjn/tinydiarize-whisper.cpp`, the upstream
-//! tinydiarize project) into `~/Library/Application Support/Nota/Models/` and
+//! tinydiarize project) into `~/Library/Application Support/Klinote/Models/` and
 //! passes the path here. This crate never performs network I/O itself — the
 //! Rust workspace stays network-free. Audio and text never leave the device.
 //!

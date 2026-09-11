@@ -13,7 +13,7 @@ import SwiftUI
 struct LetterheadRule: View {
     var body: some View {
         Rectangle()
-            .fill(NotaColor.ink.opacity(0.22))
+            .fill(KlinoteColor.ink.opacity(0.22))
             .frame(height: 2)
     }
 }
@@ -21,7 +21,7 @@ struct LetterheadRule: View {
 struct Hairline: View {
     var body: some View {
         Rectangle()
-            .fill(NotaColor.hairline)
+            .fill(KlinoteColor.hairline)
             .frame(height: 1)
     }
 }
@@ -29,12 +29,12 @@ struct Hairline: View {
 struct DashedRule: View {
     var body: some View {
         Rectangle()
-            .fill(NotaColor.caution)
+            .fill(KlinoteColor.caution)
             .frame(height: 1)
             .overlay(
                 Rectangle()
                     .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    .foregroundStyle(NotaColor.caution)
+                    .foregroundStyle(KlinoteColor.caution)
             )
     }
 }
@@ -44,11 +44,11 @@ struct DashedRule: View {
 /// Uppercase, tracked, small. A section tab or a field label.
 struct TabLabel: View {
     let text: String
-    var tone: Color = NotaColor.secondary
+    var tone: Color = KlinoteColor.secondary
 
     var body: some View {
         Text(text.uppercased())
-            .font(NotaFont.tab())
+            .font(KlinoteFont.tab())
             .tracking(0.6)
             .foregroundStyle(tone)
     }
@@ -59,8 +59,8 @@ struct FieldLabel: View {
 
     var body: some View {
         Text(text)
-            .font(NotaFont.label())
-            .foregroundStyle(NotaColor.secondary)
+            .font(KlinoteFont.label())
+            .foregroundStyle(KlinoteColor.secondary)
     }
 }
 
@@ -83,10 +83,10 @@ enum SectionState {
 
     var tone: Color {
         switch self {
-        case .filled: NotaColor.secondary
-        case .emptyOptional: NotaColor.tertiary
-        case .missingRequired: NotaColor.caution
-        case .edited: NotaColor.ink
+        case .filled: KlinoteColor.secondary
+        case .emptyOptional: KlinoteColor.tertiary
+        case .missingRequired: KlinoteColor.caution
+        case .edited: KlinoteColor.ink
         }
     }
 }
@@ -98,17 +98,17 @@ struct SectionHeader: View {
     let state: SectionState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NotaMetrics.space8) {
-            HStack(alignment: .firstTextBaseline, spacing: NotaMetrics.space8) {
-                TabLabel(text: title, tone: state == .missingRequired ? NotaColor.caution : NotaColor.ink)
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space8) {
+            HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
+                TabLabel(text: title, tone: state == .missingRequired ? KlinoteColor.caution : KlinoteColor.ink)
                 if let word = state.word {
                     Text(word)
-                        .font(NotaFont.label())
+                        .font(KlinoteFont.label())
                         .foregroundStyle(state.tone)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .overlay(
-                            RoundedRectangle(cornerRadius: NotaMetrics.radiusChip, style: .continuous)
+                            RoundedRectangle(cornerRadius: KlinoteMetrics.radiusChip, style: .continuous)
                                 .strokeBorder(state.tone.opacity(0.5), lineWidth: 1)
                         )
                 }
@@ -125,18 +125,18 @@ struct SectionHeader: View {
 
 // MARK: - Primary action
 
-struct NotaPrimaryButtonStyle: ButtonStyle {
+struct KlinotePrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(NotaFont.ui(13, weight: .semibold))
+            .font(KlinoteFont.ui(13, weight: .semibold))
             .foregroundStyle(.white)
-            .padding(.horizontal, NotaMetrics.space16)
+            .padding(.horizontal, KlinoteMetrics.space16)
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(NotaColor.inkFill)
+                    .fill(KlinoteColor.inkFill)
             )
             .opacity(configuration.isPressed ? 0.82 : 1)
             .opacity(isEnabled ? 1 : 0.45)
@@ -150,15 +150,15 @@ struct NotaPrimaryButtonStyle: ButtonStyle {
 struct RecordingLamp: View {
     let isRecording: Bool
     let isPaused: Bool
-    @Environment(\.notaReduceMotion) private var reduceMotion
+    @Environment(\.klinoteReduceMotion) private var reduceMotion
     @State private var pulse = false
 
     var body: some View {
         RoundedRectangle(cornerRadius: 2, style: .continuous)
-            .fill(isPaused ? Color.clear : NotaColor.record)
+            .fill(isPaused ? Color.clear : KlinoteColor.record)
             .overlay(
                 RoundedRectangle(cornerRadius: 2, style: .continuous)
-                    .strokeBorder(NotaColor.record, lineWidth: 1.5)
+                    .strokeBorder(KlinoteColor.record, lineWidth: 1.5)
             )
             .frame(width: 10, height: 10)
             .opacity(isRecording && !isPaused && pulse && !reduceMotion ? 0.45 : 1)
@@ -214,7 +214,7 @@ struct TraceView: View {
             grid.addLine(to: CGPoint(x: size.width, y: y))
             y += step
         }
-        context.stroke(grid, with: .color(NotaColor.hairline.opacity(0.4)), lineWidth: 0.5)
+        context.stroke(grid, with: .color(KlinoteColor.hairline.opacity(0.4)), lineWidth: 0.5)
     }
 
     private func drawTrace(in context: inout GraphicsContext, size: CGSize) {
@@ -232,7 +232,7 @@ struct TraceView: View {
                 path.addLine(to: CGPoint(x: x, y: y))
             }
         }
-        context.stroke(path, with: .color(NotaColor.record), lineWidth: 1.5)
+        context.stroke(path, with: .color(KlinoteColor.record), lineWidth: 1.5)
     }
 
     private func drawLevelMeter(in context: inout GraphicsContext, size: CGSize) {
@@ -247,7 +247,7 @@ struct TraceView: View {
                 width: barWidth,
                 height: size.height * 0.7
             )
-            let colour = index < lit ? NotaColor.record : NotaColor.hairline.opacity(0.4)
+            let colour = index < lit ? KlinoteColor.record : KlinoteColor.hairline.opacity(0.4)
             context.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(colour))
         }
     }
@@ -262,17 +262,17 @@ struct EmptyState: View {
     var action: (title: String, handler: () -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NotaMetrics.space12) {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
             Text(title)
-                .font(NotaFont.ui(15, weight: .semibold))
-                .foregroundStyle(NotaColor.primary)
+                .font(KlinoteFont.ui(15, weight: .semibold))
+                .foregroundStyle(KlinoteColor.primary)
             Text(message)
-                .font(NotaFont.ui())
-                .foregroundStyle(NotaColor.secondary)
+                .font(KlinoteFont.ui())
+                .foregroundStyle(KlinoteColor.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if let action {
                 Button(action.title, action: action.handler)
-                    .buttonStyle(NotaPrimaryButtonStyle())
+                    .buttonStyle(KlinotePrimaryButtonStyle())
             }
         }
         .frame(maxWidth: 420, alignment: .leading)

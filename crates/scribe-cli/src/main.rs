@@ -208,7 +208,7 @@ fn resolve_whisper_model() -> Result<PathBuf> {
     let home = std::env::var("HOME")
         .map_err(|_| scribe_core::ScribeError::InvalidInput("HOME is not set".to_owned()))?;
     let path = PathBuf::from(home)
-        .join("Library/Application Support/Nota/Models")
+        .join("Library/Application Support/Klinote/Models")
         .join(scribe_asr_whisper::DEFAULT_MODEL_NAME);
     if path.is_file() {
         return Ok(path);

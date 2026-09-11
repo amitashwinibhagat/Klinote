@@ -3,7 +3,7 @@
 //
 // macOS 26/27 Liquid Glass, used as chrome — never as the letter.
 // The document plane stays opaque paper. Toolbars, the recording strip,
-// sidebar and inspector take the system material so Nota sits in the OS
+// sidebar and inspector take the system material so Klinote sits in the OS
 // instead of on top of it.
 //
 // Reduce Transparency falls back to an opaque desk. Older macOS falls back
@@ -16,7 +16,7 @@ extension View {
     /// Liquid Glass on a continuous rounded rect. Interactive so pointer
     /// hover refracts — the macOS 27 control language.
     @ViewBuilder
-    func notaGlass(
+    func klinoteGlass(
         cornerRadius: CGFloat = 12,
         tint: Color? = nil,
         interactive: Bool = true
@@ -34,7 +34,7 @@ extension View {
     /// the floating strip, not on a reading surface.
     @ViewBuilder
     func notaChromeSurface() -> some View {
-        self.background(NotaColor.desk)
+        self.background(KlinoteColor.desk)
     }
 }
 
@@ -47,12 +47,12 @@ private struct NotaGlassModifier: ViewModifier {
     func body(content: Content) -> some View {
         if reduceTransparency {
             content.background(
-                NotaColor.desk,
+                KlinoteColor.desk,
                 in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             )
         } else if #available(macOS 26.0, *) {
             content.glassEffect(
-                notaGlassStyle(tint: tint, interactive: interactive),
+                klinoteGlassStyle(tint: tint, interactive: interactive),
                 in: .rect(cornerRadius: cornerRadius)
             )
         } else {
@@ -65,7 +65,7 @@ private struct NotaGlassModifier: ViewModifier {
 }
 
 @available(macOS 26.0, *)
-private func notaGlassStyle(tint: Color?, interactive: Bool) -> Glass {
+private func klinoteGlassStyle(tint: Color?, interactive: Bool) -> Glass {
     var glass = Glass.regular
     if let tint {
         glass = glass.tint(tint)
@@ -84,22 +84,22 @@ struct NotaGlassPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         if #available(macOS 26.0, *), !reduceTransparency {
             configuration.label
-                .font(NotaFont.ui(13, weight: .semibold))
-                .padding(.horizontal, NotaMetrics.space16)
+                .font(KlinoteFont.ui(13, weight: .semibold))
+                .padding(.horizontal, KlinoteMetrics.space16)
                 .padding(.vertical, 7)
-                .glassEffect(.regular.tint(NotaColor.inkFill).interactive(), in: .rect(cornerRadius: 8))
+                .glassEffect(.regular.tint(KlinoteColor.inkFill).interactive(), in: .rect(cornerRadius: 8))
                 .opacity(configuration.isPressed ? 0.86 : 1)
                 .opacity(isEnabled ? 1 : 0.45)
                 .contentShape(Rectangle())
         } else {
             configuration.label
-                .font(NotaFont.ui(13, weight: .semibold))
+                .font(KlinoteFont.ui(13, weight: .semibold))
                 .foregroundStyle(.white)
-                .padding(.horizontal, NotaMetrics.space16)
+                .padding(.horizontal, KlinoteMetrics.space16)
                 .padding(.vertical, 7)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(NotaColor.inkFill)
+                        .fill(KlinoteColor.inkFill)
                 )
                 .opacity(configuration.isPressed ? 0.82 : 1)
                 .opacity(isEnabled ? 1 : 0.45)

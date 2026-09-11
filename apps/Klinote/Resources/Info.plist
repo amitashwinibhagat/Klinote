@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Nota</string>
+	<string>Klinote</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Nota</string>
+	<string>Klinote</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -29,7 +29,7 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Amit Ashwini Bhagat. All rights reserved.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Nota records the consultation on this Mac so it can draft your note. The audio never leaves this computer.</string>
+	<string>Klinote records the consultation on this Mac so it can draft your note. The audio never leaves this computer.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

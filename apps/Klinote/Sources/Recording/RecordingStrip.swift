@@ -88,21 +88,21 @@ struct RecordingStripView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NotaMetrics.space12) {
-            HStack(alignment: .firstTextBaseline, spacing: NotaMetrics.space8) {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
+            HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
                 RecordingLamp(
                     isRecording: isLive,
                     isPaused: model.recordingState.isPaused
                 )
                 Text(headline)
-                    .font(NotaFont.ui(14, weight: .semibold))
-                    .foregroundStyle(NotaColor.primary)
+                    .font(KlinoteFont.ui(14, weight: .semibold))
+                    .foregroundStyle(KlinoteColor.primary)
                     .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: NotaMetrics.space8)
+                Spacer(minLength: KlinoteMetrics.space8)
                 Text(isDrafting ? "…" : Self.clock(model.elapsed))
-                    .font(NotaFont.data(12))
+                    .font(KlinoteFont.data(12))
                     .monospacedDigit()
-                    .foregroundStyle(NotaColor.secondary)
+                    .foregroundStyle(KlinoteColor.secondary)
             }
 
             TraceView(
@@ -114,7 +114,7 @@ struct RecordingStripView: View {
             )
             .frame(height: 26)
 
-            HStack(spacing: NotaMetrics.space8) {
+            HStack(spacing: KlinoteMetrics.space8) {
                 Button(model.recordingState.isPaused ? "Resume" : "Pause") {
                     if model.recordingState.isPaused {
                         model.resumeRecording()
@@ -136,18 +136,18 @@ struct RecordingStripView: View {
                 Spacer(minLength: 0)
 
                 Text("Audio stays on this Mac")
-                    .font(NotaFont.label())
-                    .foregroundStyle(NotaColor.tertiary)
+                    .font(KlinoteFont.label())
+                    .foregroundStyle(KlinoteColor.tertiary)
             }
         }
-        .padding(NotaMetrics.space16)
+        .padding(KlinoteMetrics.space16)
         .frame(width: 380)
-        .notaGlass(cornerRadius: 12, tint: NotaColor.record.opacity(0.18), interactive: true)
+        .klinoteGlass(cornerRadius: 12, tint: KlinoteColor.record.opacity(0.18), interactive: true)
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(NotaColor.record.opacity(0.65), lineWidth: 1.5)
+                .strokeBorder(KlinoteColor.record.opacity(0.65), lineWidth: 1.5)
         )
-        .environment(\.notaReduceMotion, systemReduceMotion)
+        .environment(\.klinoteReduceMotion, systemReduceMotion)
         .accessibilityElement(children: .contain)
     }
 

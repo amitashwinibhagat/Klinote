@@ -6,14 +6,14 @@ invariants, the commands, and the gotchas.
 
 ## What this is
 
-**Nota** — on-device ambient clinical documentation for macOS. A recording goes
+**Klinote** — on-device ambient clinical documentation for macOS. A recording goes
 in; a structured, template-matched clinical note comes out, with every sentence
 traceable to what was said. Nothing leaves the Mac.
 
-- **Public name:** Nota. Internal crate names stay `scribe-*` (the same
+- **Public name:** Klinote. Internal crate names stay `scribe-*` (the same
   convention as WriteAmp over `WriteAmpTyping`).
 - **Engine:** Rust, Cargo workspace under `crates/`. Complete and tested.
-- **Shell:** Swift/SwiftUI under `apps/Nota/`. M1 complete: menu bar, recording
+- **Shell:** Swift/SwiftUI under `apps/Klinote/`. M1 complete: menu bar, recording
   strip, review window with evidence margin, settings. Builds and launches.
 - **Status:** no real ASR engine yet — the shipped default is a mock, and the
   app labels its sample note as synthetic. Encryption at rest is not built.
@@ -73,13 +73,13 @@ cargo run -p scribe-cli -- note --transcript - --db ./scribe.db   # stdin
 cargo run -p scribe-cli -- audit --db ./scribe.db --subject <note-id>
 
 # Build the macOS app (XcodeGen generates the project; do not commit it)
-cd apps/Nota && xcodegen generate
-xcodebuild -project apps/Nota/Nota.xcodeproj -scheme Nota \
-  -configuration Release -derivedDataPath /tmp/nota-dd build CODE_SIGNING_ALLOWED=NO
+cd apps/Klinote && xcodegen generate
+xcodebuild -project apps/Klinote/Klinote.xcodeproj -scheme Klinote \
+  -configuration Release -derivedDataPath /tmp/klinote-dd build CODE_SIGNING_ALLOWED=NO
 ```
 
 The app's build phase compiles the Rust core and links
-`libscribe_core_ffi.a` **statically** from `target/nota-link/`. Never link the
+`libscribe_core_ffi.a` **statically** from `target/klinote-link/`. Never link the
 `.dylib`: the linker prefers it, and the bundle then points at an absolute path
 in `target/` and cannot run anywhere else.
 
@@ -100,7 +100,7 @@ zero setup, and real engines are opt-in.
 | `crates/scribe-store/` | SQLite (rusqlite, bundled) + append-only `audit_log` | JSON blobs for transcripts/notes. |
 | `crates/scribe-ffi/` | C ABI, JSON envelopes | `crate-type = ["staticlib","cdylib","rlib"]`. |
 | `crates/scribe-cli/` | `scribe` binary | Also the concierge tool. |
-| `apps/Nota/` | Swift/SwiftUI shell | `project.yml` is the source of truth; the `.xcodeproj` is generated and gitignored. |
+| `apps/Klinote/` | Swift/SwiftUI shell | `project.yml` is the source of truth; the `.xcodeproj` is generated and gitignored. |
 | `templates/` | TOML note templates | Add a discipline here, then register it in `TemplateLibrary::BUILTIN`. |
 | `fixtures/` | Synthetic transcripts | **Never real patient data.** |
 | `docs/design/` | UX-PLAN (shape brief + direction contract) | Read before any UI change. |
@@ -146,7 +146,7 @@ zero setup, and real engines are opt-in.
   build where a clinician could mistake sample text for a transcription.
 - **Never link the Rust dylib.** Xcode's linker prefers it over the static
   library, and the app bundle then depends on an absolute path under `target/`.
-  The pre-build script copies the `.a` into `target/nota-link/` for this reason.
+  The pre-build script copies the `.a` into `target/klinote-link/` for this reason.
 
 ## Doc map
 

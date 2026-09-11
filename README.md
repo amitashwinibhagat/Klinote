@@ -1,4 +1,4 @@
-# Nota
+# Klinote
 
 **Clinical notes that never leave the room.**
 
@@ -57,10 +57,10 @@ cargo run -p scribe-cli -- note \
   --patient-ref demo-001
 
 # The macOS app
-cd apps/Nota && xcodegen generate
-xcodebuild -project Nota.xcodeproj -scheme Nota -configuration Release \
-  -derivedDataPath /tmp/nota-dd build CODE_SIGNING_ALLOWED=NO
-open /tmp/nota-dd/Build/Products/Release/Nota.app
+cd apps/Klinote && xcodegen generate
+xcodebuild -project Klinote.xcodeproj -scheme Klinote -configuration Release \
+  -derivedDataPath /tmp/klinote-dd build CODE_SIGNING_ALLOWED=NO
+open /tmp/klinote-dd/Build/Products/Release/Klinote.app
 ```
 
 The app lives in the menu bar (⌥⌘R to record, ⌘⇧N to open). It ships a
@@ -99,7 +99,7 @@ wrapped continuation of the same speaker
 ## Architecture at a glance
 
 ```
-Rust core (crates/)                          Swift shell (apps/Nota/)
+Rust core (crates/)                          Swift shell (apps/Klinote/)
 ┌──────────────────────────────────┐          ┌───────────────────────────────┐
 │ scribe-audio   ingest · VAD      │          │ Menu bar · global hotkeys     │
 │ scribe-asr     ASR trait + mock  │          │ Recording strip (NSPanel)     │
@@ -127,7 +127,7 @@ Rationale and rejected alternatives: [`docs/engineering/ADR/0001`](docs/engineer
 | `crates/scribe-store/` | SQLite persistence + append-only audit log. |
 | `crates/scribe-ffi/` | C ABI for Swift. |
 | `crates/scribe-cli/` | `scribe` binary — pipeline runner and concierge tool. |
-| `apps/Nota/` | Swift/SwiftUI shell. `project.yml` is the source of truth; the `.xcodeproj` is generated. |
+| `apps/Klinote/` | Swift/SwiftUI shell. `project.yml` is the source of truth; the `.xcodeproj` is generated. |
 | `templates/` | Note templates as TOML. |
 | `fixtures/` | Synthetic transcripts. **Never real patient data.** |
 | `docs/design/` | UX plan, direction contract, states, keyboard map. |

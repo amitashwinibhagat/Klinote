@@ -29,7 +29,7 @@ struct SettingsRootView: View {
 
 private struct GeneralSettings: View {
     @ObservedObject var model: AppModel
-    @AppStorage("nota.showMarginByDefault") private var showMarginByDefault = true
+    @AppStorage("klinote.showMarginByDefault") private var showMarginByDefault = true
 
     var body: some View {
         Form {
@@ -141,7 +141,7 @@ private struct RecordingSettings: View {
                 LabeledContent("Pause or resume", value: "⌥⌘P")
                 LabeledContent("Copy note", value: "⌘⇧C")
                 LabeledContent("Swap clinician and patient", value: "⌥⌘S")
-                LabeledContent("Open Nota", value: "⌘⇧N")
+                LabeledContent("Open Klinote", value: "⌘⇧N")
                 LabeledContent("File a note", value: "⌘↩")
             }
             Section("Note engine") {
@@ -166,7 +166,7 @@ private struct RecordingSettings: View {
                 }
             }
             Section("Audio") {
-                Text("Audio is captured and discarded. Nota does not keep a recording unless you ask it to, and never sends audio anywhere.")
+                Text("Audio is captured and discarded. Klinote does not keep a recording unless you ask it to, and never sends audio anywhere.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -176,7 +176,7 @@ private struct RecordingSettings: View {
 }
 
 private struct PrivacySettings: View {
-    @AppStorage("nota.teachingBuildAcknowledged") private var teachingBuildAcknowledged = false
+    @AppStorage("klinote.teachingBuildAcknowledged") private var teachingBuildAcknowledged = false
 
     var body: some View {
         Form {
@@ -187,7 +187,7 @@ private struct PrivacySettings: View {
                     .foregroundStyle(.orange)
             }
             Section("Where your data is") {
-                Text("Everything Nota produces stays in this Mac's application support folder. There is no account, no sync, and no server.")
+                Text("Everything Klinote produces stays in this Mac's application support folder. There is no account, no sync, and no server.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("The only thing that ever crosses the network is the open-source speech model, downloaded once on first use. Audio and notes never leave this Mac. The Rust engine itself contains no networking code — enforced in continuous integration.")
@@ -196,13 +196,13 @@ private struct PrivacySettings: View {
             }
 
             Section("Not yet implemented") {
-                Text("Encryption at rest and a retention policy are not built yet. Until they are, do not use Nota with real patient data.")
+                Text("Encryption at rest and a retention policy are not built yet. Until they are, do not use Klinote with real patient data.")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
 
             Section("Identifiers") {
-                Text("Nota stores an opaque reference for an encounter, never a name, record number, or date of birth.")
+                Text("Klinote stores an opaque reference for an encounter, never a name, record number, or date of birth.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -214,8 +214,10 @@ private struct PrivacySettings: View {
 private struct AboutSettings: View {
     var body: some View {
         VStack(spacing: 12) {
-            Text("Nota")
-                .font(.system(size: 26, weight: .semibold, design: .serif))
+            Text("klinote")
+                .font(.system(size: 28, weight: .semibold))
+                .tracking(-0.8)
+                .foregroundStyle(KlinoteColor.ink)
             Text("Clinical notes that never leave the room.")
                 .foregroundStyle(.secondary)
             Text(AppVersion.display)
