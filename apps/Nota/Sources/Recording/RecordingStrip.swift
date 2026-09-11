@@ -142,14 +142,10 @@ struct RecordingStripView: View {
         }
         .padding(NotaMetrics.space16)
         .frame(width: 380)
-        .background(
+        .notaGlass(cornerRadius: 12, tint: NotaColor.record.opacity(0.18), interactive: true)
+        .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(reduceTransparency ? AnyShapeStyle(NotaColor.desk) : AnyShapeStyle(.regularMaterial))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(NotaColor.record.opacity(0.65), lineWidth: 1.5)
-                )
-                .shadow(color: .black.opacity(0.20), radius: 12, y: 4)
+                .strokeBorder(NotaColor.record.opacity(0.65), lineWidth: 1.5)
         )
         .environment(\.notaReduceMotion, systemReduceMotion)
         .accessibilityElement(children: .contain)

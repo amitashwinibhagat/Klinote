@@ -56,7 +56,7 @@ struct MarginView: View {
                 Spacer()
             }
         }
-        .background(NotaColor.margin)
+        .notaChromeSurface()
     }
 
     private var header: some View {

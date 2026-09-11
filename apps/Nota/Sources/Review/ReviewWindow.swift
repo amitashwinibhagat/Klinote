@@ -32,6 +32,9 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         window.title = "Nota"
         window.subtitle = "Clinical notes that never leave the room"
         window.minSize = NSSize(width: 1040, height: 640)
+        window.titlebarAppearsTransparent = true
+        window.isOpaque = false
+        window.backgroundColor = .clear
         window.contentView = NSHostingView(rootView: ReviewWindow(model: AppModel.shared))
         window.setFrameAutosaveName("NotaReviewWindow")
         window.center()
@@ -83,8 +86,7 @@ struct ReviewWindow: View {
                 }
                 .padding(.horizontal, NotaMetrics.space16)
                 .padding(.vertical, NotaMetrics.space8)
-                .background(NotaColor.caution.opacity(0.14))
-                .overlay(alignment: .bottom) { Hairline() }
+                .notaGlass(cornerRadius: 0, tint: NotaColor.caution.opacity(0.35), interactive: false)
             }
         }
         .toolbar {
@@ -163,7 +165,7 @@ struct EncounterSidebar: View {
                 }
             }
         }
-        .background(NotaColor.desk)
+        .notaChromeSurface()
     }
 }
 

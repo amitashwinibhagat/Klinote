@@ -43,12 +43,11 @@ struct DocumentView: View {
                     .id(transcript.encounterId)
                     .animation(.easeOut(duration: NotaMetrics.motionAssemble), value: transcript.encounterId)
                 }
-                .background(NotaColor.desk)
+                .background(Color.clear)
             } else if let error = model.lastError {
                 EmptyState(title: "The engine could not draft this note", message: error)
                     .padding(NotaMetrics.space48)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(NotaColor.desk)
             } else {
                 EmptyState(
                     title: "No note selected",
@@ -56,7 +55,6 @@ struct DocumentView: View {
                 )
                 .padding(NotaMetrics.space48)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(NotaColor.desk)
             }
         }
     }
@@ -319,7 +317,7 @@ struct SignatureBlock: View {
                         } label: {
                             Text(model.isFiling ? "Saving…" : "Mark as reviewed")
                         }
-                        .buttonStyle(NotaPrimaryButtonStyle())
+                        .buttonStyle(NotaGlassPrimaryButtonStyle())
                         .keyboardShortcut(.return, modifiers: .command)
                         .disabled(model.isFiling || isReviewed)
                         .help("Mark this draft as reviewed on this Mac (⌘↩)")
