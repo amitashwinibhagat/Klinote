@@ -205,8 +205,8 @@ enum KlinoteMetrics {
     /// rounded; one component now derives it.
     static let wordmarkTracking: CGFloat = -0.03
 
-    static let marginColumnWidth: CGFloat = 340
-    static let sidebarWidth: CGFloat = 260
+    static let marginColumnWidth: CGFloat = 300
+    static let sidebarWidth: CGFloat = 220
     /// 68 characters at 14 pt New York, in points.
     static let documentMeasure: CGFloat = 560
     /// The narrowest readable measure. A 13-inch MacBook is 1280 points wide,
@@ -216,6 +216,12 @@ enum KlinoteMetrics {
     static let documentMeasureMin: CGFloat = 452
 
     // MARK: Window
+    //
+    // Sum check at the window minimum and ideal: sidebar 220 + document
+    // (560 + 2×32) + margin 300 = 1144. The window opens at 1440, leaving ~296
+    // points of slack. Without that slack the split view gave the margin its
+    // 340-point ideal while only 305 points were on screen, and text clipped
+    // one character at every line break.
     static let windowMinWidth: CGFloat = 1060
     static let windowMinHeight: CGFloat = 660
     static let windowIdealWidth: CGFloat = 1440

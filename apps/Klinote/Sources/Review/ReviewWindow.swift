@@ -101,9 +101,9 @@ struct ReviewWindow: View {
             EncounterSidebar(model: model)
                 .background(KlinoteColor.desk, ignoresSafeAreaEdges: .all)
                 .navigationSplitViewColumnWidth(
-                    min: 220,
+                    min: 200,
                     ideal: KlinoteMetrics.sidebarWidth,
-                    max: 320
+                    max: 260
                 )
         } detail: {
             DocumentView(model: model)

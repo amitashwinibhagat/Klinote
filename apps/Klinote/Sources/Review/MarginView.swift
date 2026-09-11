@@ -216,7 +216,6 @@ struct UtteranceRow: View {
                 .foregroundStyle(isEvidence ? KlinoteColor.primary : KlinoteColor.secondary)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, KlinoteMetrics.space16)
         .padding(.vertical, KlinoteMetrics.space8)
