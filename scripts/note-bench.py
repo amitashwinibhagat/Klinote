@@ -190,17 +190,20 @@ def main() -> int:
     parser.add_argument("--download", action="store_true", help="fetch catalog GGUFs that are missing")
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--only", action="append", help="catalog id to run (repeatable)")
+    parser.add_argument("--band", help="catalog band, e.g. sub-1gb or 1-2gb")
     args = parser.parse_args()
 
     catalog = json.loads(CATALOG.read_text())
     gold = json.loads(GOLD.read_text())
     request = build_request()
     models = catalog["models"]
+    if args.band:
+        models = [m for m in models if m.get("band") == args.band]
     if args.only:
         models = [m for m in models if m["id"] in args.only]
-        if not models:
-            print("no catalog ids matched --only", file=sys.stderr)
-            return 2
+    if not models:
+        print("no catalog ids matched filters", file=sys.stderr)
+        return 2
 
     args.models_dir.mkdir(parents=True, exist_ok=True)
     if args.download:

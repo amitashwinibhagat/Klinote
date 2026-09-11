@@ -1,8 +1,8 @@
 # Note-model bench
 
-Same SOAP job, several small GGUFs. The question is not “which model is SOTA”
-— it is which one under ~1 GB can extract a GP consult into SOAP **without
-inventing facts or filing the parking line**.
+Same SOAP job, several local GGUFs. The question is not “which model is SOTA”
+— it is which one can extract a GP consult into SOAP **without inventing facts
+or filing the parking line**.
 
 ## Job
 
@@ -13,18 +13,13 @@ erythema, viral, paracetamol, ibuprofen, one week.
 
 Must **not** include: parking (deliberately unclinical; belongs in unfiled).
 
-## Catalog (all under 1 GB)
+## Catalog
 
 See `fixtures/note-bench/catalog.json`.
 
-| id | Model | Size |
-|---|---|---|
-| minicpm5-1b-q4 | MiniCPM5-1B Q4_K_M | 0.69 GB |
-| minicpm5-2b-q4 | MiniCPM5-2B Q4_K_M | 1.56 GB |
-| llama32-1b-q4 | Llama 3.2 1B Instruct Q4_K_M | 0.81 GB |
-| gemma3-1b-q4 | Gemma 3 1B IT Q4_K_M | 0.81 GB |
-| qwen25-1.5b-q4 | Qwen2.5-1.5B Instruct Q4_K_M | 0.99 GB |
-| qwen3-0.6b-q8 | Qwen3-0.6B Q8_0 | 0.64 GB |
+**sub-1gb** — MiniCPM5-1B Q4, Llama 3.2 1B Q4, Gemma 3 1B Q4, Qwen2.5-1.5B Q4, Qwen3-0.6B Q8.
+
+**1-2gb** — MiniCPM5-2B Q4 (1.56), Qwen3-1.7B Q8 (1.83), Qwen2.5-3B Q4 (1.93), Gemma 3 4B IQ3 (1.99), Llama 3.2 3B Q4 (2.02).
 
 ## Run
 
@@ -35,11 +30,12 @@ cargo build --release -p scribe-llm
 # Score whatever GGUFs are already in Application Support
 python3 scripts/note-bench.py
 
-# Fetch the whole catalog (still < 5 GB total)
-python3 scripts/note-bench.py --download
+# Fetch / score a size band
+python3 scripts/note-bench.py --band sub-1gb --download
+python3 scripts/note-bench.py --band 1-2gb --download
 
 # One model
-python3 scripts/note-bench.py --only minicpm5-1b-q4
+python3 scripts/note-bench.py --only minicpm5-2b-q4
 ```
 
 Models land in `~/Library/Application Support/Nota/Models/` — same folder the

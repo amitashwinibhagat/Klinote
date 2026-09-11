@@ -1,25 +1,18 @@
 {
-  "description": "Small local instruct GGUFs under ~1 GB for SOAP drafting. Same Phlox extract→refine job.",
-  "max_bytes": 1600000000,
+  "description": "Local instruct GGUFs for SOAP drafting. Same Phlox extract→refine job.",
   "models": [
     {
       "id": "minicpm5-1b-q4",
+      "band": "sub-1gb",
       "name": "MiniCPM5-1B Q4_K_M",
       "file": "MiniCPM5-1B-Q4_K_M.gguf",
       "url": "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf",
       "bytes": 688065920,
-      "why": "1B-class on-device SOTA (OpenBMB, 2026-05). Default for Nota."
-    },
-    {
-      "id": "minicpm5-2b-q4",
-      "name": "MiniCPM5-2B Q4_K_M",
-      "file": "MiniCPM5-2B-Q4_K_M.gguf",
-      "url": "https://huggingface.co/openbmb/MiniCPM5-2B-GGUF/resolve/main/MiniCPM5-2B-Q4_K_M.gguf",
-      "bytes": 1561318368,
-      "why": "2B-class on-device SOTA (OpenBMB, 2026-09-07). Competitive with 4B; 1.56 GB Q4."
+      "why": "1B-class on-device SOTA (OpenBMB, 2026-05)."
     },
     {
       "id": "llama32-1b-q4",
+      "band": "sub-1gb",
       "name": "Llama 3.2 1B Instruct Q4_K_M",
       "file": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
       "url": "https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
@@ -28,6 +21,7 @@
     },
     {
       "id": "gemma3-1b-q4",
+      "band": "sub-1gb",
       "name": "Gemma 3 1B IT Q4_K_M",
       "file": "gemma-3-1b-it-Q4_K_M.gguf",
       "url": "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
@@ -36,19 +30,66 @@
     },
     {
       "id": "qwen25-1.5b-q4",
+      "band": "sub-1gb",
       "name": "Qwen2.5-1.5B Instruct Q4_K_M",
       "file": "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
       "url": "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
       "bytes": 986048768,
-      "why": "Most parameters still under 1 GB; typically best JSON follower in this band."
+      "why": "Most parameters still under 1 GB."
     },
     {
       "id": "qwen3-0.6b-q8",
+      "band": "sub-1gb",
       "name": "Qwen3-0.6B Q8_0",
       "file": "Qwen3-0.6B-Q8_0.gguf",
       "url": "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
       "bytes": 639447744,
-      "why": "Newest Qwen tiny at full Q8; tests whether 0.6B is enough for JSON SOAP."
+      "why": "Newest Qwen tiny at full Q8."
+    },
+    {
+      "id": "minicpm5-2b-q4",
+      "band": "1-2gb",
+      "name": "MiniCPM5-2B Q4_K_M",
+      "file": "MiniCPM5-2B-Q4_K_M.gguf",
+      "url": "https://huggingface.co/openbmb/MiniCPM5-2B-GGUF/resolve/main/MiniCPM5-2B-Q4_K_M.gguf",
+      "bytes": 1561318368,
+      "why": "2B-class on-device SOTA (OpenBMB, 2026-09-07). 1.56 GB Q4."
+    },
+    {
+      "id": "qwen3-1.7b-q8",
+      "band": "1-2gb",
+      "name": "Qwen3-1.7B Q8_0",
+      "file": "Qwen3-1.7B-Q8_0.gguf",
+      "url": "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q8_0.gguf",
+      "bytes": 1834426944,
+      "why": "Qwen3 1.7B at full Q8. Schema-capable sibling of the 0.6B that almost JSON'd."
+    },
+    {
+      "id": "llama32-3b-q4",
+      "band": "1-2gb",
+      "name": "Llama 3.2 3B Instruct Q4_K_M",
+      "file": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+      "url": "https://huggingface.co/unsloth/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+      "bytes": 2019377600,
+      "why": "3B instruct, 2.02 GB. Did the 1B fail because of size or family?"
+    },
+    {
+      "id": "qwen25-3b-q4",
+      "band": "1-2gb",
+      "name": "Qwen2.5-3B Instruct Q4_K_M",
+      "file": "Qwen2.5-3B-Instruct-Q4_K_M.gguf",
+      "url": "https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf",
+      "bytes": 1929903264,
+      "why": "3B Qwen 2.5, 1.93 GB. Best JSON follower we had before Gemma 4."
+    },
+    {
+      "id": "gemma3-4b-iq3",
+      "band": "1-2gb",
+      "name": "Gemma 3 4B IT IQ3_M",
+      "file": "google_gemma-3-4b-it-IQ3_M.gguf",
+      "url": "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-IQ3_M.gguf",
+      "bytes": 1986666912,
+      "why": "4B squeezed into 1.99 GB. Tests params vs quant quality."
     }
   ]
 }
