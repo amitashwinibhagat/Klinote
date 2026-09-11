@@ -572,6 +572,35 @@ final class AppModel: ObservableObject {
         transcribe(pendingRecording, startedAt: startedAt)
     }
 
+    func applyNameCheck(heard: String, suggest: String) {
+        guard var encounter = selectedEncounter,
+              var note = encounter.note,
+              var transcript = encounter.transcript
+        else { return }
+        for index in transcript.segments.indices {
+            transcript.segments[index].text = transcript.segments[index].text
+                .replacingOccurrences(of: heard, with: suggest, options: .caseInsensitive)
+        }
+        for index in note.sections.indices {
+            note.sections[index].body = note.sections[index].body
+                .replacingOccurrences(of: heard, with: suggest, options: .caseInsensitive)
+            for sentence in note.sections[index].sentences.indices {
+                note.sections[index].sentences[sentence].text = note.sections[index].sentences[sentence].text
+                    .replacingOccurrences(of: heard, with: suggest, options: .caseInsensitive)
+            }
+        }
+        transcript.nameChecks?.removeAll {
+            $0.heard.compare(heard, options: .caseInsensitive) == .orderedSame
+        }
+        encounter.transcript = transcript
+        encounter.note = note
+        encounter.state = .edited
+        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
+    }
+
     func markEdited() {
         guard var encounter = selectedEncounter, encounter.state == .draft else { return }
         encounter.state = .edited

@@ -119,6 +119,9 @@ impl AsrEngine for WhisperAsrEngine {
             params.set_translate(true);
         }
 
+        // Bias the decoder toward real generics. Does not rewrite the transcript.
+        params.set_initial_prompt(scribe_core::formulary::WHISPER_PROMPT);
+
         // One state per call, so concurrent use is safe and nothing leaks
         // between patients.
         let mut state = self

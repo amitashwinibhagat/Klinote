@@ -138,13 +138,14 @@ impl ScribePipeline {
         let asr_output = self.asr.transcribe(&prepared, &speech_spans, options)?;
         let diarization = self.diarizer.diarize(&prepared, &speech_spans)?;
 
-        let transcript = self.assemble_transcript(
+        let mut transcript = self.assemble_transcript(
             encounter.id,
             &asr_output.segments,
             &diarization,
             &asr_output.language,
             &asr_output.engine,
         );
+        transcript.name_checks = scribe_core::suggest_names(&transcript);
 
         let note = self.generate(encounter, &transcript)?;
 
@@ -157,7 +158,8 @@ impl ScribePipeline {
 
     /// Human transcript in, note out. No model, no audio.
     pub fn process_text(&self, encounter: &Encounter, text: &str) -> Result<PipelineOutput> {
-        let transcript = parse_transcript_text(text, encounter.id, "en")?;
+        let mut transcript = parse_transcript_text(text, encounter.id, "en")?;
+        transcript.name_checks = scribe_core::suggest_names(&transcript);
         let note = self.generate(encounter, &transcript)?;
         Ok(PipelineOutput {
             transcript,

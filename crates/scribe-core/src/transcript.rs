@@ -99,6 +99,9 @@ pub struct Transcript {
     /// True when the text came from a human-supplied transcript rather than ASR.
     #[serde(default)]
     pub human_supplied: bool,
+    /// Possible drug-name mishearings. Suggestions only; never auto-applied.
+    #[serde(default)]
+    pub name_checks: Vec<crate::formulary::NameCheck>,
 }
 
 /// A run of consecutive segments from one speaker — the unit the note
@@ -123,6 +126,7 @@ impl Transcript {
             engine: engine.into(),
             created_at: Utc::now(),
             human_supplied: false,
+            name_checks: Vec::new(),
         }
     }
 

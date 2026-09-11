@@ -14,6 +14,7 @@
 
 pub mod encounter;
 pub mod error;
+pub mod formulary;
 pub mod ids;
 pub mod note;
 pub mod template;
@@ -21,6 +22,7 @@ pub mod transcript;
 
 pub use encounter::{Discipline, Encounter};
 pub use error::{Result, ScribeError};
+pub use formulary::{NameCheck, suggest as suggest_names};
 pub use ids::{EncounterId, NoteId, SegmentId, SpeakerId, TemplateId};
 pub use note::{ClinicalNote, NoteSection, NoteSentence, ReviewState, UnassignedItem};
 pub use template::{SectionSpec, Template};

@@ -23,6 +23,9 @@ struct DocumentView: View {
                         ForEach(note.sections) { section in
                             SectionBlock(section: section, model: model)
                         }
+                        if let checks = encounter.transcript?.nameChecks, !checks.isEmpty {
+                            NameCheckBlock(checks: checks, model: model)
+                        }
                         if !note.unassigned.isEmpty {
                             UnfiledBlock(items: note.unassigned)
                         }
@@ -245,6 +248,33 @@ struct SentenceRow: View {
 // MARK: - Unfiled statements
 
 /// Above the signature block, never below it and never hidden: these are what
+struct NameCheckBlock: View {
+    let checks: [NameCheck]
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
+            SectionHeader(title: "Check these names", state: .missingRequired)
+            Text("Heard in the consult. Not replaced until you say so.")
+                .font(KlinoteFont.ui(12))
+                .foregroundStyle(KlinoteColor.secondary)
+            ForEach(checks) { check in
+                HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
+                    Text("\(check.heard) → \(check.suggest)")
+                        .font(KlinoteFont.document(13))
+                        .foregroundStyle(KlinoteColor.primary)
+                    Spacer(minLength: 0)
+                    Button("Use \(check.suggest)") {
+                        model.applyNameCheck(heard: check.heard, suggest: check.suggest)
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(.bottom, KlinoteMetrics.space32)
+    }
+}
+
 /// the clinician must resolve before signing.
 struct UnfiledBlock: View {
     let items: [UnassignedStatement]

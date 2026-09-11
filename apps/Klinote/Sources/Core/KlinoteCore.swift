@@ -57,8 +57,8 @@ struct ClinicalNote: Codable, Identifiable, Hashable {
     let id: String
     let encounterId: String
     let templateId: String
-    let sections: [NoteSection]
-    let unassigned: [UnassignedStatement]
+    var sections: [NoteSection]
+    var unassigned: [UnassignedStatement]
     let generatedAt: String
     let engine: String
     let reviewState: String
@@ -72,16 +72,16 @@ struct ClinicalNote: Codable, Identifiable, Hashable {
 struct NoteSection: Codable, Identifiable, Hashable {
     let key: String
     let title: String
-    let body: String
+    var body: String
     let evidence: [String]
-    let sentences: [NoteSentence]
+    var sentences: [NoteSentence]
     let complete: Bool
 
     var id: String { key }
 }
 
 struct NoteSentence: Codable, Hashable, Identifiable {
-    let text: String
+    var text: String
     let evidence: [String]
     let ambiguous: Bool
 
@@ -97,14 +97,22 @@ struct UnassignedStatement: Codable, Identifiable, Hashable {
     var id: String { "\(evidence.first ?? "none")::\(text)" }
 }
 
+struct NameCheck: Codable, Hashable, Identifiable {
+    let heard: String
+    let suggest: String
+    let evidence: [String]
+    var id: String { "\(heard)|\(suggest)" }
+}
+
 struct Transcript: Codable {
     let encounterId: String
     var speakers: [TranscriptSpeaker]
-    let segments: [TranscriptSegment]
+    var segments: [TranscriptSegment]
     let language: String
     let engine: String
     var humanSupplied: Bool
     var createdAt: String?
+    var nameChecks: [NameCheck]?
 
     /// Flip clinician ↔ patient on the two well-known speakers. Other roles stay.
     mutating func swapClinicianAndPatient() {
@@ -129,7 +137,7 @@ struct TranscriptSegment: Codable, Identifiable {
     let speaker: UInt32
     let startMs: UInt64
     let endMs: UInt64
-    let text: String
+    var text: String
     let confidence: Double?
 }
 
