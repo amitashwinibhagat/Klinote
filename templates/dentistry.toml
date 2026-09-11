@@ -1,0 +1,66 @@
+# Dental examination and treatment note
+id = "dentistry"
+name = "Dental Note"
+discipline = "dentistry"
+version = "1"
+description = "Chief complaint / Examination / Findings / Treatment / Plan. Tooth-numbered findings."
+
+[[sections]]
+key = "chief_complaint"
+title = "Chief Complaint"
+required = true
+guidance = "Why the patient attended, in their words."
+cues = [
+  "complains", "reports", "pain", "sore", "sensitive", "broken", "chipped", "cracked",
+  "swelling", "bleeding", "gum", "loose", "since", "started", "hot", "cold", "sweet",
+  "biting", "chewing", "cosmetic", "check-up", "checkup", "routine", "emergency"
+]
+
+[[sections]]
+key = "examination"
+title = "Examination"
+required = true
+guidance = "Extra-oral and intra-oral examination, periodontal charting, occlusion."
+cues = [
+  "extra-oral", "intra-oral", "examination", "lymph", "nodes", "tmj", "occlusion",
+  "periodontal", "pocket", "charting", "bop", "bleeding on probing", "mobility",
+  "recession", "calculus", "plaque", "gingiva", "gingivitis", "oral hygiene",
+  "soft tissue", "mucosa", "tongue", "palate", "no caries", "dentition"
+]
+
+[[sections]]
+key = "findings"
+title = "Findings"
+required = true
+guidance = "Tooth-level findings, radiographs, diagnoses."
+cues = [
+  "caries", "cavity", "filling", "restoration", "crown", "bridge", "implant",
+  "upper right", "upper left", "lower right", "lower left", "ur", "ul", "lr", "ll",
+  "tooth", "teeth", "x-ray", "radiograph", "opg", "bitewing", "periapical", "radiolucency",
+  "fracture", "abscess", "pulpitis", "periodontitis", "impacted", "wisdom", "third molar",
+  "wear", "erosion", "attrition", "recurrent decay", "secondary caries"
+]
+
+[[sections]]
+key = "treatment"
+title = "Treatment"
+required = false
+guidance = "Treatment delivered this visit, materials, anaesthesia."
+cues = [
+  "treatment", "performed", "completed", "administered", "local anaesthetic", "la",
+  "lidocaine", "articaine", "composite", "amalgam", "extraction", "extracted",
+  "root canal", "endo", "scaling", "root planing", "hygiene", "polish", "fissure sealant",
+  "crown prep", "impression", "temporary", "placed", "restored", "filled"
+]
+
+[[sections]]
+key = "plan"
+title = "Plan"
+required = true
+guidance = "Onward treatment plan, prescriptions, review interval, oral hygiene advice."
+cues = [
+  "plan", "next visit", "review", "recall", "refer", "referral", "prescribe",
+  "amoxicillin", "metronidazole", "chlorhexidine", "analgesia", "ibuprofen",
+  "extraction planned", "treatment plan", "stages", "quote", "consent", "advice",
+  "brush", "floss", "fluoride", "diet", "six months", "three months"
+]

@@ -1,0 +1,66 @@
+/*
+ * scribe_core_ffi.h — C ABI for the Local Clinical Scribe engine.
+ *
+ * Link the Rust static library built by:
+ *     cargo build --release -p scribe-ffi
+ * which produces target/release/libscribe_core_ffi.a
+ *
+ * Swift usage (add this header to a bridging header, link the .a):
+ *
+ *     guard let raw = scribe_note_from_transcript(requestJSON) else { return }
+ *     defer { scribe_string_free(raw) }
+ *     let envelope = try JSONDecoder().decode(Envelope.self,
+ *                                             from: Data(String(cString: raw).utf8))
+ *
+ * Contract:
+ *   - Every function returning `char *` returns heap-allocated, NUL-terminated
+ *     UTF-8 that the caller MUST free with scribe_string_free(). Null is
+ *     possible only on allocation failure.
+ *   - Payload functions return an envelope:
+ *         { "ok": true,  ... }
+ *         { "ok": false, "error": "..." }
+ *     Failures never panic across the boundary; malformed input is an error
+ *     envelope, not undefined behaviour.
+ *   - Input pointers must be NUL-terminated UTF-8, or NULL.
+ */
+
+#ifndef SCRIBE_CORE_FFI_H
+#define SCRIBE_CORE_FFI_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* Engine contract version, e.g. "0.1.0". Assert at launch. */
+char *scribe_schema_version(void);
+
+/*
+ * JSON: {"ok":true,"templates":[{id,name,discipline,version,description,
+ *                                sections:[{key,title,guidance,required}]}]}
+ */
+char *scribe_list_templates(void);
+
+/*
+ * Input:  {"encounter":{...},"transcript":{...}}  or
+ *         {"template_id":"soap","transcript":{...}}
+ * Output: {"ok":true,"note":{...}} | {"ok":false,"error":"..."}
+ *
+ * `transcript` is a serialised Transcript (see scribe-core). Use the
+ * `parse_transcript_text` path in the CLI/engine for plain-text transcripts.
+ */
+char *scribe_note_from_transcript(const char *request_json);
+
+/*
+ * Input:  a serialised ClinicalNote (the object inside "note" above).
+ * Output: {"ok":true,"markdown":"..."} | {"ok":false,"error":"..."}
+ */
+char *scribe_note_to_markdown(const char *note_json);
+
+/* Free any string returned by this library. NULL is a no-op. */
+void scribe_string_free(char *pointer);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* SCRIBE_CORE_FFI_H */

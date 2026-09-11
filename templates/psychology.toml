@@ -1,0 +1,64 @@
+# Psychology / talking-therapy session note
+id = "psychology"
+name = "Therapy Session Note"
+discipline = "psychology"
+version = "1"
+description = "Presenting issues / Mental state / Risk / Formulation / Plan. Deliberately structure-light: mental-health notes are risk-sensitive."
+
+[[sections]]
+key = "presenting"
+title = "Presenting / Update"
+required = true
+guidance = "What the client brought to this session."
+cues = [
+  "reports", "described", "discussed", "talked about", "brought up", "since last session",
+  "this week", "has been", "feeling", "anxious", "anxiety", "depressed", "low mood",
+  "stress", "stressed", "sleep", "panic", "worry", "worried", "anger", "irritable",
+  "relationship", "work", "family", "grief", "trauma", "flashbacks", "avoidance"
+]
+
+[[sections]]
+key = "mental_state"
+title = "Mental State Examination"
+required = true
+guidance = "Appearance, behaviour, speech, mood, affect, thought, cognition, insight."
+cues = [
+  "appearance", "well kempt", "behaviour", "behavior", "eye contact", "speech",
+  "rate", "volume", "mood", "affect", "euthymic", "flat", "labile", "tearful",
+  "thought", "insight", "judgement", "orientation", "alert", "cognition", "concentration",
+  "memory", "psychomotor", "agitated", "settled", "engaged", "mse"
+]
+
+[[sections]]
+key = "risk"
+title = "Risk"
+required = true
+guidance = "Risk to self, risk to others, protective factors. Must not be left blank without an explicit statement."
+cues = [
+  "risk", "suicidal", "suicide", "self-harm", "self harm", "harm", "safeguarding",
+  "protective", "denies", "no thoughts of", "passive", "plan", "intent", "means",
+  "children", "vulnerable", "abuse", "neglect", "safety", "crisis", "emergency"
+]
+
+[[sections]]
+key = "formulation"
+title = "Formulation / Interventions"
+required = false
+guidance = "Clinical formulation and therapeutic work undertaken this session."
+cues = [
+  "formulation", "cbt", "cognitive", "behavioural", "behavioral", "psychodynamic",
+  "act", "dbt", "emdr", "exposure", "cognitive restructuring", "thought record",
+  "behavioural activation", "psychoeducation", "worked on", "intervention",
+  "technique", "explored", "challenged", "reframed", "grounding", "breathing"
+]
+
+[[sections]]
+key = "plan"
+title = "Plan"
+required = true
+guidance = "Next session, homework, review, onward referral."
+cues = [
+  "plan", "next session", "next week", "follow up", "follow-up", "homework",
+  "between sessions", "practice", "review", "refer", "referral", "gp", "medication review",
+  "continue", "frequency", "discharge", "ending", "safety plan"
+]

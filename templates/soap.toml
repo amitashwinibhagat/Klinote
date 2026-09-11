@@ -1,0 +1,60 @@
+# SOAP — general practice
+# The default template. Cues drive rule-based routing of transcript sentences.
+id = "soap"
+name = "SOAP Note"
+discipline = "general_practice"
+version = "1"
+description = "Subjective / Objective / Assessment / Plan. General practice default."
+
+[[sections]]
+key = "subjective"
+title = "Subjective"
+required = true
+guidance = "History as reported by the patient or caregiver. Symptoms, onset, course, context."
+cues = [
+  "reports", "reported", "complains", "complaining", "feels", "feeling", "pain", "sore",
+  "sore throat", "headache", "ache", "hurts", "hurting", "since", "started", "began",
+  "worse", "better", "history",
+  "past medical", "medication", "allergies", "smoker", "alcohol", "sleep", "appetite",
+  "nausea", "vomiting", "dizzy", "tired", "fatigue", "cough", "fever",
+  "I have", "I've", "my", "worried", "concerned", "onset", "duration"
+]
+
+[[sections]]
+key = "objective"
+title = "Objective"
+required = true
+guidance = "Examination findings and measurements. Observations, vitals, examination."
+cues = [
+  "bp", "blood pressure", "pulse", "heart rate", "temperature", "temp", "respiratory rate",
+  "oxygen saturation", "sats", "spo2", "weight", "bmi", "on examination", "examination",
+  "auscultation", "chest clear", "chest", "abdomen", "soft", "tender", "palpation",
+  "inspection", "observed", "appears", "alert", "orientation", "throat", "erythema",
+  "lymph", "nodes", "range of motion", "rom", "gait", "reflexes", "normal", "no murmurs"
+]
+
+[[sections]]
+key = "assessment"
+title = "Assessment"
+required = true
+guidance = "Clinical impression, differential, problem list."
+cues = [
+  "impression", "assessment", "likely", "consistent with", "diagnosis", "diagnoses",
+  "differential", "suspected", "probably", "appears to be", "working diagnosis",
+  "rule out", "viral", "bacterial", "infection", "inflammatory", "benign", "chronic",
+  "acute", "stable", "uncontrolled", "well controlled"
+]
+
+[[sections]]
+key = "plan"
+title = "Plan"
+required = true
+guidance = "Investigations, prescriptions, referrals, follow-up, safety netting."
+cues = [
+  "plan", "prescribe", "prescribed", "prescribing", "start on", "dose", "dosage", "mg",
+  "milligrams", "twice daily", "three times", "tds", "bd", "od", "qds", "prn",
+  "refer", "referral", "referring", "bloods", "blood test", "x-ray", "xray", "scan",
+  "ecg", "urine", "swab", "follow up", "follow-up", "review in", "come back",
+  "return if", "safety net", "red flags", "pharmacy", "physiotherapy", "advice",
+  "rest", "fluids", "order", "arrange", "recommend"
+]

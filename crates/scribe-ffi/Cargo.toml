@@ -1,0 +1,18 @@
+[package]
+name = "scribe-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "C ABI for the Local Clinical Scribe engine, consumed by the Swift shell."
+
+[lib]
+name = "scribe_core_ffi"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+scribe-core.workspace = true
+scribe-note.workspace = true
+scribe-pipeline.workspace = true
+serde.workspace = true
+serde_json.workspace = true

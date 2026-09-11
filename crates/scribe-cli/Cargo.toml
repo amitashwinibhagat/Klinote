@@ -1,0 +1,19 @@
+[package]
+name = "scribe-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Command-line driver for the Local Clinical Scribe engine."
+
+[[bin]]
+name = "scribe"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+serde_json.workspace = true
+scribe-core.workspace = true
+scribe-audio.workspace = true
+scribe-pipeline.workspace = true
+scribe-store.workspace = true

@@ -1,0 +1,23 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Local data — never commit encounter data, transcripts, notes or audio
+*.wav
+*.m4a
+*.caf
+*.mp3
+*.db
+*.db-shm
+*.db-wal
+/data/
+/fixtures/private/
+
+# macOS
+.DS_Store
+
+# Swift shell (added later)
+/apps/LocalClinicalScribe/build/
+/apps/LocalClinicalScribe/DerivedData/
+*.xcuserstate
+xcuserdata/

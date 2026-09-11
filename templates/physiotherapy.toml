@@ -1,0 +1,67 @@
+# Physiotherapy assessment and treatment note
+id = "physiotherapy"
+name = "Physiotherapy Note"
+discipline = "physiotherapy"
+version = "1"
+description = "Subjective / Objective / Assessment / Treatment / Plan for musculoskeletal and rehab physiotherapy."
+
+[[sections]]
+key = "subjective"
+title = "Subjective"
+required = true
+guidance = "Presenting complaint, aggravating and easing factors, 24-hour behaviour, goals."
+cues = [
+  "pain", "ache", "stiff", "stiffness", "swelling", "reports", "complains", "since",
+  "started", "injury", "fell", "lifting", "sport", "aggravated by", "worse when",
+  "eased by", "better when", "morning", "night", "sleep", "goals", "wants to",
+  "struggling with", "difficulty", "can't", "cannot", "history", "previous",
+  "0 to 10", "out of 10", "numbness", "tingling", "pins and needles", "giving way"
+]
+
+[[sections]]
+key = "objective"
+title = "Objective"
+required = true
+guidance = "Observation, range of motion, strength, special tests, gait, function."
+cues = [
+  "range of motion", "rom", "flexion", "extension", "abduction", "adduction", "rotation",
+  "degrees", "strength", "power", "grade", "myotome", "dermatome", "reflex", "sensation",
+  "special test", "lachman", "mcmurray", "hawkins", "neer", "slump", "straight leg raise",
+  "gait", "antalgic", "trendelenburg", "posture", "alignment", "swelling", "effusion",
+  "tenderness", "palpation", "observed", "on inspection", "single leg", "squat", "heel raise"
+]
+
+[[sections]]
+key = "assessment"
+title = "Assessment"
+required = true
+guidance = "Clinical impression, tissue involved, stage of healing, prognosis."
+cues = [
+  "impression", "assessment", "consistent with", "likely", "suspected", "tendinopathy",
+  "strain", "sprain", "tear", "impingement", "radiculopathy", "arthritis", "post-operative",
+  "stage", "irritable", "prognosis", "good prognosis", "guarded", "differential"
+]
+
+[[sections]]
+key = "treatment"
+title = "Treatment"
+required = false
+guidance = "What was done in this session."
+cues = [
+  "treated with", "treatment", "mobilisation", "mobilization", "manipulation", "massage",
+  "dry needling", "acupuncture", "ultrasound", "taping", "strap", "electrotherapy",
+  "exercises", "exercise", "prescribed exercises", "taught", "demonstrated", "stretched",
+  "manual therapy", "cupping", "traction", "session", "today we"
+]
+
+[[sections]]
+key = "plan"
+title = "Plan"
+required = true
+guidance = "Home programme, frequency, progression, onward referral."
+cues = [
+  "plan", "home exercise", "home programme", "home program", "heps", "reps", "sets",
+  "daily", "twice a day", "review in", "follow up", "follow-up", "next session",
+  "progress", "progress to", "refer", "referral", "imaging", "mri", "x-ray",
+  "discharge", "discharged", "advice", "avoid", "return to sport", "return to work"
+]
