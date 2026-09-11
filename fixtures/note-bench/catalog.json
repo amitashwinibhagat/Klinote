@@ -108,6 +108,15 @@
       "url": "https://huggingface.co/bartowski/google_gemma-3-4b-it-GGUF/resolve/main/google_gemma-3-4b-it-IQ3_M.gguf",
       "bytes": 1986666912,
       "why": "4B squeezed into 1.99 GB. Tests params vs quant quality."
+    },
+    {
+      "id": "qwen3-4b-q3ks",
+      "band": "1-2gb",
+      "name": "Qwen3-4B Instruct 2507 Q3_K_S",
+      "file": "Qwen3-4B-Instruct-2507-Q3_K_S.gguf",
+      "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q3_K_S.gguf",
+      "bytes": 1886997600,
+      "why": "Qwen3 4B in 1.89 GB. Direct analogue to Gemma 3 4B IQ3."
     }
   ]
 }
