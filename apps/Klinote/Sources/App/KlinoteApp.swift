@@ -108,28 +108,28 @@ struct MenuBarContent: View {
         }
 
         if case .downloading(let fraction) = downloader.state {
-            Text("Downloading speech engine \(Int(fraction * 100))%")
+            Text("Downloading listening \(Int(fraction * 100))%")
             Divider()
         } else if case .missing = downloader.state {
-            Button("Download speech engine…") { downloader.start() }
+            Button("Download listening…") { downloader.start() }
             Divider()
         } else if case .failed = downloader.state {
-            Button("Retry speech engine download") { downloader.start() }
+            Button("Retry listening download") { downloader.start() }
             Divider()
         }
 
         if model.recordingState.isDrafting {
-            Text("Drafting the note on this Mac")
+            Text("Writing the note")
         } else if model.recordingState.isActive {
             Text(model.recordingState.isPaused ? "Paused — not recording" : "Recording")
-            Button("Stop and draft") { model.stopAndDraft() }
+            Button("Stop and write the note") { model.stopAndDraft() }
             if model.recordingState.isPaused {
                 Button("Resume") { model.resumeRecording() }
             } else {
                 Button("Pause") { model.pauseRecording() }
             }
         } else {
-            Button("Start recording") { model.startRecording() }
+            Button("Record this consult") { model.startRecording() }
         }
 
         Divider()

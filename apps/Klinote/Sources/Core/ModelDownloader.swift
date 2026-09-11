@@ -25,10 +25,10 @@ enum ModelState: Equatable {
 
     var word: String {
         switch self {
-        case .missing: "Speech engine not downloaded"
-        case .downloading(let fraction): "Downloading speech engine \(Int(fraction * 100))%"
-        case .ready: "Speech engine ready"
-        case .failed(let message): "Download failed — \(message)"
+        case .missing: "Not downloaded"
+        case .downloading(let fraction): "Downloading \(Int(fraction * 100))%"
+        case .ready: "Ready on this Mac"
+        case .failed(let message): "Could not download — \(message)"
         }
     }
 }

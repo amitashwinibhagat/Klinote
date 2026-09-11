@@ -155,8 +155,8 @@ struct EncounterSidebar: View {
 
             if model.encounters.isEmpty {
                 EmptyState(
-                    title: "No encounters yet",
-                    message: "Record a consultation, or open the bundled sample to see how a draft reads.",
+                    title: "No consults yet",
+                    message: "Record a consult, or open the sample to see how a note reads.",
                     action: (title: "Open the sample note", handler: { model.prepareDemoNote() })
                 )
                 .padding(KlinoteMetrics.space16)

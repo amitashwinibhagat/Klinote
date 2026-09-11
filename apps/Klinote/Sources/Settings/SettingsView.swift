@@ -56,7 +56,7 @@ private struct GeneralSettings: View {
 
             Section("Review window") {
                 Toggle("Show the evidence margin", isOn: $showMarginByDefault)
-                Text("Every statement in a note can be traced back to the words that produced it.")
+                Text("Click a sentence to see the words that produced it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -72,7 +72,7 @@ private struct TemplateSettings: View {
         Form {
             if model.templates.isEmpty {
                 Section {
-                    Text("No templates were reported by the engine.")
+                    Text("No templates loaded.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -97,7 +97,7 @@ private struct TemplateSettings: View {
                 }
             }
             Section {
-                Text("Templates are read-only here on purpose. Editing them changes what a required section is, which is a clinical decision, not a preference.")
+                Text("Required sections are a clinical decision. That is why templates are read-only here.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -112,21 +112,21 @@ private struct RecordingSettings: View {
 
     var body: some View {
         Form {
-            Section("Speech model") {
+            Section("Listening") {
                 LabeledContent("Status", value: downloader.state.word)
                 switch downloader.state {
                 case .missing:
-                    Button("Download speech engine (465 MB, once)") {
+                    Button("Download listening (465 MB, once)") {
                         downloader.start()
                     }
-                    Text("Runs on this Mac. Consultations are never uploaded. Download this before you record — not during a consult.")
+                    Text("Turns speech into text on this Mac. Download before a consult, not during one.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .downloading(let fraction):
                     ProgressView(value: fraction)
                     Button("Cancel") { downloader.cancel() }
                 case .ready:
-                    Text("Ready. Consultations are transcribed on this Mac.")
+                    Text("Ready. Speech is transcribed on this Mac.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .failed(let message):
@@ -144,20 +144,20 @@ private struct RecordingSettings: View {
                 LabeledContent("Open Klinote", value: "⌘⇧N")
                 LabeledContent("File a note", value: "⌘↩")
             }
-            Section("Note engine") {
-                LabeledContent("Status", value: downloader.noteState.word.replacingOccurrences(of: "Speech engine", with: "Note engine"))
+            Section("Quire") {
+                LabeledContent("Status", value: downloader.noteState.word)
                 switch downloader.noteState {
                 case .missing:
                     Button("Download Quire (1.9 GB, once)") {
                         downloader.startNote()
                     }
-                    Text("On-device draft engine. Stays on this Mac. No Apple Intelligence required.")
+                    Text("Writes the note from the consult. Stays on this Mac.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .downloading(let fraction):
                     ProgressView(value: fraction)
                 case .ready:
-                    Text("Ready. Notes are drafted on this Mac.")
+                    Text("Ready. Notes are written on this Mac.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .failed(let message):
@@ -166,7 +166,7 @@ private struct RecordingSettings: View {
                 }
             }
             Section("Audio") {
-                Text("Audio is captured and discarded. Klinote does not keep a recording unless you ask it to, and never sends audio anywhere.")
+                Text("Audio is used to write the note, then discarded. It is not uploaded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -182,27 +182,24 @@ private struct PrivacySettings: View {
         Form {
             Section("This build") {
                 Toggle("I understand this build is for teaching only", isOn: $teachingBuildAcknowledged)
-                Text("Encryption at rest is not built. Do not record real patients until it is. Recording stays off until you acknowledge this.")
+                Text("Nothing is encrypted at rest yet. Do not record real patients. Recording stays off until you confirm this.")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
-            Section("Where your data is") {
-                Text("Everything Klinote produces stays in this Mac's application support folder. There is no account, no sync, and no server.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text("The only thing that ever crosses the network is the open-source speech model, downloaded once on first use. Audio and notes never leave this Mac. The Rust engine itself contains no networking code — enforced in continuous integration.")
+            Section("Where it lives") {
+                Text("Notes stay on this Mac. There is no account, no sync, and no server. The only download is listening and Quire, once each. Audio and notes are never uploaded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Not yet implemented") {
-                Text("Encryption at rest and a retention policy are not built yet. Until they are, do not use Klinote with real patient data.")
+            Section("Not yet") {
+                Text("No encryption at rest. No retention policy. Do not use real patient data in this build.")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
 
-            Section("Identifiers") {
-                Text("Klinote stores an opaque reference for an encounter, never a name, record number, or date of birth.")
+            Section("Names") {
+                Text("Klinote stores a code for the encounter, never a name, record number, or date of birth.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

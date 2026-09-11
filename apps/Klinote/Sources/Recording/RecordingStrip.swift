@@ -82,8 +82,8 @@ struct RecordingStripView: View {
     private var headline: String {
         switch model.recordingState {
         case .paused: "Paused — not recording"
-        case .finalising: "Drafting the note on this Mac"
-        default: "This consultation is being recorded on this Mac only"
+        case .finalising: "Writing the note on this Mac"
+        default: "Recording this consult on this Mac only"
         }
     }
 
@@ -126,12 +126,12 @@ struct RecordingStripView: View {
                 .disabled(isDrafting)
                 .accessibilityLabel(model.recordingState.isPaused ? "Resume recording" : "Pause recording")
 
-                Button("Stop and draft") {
+                Button("Stop and write the note") {
                     model.stopAndDraft()
                 }
                 .controlSize(.small)
                 .disabled(isDrafting)
-                .accessibilityLabel("Stop recording and draft the note")
+                .accessibilityLabel("Stop recording and write the note")
 
                 Spacer(minLength: 0)
 

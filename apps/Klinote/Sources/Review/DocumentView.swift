@@ -45,14 +45,14 @@ struct DocumentView: View {
                 }
                 .background(KlinoteColor.desk)
             } else if let error = model.lastError {
-                EmptyState(title: "The engine could not draft this note", message: error)
+                EmptyState(title: "Could not write this note", message: error)
                     .padding(KlinoteMetrics.space48)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(KlinoteColor.desk)
             } else {
                 EmptyState(
                     title: "No note selected",
-                    message: "Choose an encounter, or record a consultation to draft a new note."
+                    message: "Choose a consult, or record one."
                 )
                 .padding(KlinoteMetrics.space48)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -139,16 +139,14 @@ struct ProvisionanceLine: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(note.engine.contains("gemma") || note.engine.contains("foundation")
-                 ? "Drafted on this Mac with a local language model · nothing left the device"
-                 : "Drafted on this Mac · nothing left the device")
+            Text("Written on this Mac. Nothing left the device.")
                 .font(KlinoteFont.label())
                 .foregroundStyle(KlinoteColor.tertiary)
             if isSynthetic {
-                Text("Synthetic sample text — not a real transcription.")
+                Text("Sample text — not a real consult.")
                     .font(KlinoteFont.label())
                     .foregroundStyle(KlinoteColor.caution)
-                Text("Click a sentence to see the words behind it.")
+                Text("Click a sentence to see the words that produced it.")
                     .font(KlinoteFont.label())
                     .foregroundStyle(KlinoteColor.secondary)
             }
@@ -254,7 +252,7 @@ struct UnfiledBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
             SectionHeader(title: "Not filed to a section", state: .missingRequired)
-            Text("These statements were heard but could not be placed with confidence. File them or discard them before signing.")
+            Text("Heard, not placed. File them or drop them before you sign.")
                 .font(KlinoteFont.ui(12))
                 .foregroundStyle(KlinoteColor.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -342,7 +340,7 @@ struct SignatureBlock: View {
                 }
             }
 
-            Text("Copy note puts it on the clipboard for your record system. Mark as reviewed stays on this Mac — it does not send anything anywhere.")
+            Text("Copy note puts it on the clipboard. Mark as reviewed stays on this Mac. Nothing is sent.")
                 .font(KlinoteFont.label())
                 .foregroundStyle(KlinoteColor.tertiary)
         }

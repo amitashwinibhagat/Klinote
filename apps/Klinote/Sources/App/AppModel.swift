@@ -44,7 +44,7 @@ enum RecordingState: Equatable {
         case .idle: "Not recording"
         case .recording: "Recording"
         case .paused: "Paused"
-        case .finalising: "Drafting"
+        case .finalising: "Writing"
         }
     }
 }
@@ -235,7 +235,7 @@ final class AppModel: ObservableObject {
             let url = Bundle.main.url(forResource: "demo-transcript", withExtension: "txt"),
             let text = try? String(contentsOf: url, encoding: .utf8)
         else {
-            lastError = "The bundled demonstration transcript is missing from the app."
+            lastError = "The sample note is missing from the app."
             return
         }
         do {
@@ -300,20 +300,20 @@ final class AppModel: ObservableObject {
     func startRecording() {
         guard recordingState.isIdle else { return }
         guard teachingBuildAcknowledged else {
-            lastError = "This build must not record real patients (nothing is encrypted at rest). Acknowledge that in Settings → Privacy, then record."
+            lastError = "This build is for teaching. Confirm that in Settings → Privacy, then record."
             return
         }
         switch ModelDownloader.shared.state {
         case .ready:
             break
         case .missing:
-            lastError = "Download the speech engine first (Settings → Recording). It stays on this Mac — 465 MB, once."
+            lastError = "Download listening first (Settings → Recording). 465 MB, once, stays on this Mac."
             return
         case .downloading:
-            lastError = "The speech engine is still downloading. Record when Settings says it is ready."
+            lastError = "Listening is still downloading. Record when Settings says it is ready."
             return
         case .failed:
-            lastError = "The speech engine could not be downloaded. Retry in Settings → Recording."
+            lastError = "Listening could not be downloaded. Retry in Settings → Recording."
             return
         }
         switch ModelDownloader.shared.noteState {
@@ -323,23 +323,23 @@ final class AppModel: ObservableObject {
             lastError = "Download Quire first (Settings → Recording). 1.9 GB, once, stays on this Mac."
             return
         case .downloading:
-            lastError = "The note engine is still downloading. Record when Settings says it is ready."
+            lastError = "Quire is still downloading. Record when Settings says it is ready."
             return
         case .failed:
-            lastError = "The note engine could not be downloaded. Retry in Settings → Recording."
+            lastError = "Quire could not be downloaded. Retry in Settings → Recording."
             return
         }
         Task { @MainActor in
             if !Recorder.shared.permissionGranted {
                 guard await Recorder.shared.requestPermission() else {
-                    lastError = "Microphone access is required to record. Enable it in System Settings → Privacy & Security → Microphone."
+                    lastError = "Allow the microphone in System Settings → Privacy & Security → Microphone."
                     return
                 }
             }
             do {
                 _ = try Recorder.shared.start()
             } catch {
-                lastError = "Could not start the microphone. Check that no other app has exclusive access to it."
+                lastError = "Could not start the microphone. Another app may be using it."
                 return
             }
             lastError = nil
@@ -387,7 +387,7 @@ final class AppModel: ObservableObject {
         guard let url else {
             RecordingStripController.shared.hide()
             recordingState = .idle
-            lastError = "No audio was captured."
+            lastError = "Nothing was recorded."
             return
         }
 
@@ -448,7 +448,7 @@ final class AppModel: ObservableObject {
                 try? FileManager.default.removeItem(at: url)
                 await MainActor.run {
                     self.pendingRecording = nil
-                    self.lastError = "Couldn't draft this recording. Record again if you still need the note."
+                    self.lastError = "Could not write this note. Record again if you still need it."
                     self.recordingState = .idle
                     self.elapsed = 0
                     RecordingStripController.shared.hide()
@@ -497,7 +497,7 @@ final class AppModel: ObservableObject {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(markdown, forType: .string)
             isCopying = true
-            copyBanner = "Copied — paste into the record"
+            copyBanner = "Copied. Paste into the record."
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 self.isCopying = false
@@ -506,7 +506,7 @@ final class AppModel: ObservableObject {
                 }
             }
         } catch {
-            lastError = "Couldn't copy the note."
+            lastError = "Could not copy the note."
         }
     }
 
@@ -539,7 +539,7 @@ final class AppModel: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
-                    self.lastError = "Couldn't rebuild the note after swapping speakers."
+                    self.lastError = "Could not rebuild the note after swapping speakers."
                     self.isSwapping = false
                 }
             }

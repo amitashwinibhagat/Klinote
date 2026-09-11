@@ -19,7 +19,7 @@ struct MarginView: View {
 
             if let transcript = model.selectedEncounter?.transcript {
                 if transcript.humanSupplied {
-                    Text("This draft was produced from a typed transcript, not a recording.")
+                    Text("This note came from typed text, not a recording.")
                         .font(KlinoteFont.label())
                         .foregroundStyle(KlinoteColor.tertiary)
                         .padding(.horizontal, KlinoteMetrics.space16)
@@ -50,7 +50,7 @@ struct MarginView: View {
             } else {
                 EmptyState(
                     title: "No source",
-                    message: "There is nothing to trace this note back to yet."
+                    message: "Nothing to trace this note to yet."
                 )
                 .padding(KlinoteMetrics.space16)
                 Spacer()
@@ -63,11 +63,11 @@ struct MarginView: View {
         VStack(alignment: .leading, spacing: 4) {
             TabLabel(text: "Evidence")
             if let sentenceNumber = selectedSentenceNumber {
-                Text("Words behind sentence \(sentenceNumber)")
+                Text("Words that produced sentence \(sentenceNumber)")
                     .font(KlinoteFont.ui(12, weight: .medium))
                     .foregroundStyle(KlinoteColor.primary)
             } else {
-                Text("Select a sentence to see the words behind it.")
+                Text("Select a sentence to see the words that produced it.")
                     .font(KlinoteFont.ui(12))
                     .foregroundStyle(KlinoteColor.secondary)
             }

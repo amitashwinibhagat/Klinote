@@ -25,11 +25,11 @@ enum LocalLlm {
         template: TemplateSummary
     ) throws -> ClinicalNote {
         guard let binary else {
-            throw KlinoteCoreError.engine("The local note engine is missing from the app bundle.")
+            throw KlinoteCoreError.engine("Quire is missing from the app.")
         }
         let model = ModelDownloader.noteFile
         guard FileManager.default.fileExists(atPath: model.path) else {
-            throw KlinoteCoreError.engine("The note model is not downloaded.")
+            throw KlinoteCoreError.engine("Quire is not downloaded.")
         }
 
         let encoder = JSONEncoder()
@@ -74,14 +74,14 @@ enum LocalLlm {
         }
         if process.isRunning {
             process.terminate()
-            throw KlinoteCoreError.engine("The note engine took too long.")
+            throw KlinoteCoreError.engine("Quire took too long.")
         }
         let data = outPipe.fileHandleForReading.readDataToEndOfFile()
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let envelope = try decoder.decode(NoteEnvelope.self, from: data)
         guard envelope.ok, let note = envelope.note else {
-            throw KlinoteCoreError.engine(envelope.error ?? "The note engine returned nothing.")
+            throw KlinoteCoreError.engine(envelope.error ?? "Quire returned nothing.")
         }
         return note
     }
