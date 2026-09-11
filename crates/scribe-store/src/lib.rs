@@ -13,7 +13,7 @@
 
 use std::path::Path;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 use scribe_core::{ClinicalNote, Discipline, Encounter, EncounterId, NoteId, Result, ScribeError, Transcript};
 
@@ -290,6 +290,50 @@ impl Store {
         Ok(())
     }
 
+    /// Hard-delete every encounter that started before `cutoff`.
+    ///
+    /// Retention is a statutory obligation, not a preference, so this is a real
+    /// delete rather than a flag. Returns how many rows went. The audit entry
+    /// records the count and the cutoff, never the content.
+    pub fn delete_older_than(&self, cutoff: DateTime<Utc>) -> Result<usize> {
+        let ids = {
+            let mut statement = self
+                .conn
+                .prepare("SELECT id, started_at FROM encounters")
+                .map_err(storage_error)?;
+            let rows = statement
+                .query_map([], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })
+                .map_err(storage_error)?;
+            let mut stale = Vec::new();
+            for row in rows {
+                let (id, started_at) = row.map_err(storage_error)?;
+                if let Ok(at) = DateTime::parse_from_rfc3339(&started_at)
+                    && at.with_timezone(&Utc) < cutoff
+                {
+                    stale.push(id);
+                }
+            }
+            stale
+        };
+
+        for id in &ids {
+            self.conn
+                .execute("DELETE FROM encounters WHERE id = ?1", params![id])
+                .map_err(storage_error)?;
+        }
+        if !ids.is_empty() {
+            self.audit(
+                "shell",
+                "encounter.purged",
+                None,
+                Some(&format!("count={} before={}", ids.len(), cutoff.to_rfc3339())),
+            )?;
+        }
+        Ok(ids.len())
+    }
+
     /// Latest transcript and note for every encounter, newest first.
     pub fn list_sessions(&self) -> Result<Vec<StoredSession>> {
         let mut statement = self
@@ -454,6 +498,22 @@ mod tests {
         store.save_encounter(&encounter).unwrap();
         store.delete_encounter(&encounter.id.to_string()).unwrap();
         assert_eq!(store.encounter_count().unwrap(), 0);
+    }
+
+    #[test]
+    fn retention_deletes_only_old_encounters() {
+        let store = Store::open_in_memory().unwrap();
+        let mut old = encounter();
+        old.started_at = Utc::now() - chrono::Duration::days(400);
+        store.save_encounter(&old).unwrap();
+        let fresh = encounter();
+        store.save_encounter(&fresh).unwrap();
+
+        let cutoff = Utc::now() - chrono::Duration::days(365);
+        assert_eq!(store.delete_older_than(cutoff).unwrap(), 1);
+        assert_eq!(store.encounter_count().unwrap(), 1);
+        let remaining = store.list_sessions().unwrap();
+        assert_eq!(remaining[0].encounter.id, fresh.id);
     }
 
     #[test]

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use scribe_core::{
     ClinicalNote, NoteId, NoteSection, NoteSentence, Result, ReviewState, SectionSpec, SegmentId,
-    SpeakerRole, Template, UnassignedItem,
+    SpeakerRole, Support, Template, UnassignedItem,
 };
 
 use crate::generator::{GenerationRequest, NoteGenerator};
@@ -73,6 +73,7 @@ impl NoteGenerator for RuleBasedGenerator {
                     text: text.clone(),
                     evidence: vec![*segment_id],
                     ambiguous: false,
+                    support: Support::Supported,
                 })
                 .collect();
 

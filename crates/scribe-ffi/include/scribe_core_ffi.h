@@ -107,6 +107,12 @@ char *scribe_store_list(const char *db_path, const char *key);
 /* Hard-delete one encounter and its transcript/note. Audit keeps the id only. */
 char *scribe_store_delete(const char *db_path, const char *key, const char *encounter_id);
 
+/*
+ * Retention: hard-delete every encounter started before `cutoff_rfc3339`.
+ * Output: {"ok":true,"deleted":N} | {"ok":false,"error":"..."}
+ */
+char *scribe_store_purge(const char *db_path, const char *key, const char *cutoff_rfc3339);
+
 /* Free any string returned by this library. NULL is a no-op. */
 void scribe_string_free(char *pointer);
 

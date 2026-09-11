@@ -442,6 +442,36 @@ pub unsafe extern "C" fn scribe_store_delete(
     into_c_string(&payload.to_string())
 }
 
+/// Hard-delete every encounter started before `cutoff_rfc3339`.
+/// Output: `{"ok":true,"deleted":N}`.
+///
+/// # Safety
+/// Pointers must be null or valid NUL-terminated UTF-8.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_store_purge(
+    db_path: *const c_char,
+    key: *const c_char,
+    cutoff_rfc3339: *const c_char,
+) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let path = unsafe { cstr_to_string(db_path) }?;
+        let key = unsafe { optional_cstr(key) }?;
+        let raw = unsafe { cstr_to_string(cutoff_rfc3339) }?;
+        let cutoff = chrono::DateTime::parse_from_rfc3339(&raw)
+            .map_err(|err| format!("invalid cutoff: {err}"))?
+            .with_timezone(&chrono::Utc);
+        let store = scribe_store::Store::open_with_key(&path, key.as_deref())
+            .map_err(|err| err.to_string())?;
+        let deleted = store
+            .delete_older_than(cutoff)
+            .map_err(|err| err.to_string())?;
+        Ok(json!({ "ok": true, "deleted": deleted }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
 /// Free a string returned by this library. Passing null is a no-op.
 ///
 /// # Safety

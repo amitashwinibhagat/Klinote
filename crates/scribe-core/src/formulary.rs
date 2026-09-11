@@ -120,6 +120,20 @@ pub fn suggest(transcript: &Transcript) -> Vec<NameCheck> {
     out
 }
 
+/// Lowercased alphabetic tokens, at least six characters. Shared with the
+/// grounding check so drug matching is identical in both places.
+pub(crate) fn tokens_of(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '.')
+        .map(|t| t.trim_matches(|c| c == '-' || c == '.').to_ascii_lowercase())
+        .filter(|t| !t.is_empty())
+        .collect()
+}
+
+/// True when `token` is a name on the on-device formulary.
+pub fn is_known_drug(token: &str) -> bool {
+    FORMULARY.contains(&token)
+}
+
 fn tokens(text: &str) -> Vec<String> {
     text.split(|c: char| !c.is_ascii_alphabetic() && c != '-')
         .map(|t| t.trim_matches('-').to_ascii_lowercase())

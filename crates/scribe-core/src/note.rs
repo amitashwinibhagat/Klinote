@@ -23,6 +23,18 @@ impl ReviewState {
     }
 }
 
+/// Whether a sentence's own evidence contains what the sentence claims.
+///
+/// `Unverified` is a review prompt, never an accusation: it means a figure or
+/// drug name in this sentence does not appear in the words that were heard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Support {
+    #[default]
+    Supported,
+    Unverified,
+}
+
 /// One sentence of a note, with the transcript segments it came from.
 ///
 /// Sentence-level evidence is what makes the note checkable rather than
@@ -37,6 +49,9 @@ pub struct NoteSentence {
     /// sentence. Surfaced to the reviewer rather than silently decided.
     #[serde(default)]
     pub ambiguous: bool,
+    /// Set by [`ClinicalNote::verify_support`].
+    #[serde(default)]
+    pub support: Support,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -124,6 +139,39 @@ impl ClinicalNote {
 
     pub fn required_missing(&self) -> bool {
         !self.missing_required.is_empty()
+    }
+
+    /// Mark every sentence whose own evidence does not contain its figures or
+    /// drug names. Deterministic, local, and never rewrites the text.
+    pub fn verify_support(&mut self, transcript: &crate::transcript::Transcript) {
+        if transcript.segments.is_empty() {
+            return;
+        }
+        let cited_by_id: std::collections::HashMap<SegmentId, &str> = transcript
+            .segments
+            .iter()
+            .map(|segment| (segment.id, segment.text.as_str()))
+            .collect();
+        for section in &mut self.sections {
+            for sentence in &mut section.sentences {
+                let cited = sentence
+                    .evidence
+                    .iter()
+                    .filter_map(|id| cited_by_id.get(id).copied())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                sentence.support = crate::support::judge(&sentence.text, &cited);
+            }
+        }
+    }
+
+    /// Sentences a clinician should look at before signing.
+    pub fn unverified_count(&self) -> usize {
+        self.sections
+            .iter()
+            .flat_map(|section| section.sentences.iter())
+            .filter(|sentence| sentence.support == Support::Unverified)
+            .count()
     }
 
     /// Clipboard text for the record system: section titles and bodies only.

@@ -240,6 +240,20 @@ struct SentenceRow: View {
                 .foregroundStyle(KlinoteColor.primary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            if sentence.isUnverified {
+                Text("check source")
+                    .font(KlinoteFont.label(9, weight: .semibold))
+                    .foregroundStyle(KlinoteColor.caution)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: KlinoteMetrics.radiusChip, style: .continuous)
+                            .strokeBorder(KlinoteColor.caution.opacity(0.5), lineWidth: 1)
+                    )
+                    .help("A figure or drug name here is not in the words that were heard.")
+                    .fixedSize()
+            }
         }
         .padding(.vertical, 2)
         .padding(.horizontal, 6)

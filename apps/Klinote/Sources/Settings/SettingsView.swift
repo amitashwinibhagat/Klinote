@@ -18,7 +18,7 @@ struct SettingsRootView: View {
                 .tabItem { Label("Templates", systemImage: "list.bullet.rectangle") }
             RecordingSettings(model: model)
                 .tabItem { Label("Recording", systemImage: "waveform") }
-            PrivacySettings()
+            PrivacySettings(model: model)
                 .tabItem { Label("Privacy", systemImage: "lock") }
             AboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
@@ -176,16 +176,37 @@ private struct RecordingSettings: View {
 }
 
 private struct PrivacySettings: View {
+    @ObservedObject var model: AppModel
+
+    private let periods: [(String, Int)] = [
+        ("Keep everything", 0),
+        ("3 months", 3),
+        ("12 months", 12),
+        ("36 months", 36),
+    ]
+
     var body: some View {
         Form {
-            Section("Where it lives") {
-                Text("Notes stay on this Mac, encrypted. There is no account, no sync, and no server. The only download is listening and Quire, once each. Audio and notes are never uploaded.")
+            Section("Retention") {
+                Picker("Keep notes for", selection: $model.retentionMonths) {
+                    ForEach(periods, id: \.1) { period in
+                        Text(period.0).tag(period.1)
+                    }
+                }
+                .pickerStyle(.menu)
+                Text(model.retentionMonths == 0
+                     ? "Nothing is deleted automatically. Check what your jurisdiction and college require."
+                     : "Notes older than \(model.retentionMonths) months are deleted at launch. This is a real delete, not a flag.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(model.retentionMonths == 0 ? .secondary : .primary)
+                Button("Delete expired notes now") {
+                    model.purgeExpiredNotes()
+                }
+                .disabled(model.retentionMonths == 0)
             }
 
-            Section("Not yet") {
-                Text("No retention policy yet. Delete old consults yourself for now.")
+            Section("Where it lives") {
+                Text("Notes stay on this Mac, encrypted. There is no account, no sync, and no server. The only download is listening and Quire, once each. Audio and notes are never uploaded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

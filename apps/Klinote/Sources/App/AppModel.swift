@@ -150,10 +150,14 @@ final class AppModel: ObservableObject {
 
     // MARK: - Startup
 
+    /// Months of history to keep. 0 means keep everything.
+    @AppStorage("klinote.retentionMonths") var retentionMonths = 0
+
     func bootstrap() {
         if let loaded = try? KlinoteCore.templates() {
             templates = loaded
         }
+        purgeExpiredNotes()
         loadPersistedSessions()
         if encounters.isEmpty {
             prepareDemoNote()
@@ -204,6 +208,24 @@ final class AppModel: ObservableObject {
         if let date = formatter.date(from: value) { return date }
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: value)
+    }
+
+    /// Retention runs at launch and on demand. A real delete, not a flag.
+    @discardableResult
+    func purgeExpiredNotes() -> Int {
+        guard retentionMonths > 0 else { return 0 }
+        guard let cutoff = Calendar.current.date(
+            byAdding: .month,
+            value: -retentionMonths,
+            to: Date()
+        ) else { return 0 }
+        let removed = (try? KlinoteCore.purge(before: cutoff)) ?? 0
+        if removed > 0 {
+            copyBanner = removed == 1
+                ? "Deleted 1 note past the retention period."
+                : "Deleted \(removed) notes past the retention period."
+        }
+        return removed
     }
 
     /// Text → note, with no model and no download. The fastest honest path to

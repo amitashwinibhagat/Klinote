@@ -18,7 +18,8 @@ use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaModel, Special};
 use llama_cpp_2::sampling::LlamaSampler;
 use scribe_core::{
-    ClinicalNote, NoteId, NoteSection, NoteSentence, ReviewState, SegmentId, UnassignedItem,
+    ClinicalNote, NoteId, NoteSection, NoteSentence, ReviewState, SegmentId, Support,
+    UnassignedItem,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -140,13 +141,17 @@ fn run(model_path: &PathBuf, request: &Request) -> Result<ClinicalNote, String> 
             .unwrap_or("gguf")
             .to_ascii_lowercase()
     );
-    Ok(assemble(
+    let mut note = assemble(
         draft,
         &request.transcript,
         &utterances,
         &request.template,
         engine,
-    ))
+    );
+    // The grounding check must run on model output too: a paraphrase is fine,
+    // an invented figure or drug name is not.
+    note.verify_support(&request.transcript);
+    Ok(note)
 }
 
 struct Utterance {
@@ -385,6 +390,7 @@ fn assemble(
                         text: text.to_owned(),
                         evidence: evidence.clone(),
                         ambiguous: evidence.len() != 1,
+                        support: Support::Supported,
                     });
                 }
             }

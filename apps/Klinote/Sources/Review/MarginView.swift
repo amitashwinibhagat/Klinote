@@ -24,6 +24,9 @@ struct MarginView: View {
                         .foregroundStyle(KlinoteColor.tertiary)
                         .padding(.horizontal, KlinoteMetrics.space16)
                         .padding(.vertical, KlinoteMetrics.space8)
+                } else {
+                    voiceMapping(transcript)
+                    Hairline()
                 }
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -31,7 +34,7 @@ struct MarginView: View {
                             ForEach(transcript.segments) { segment in
                                 UtteranceRow(
                                     segment: segment,
-                                    role: role(for: segment, in: transcript),
+                                    role: label(for: segment, in: transcript),
                                     isEvidence: evidenceIDs.contains(segment.id),
                                     isPrimary: primaryEvidenceID == segment.id
                                 )
@@ -99,8 +102,38 @@ struct MarginView: View {
         selectedSentence?.sentence.evidence.first
     }
 
-    private func role(for segment: TranscriptSegment, in transcript: Transcript) -> String {
-        transcript.speakers.first { $0.id == segment.speaker }?.role ?? "other"
+    /// From a recording, diarisation yields anonymous voices — it does not know
+    /// who the clinician is. Say so, rather than asserting a role we inferred.
+    private func label(for segment: TranscriptSegment, in transcript: Transcript) -> String {
+        if transcript.humanSupplied {
+            return transcript.speakers.first { $0.id == segment.speaker }?.role ?? "other"
+        }
+        return "Voice \(Self.voiceLetter(segment.speaker))"
+    }
+
+    static func voiceLetter(_ speaker: UInt32) -> String {
+        let scalar = UnicodeScalar(65 + Int(speaker))
+        return scalar.map(String.init) ?? "?"
+    }
+
+    /// One line naming the assumption the routing made, with the one tap that
+    /// corrects it. Only when there is more than one voice to confuse.
+    @ViewBuilder
+    private func voiceMapping(_ transcript: Transcript) -> some View {
+        if !transcript.humanSupplied, transcript.speakers.count >= 2 {
+            HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
+                Text("Voice A → clinician · Voice B → patient")
+                    .font(KlinoteFont.label())
+                    .foregroundStyle(KlinoteColor.tertiary)
+                Spacer(minLength: 0)
+                Button("Swap") { model.swapSpeakersAndRedraft() }
+                    .controlSize(.small)
+                    .disabled(model.isSwapping || model.isSynthetic)
+                    .help("Swap clinician and patient, then rebuild the note (⌥⌘S)")
+            }
+            .padding(.horizontal, KlinoteMetrics.space16)
+            .padding(.vertical, KlinoteMetrics.space8)
+        }
     }
 }
 

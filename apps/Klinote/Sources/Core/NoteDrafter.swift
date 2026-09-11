@@ -214,7 +214,14 @@ enum NoteDrafter {
                 let evidence = item.evidence.compactMap { byIndex[$0]?.segmentID }
                 guard !evidence.isEmpty else { continue }
                 evidence.forEach { used.insert($0) }
-                sentences.append(NoteSentence(text: text, evidence: evidence, ambiguous: evidence.count != 1))
+                sentences.append(
+                    NoteSentence(
+                        text: text,
+                        evidence: evidence,
+                        ambiguous: evidence.count != 1,
+                        support: "supported"
+                    )
+                )
             }
             let body = sentences.map(\.text).joined(separator: " ")
             let complete = !body.isEmpty

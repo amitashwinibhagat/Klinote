@@ -170,11 +170,14 @@ impl ScribePipeline {
 
     fn generate(&self, encounter: &Encounter, transcript: &Transcript) -> Result<ClinicalNote> {
         let template = self.templates.get(encounter.template_id.as_str())?;
-        self.generator.generate(&GenerationRequest {
+        let mut note = self.generator.generate(&GenerationRequest {
             encounter,
             transcript,
             template,
-        })
+        })?;
+        // Grounding check on every path, rule-based included.
+        note.verify_support(transcript);
+        Ok(note)
     }
 
     fn assemble_transcript(

@@ -44,6 +44,12 @@ struct NoteTextEnvelope: Decodable {
     let text: String?
 }
 
+struct PurgeEnvelope: Decodable {
+    let ok: Bool
+    let error: String?
+    let deleted: Int?
+}
+
 struct StoreListEnvelope: Decodable {
     let ok: Bool
     let error: String?
@@ -90,6 +96,10 @@ struct NoteSentence: Codable, Hashable, Identifiable {
     var text: String
     let evidence: [String]
     let ambiguous: Bool
+    /// "supported" or "unverified". Set by the engine's grounding check.
+    let support: String?
+
+    var isUnverified: Bool { support == "unverified" }
 
     /// Stable within a note: the sentence text plus its first evidence id.
     var id: String { "\(evidence.first ?? "none")::\(text)" }
@@ -363,6 +373,17 @@ enum KlinoteCore {
             from: scribe_store_delete(storePath(), try StoreKey.hex(), id)
         )
         guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not delete") }
+    }
+
+    /// Hard-delete every encounter started before `cutoff`. Returns how many went.
+    static func purge(before cutoff: Date) throws -> Int {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let envelope: PurgeEnvelope = try envelope(
+            from: scribe_store_purge(storePath(), try StoreKey.hex(), formatter.string(from: cutoff))
+        )
+        guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not purge") }
+        return envelope.deleted ?? 0
     }
 
     static func loadSessions() throws -> [StoredSession] {
