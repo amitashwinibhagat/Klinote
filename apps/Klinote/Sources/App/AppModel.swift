@@ -136,6 +136,12 @@ final class AppModel: ObservableObject {
     /// First-run setup, which states the clinician's consent duty and offers
     /// the download as a choice rather than a wall.
     @AppStorage("klinote.didCompleteSetup") var didCompleteSetup = false
+    /// Whether the first-run sheet is on screen. Deliberately separate from
+    /// `didCompleteSetup`: acknowledging the consent duty has to be an explicit
+    /// act by the clinician, never a side effect of a sheet being dismissed.
+    /// Driving the sheet straight off `didCompleteSetup` meant any teardown the
+    /// system performed wrote the acknowledgement for them.
+    @Published var isSettingUp = false
 
     /// Show the letter every time Klinote starts. On by default: launching an
     /// app should produce a window. Turn it off if you keep Klinote running in
@@ -275,9 +281,23 @@ final class AppModel: ObservableObject {
     /// window was even created. Preferences live outside the app bundle, so
     /// reinstalling never cleared it, and there was no way back to the
     /// first-run state short of deleting the plist by hand.
+    /// Whether launching should produce a window — and therefore whether the
+    /// app should start as a regular app rather than a menu-bar accessory.
+    var opensWindowAtLaunch: Bool { !didCompleteSetup || openWindowAtLaunch }
+
     func openWindowIfNeeded() {
-        if !didCompleteSetup || openWindowAtLaunch {
+        if opensWindowAtLaunch {
             ReviewWindowController.shared.show()
+            ReviewWindowController.shared.closeStraySettingsWindow()
+        }
+        if !didCompleteSetup {
+            // A runloop turn after the window exists. Presenting a sheet onto a
+            // window created in the same turn is silently dropped, and a
+            // first-run screen that does not appear is worse than none.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(150))
+                isSettingUp = true
+            }
         }
     }
 

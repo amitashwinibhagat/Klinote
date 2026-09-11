@@ -95,15 +95,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        // Decide the activation policy once, here.
+        //
+        // This used to start as .accessory and flip to .regular when the window
+        // appeared. Becoming accessory at launch hands focus back to whatever
+        // was frontmost, and asking for it again a moment later does not get it
+        // back reliably — the window opened behind the app the clinician came
+        // from, which looks exactly like "no window opened".
+        let model = AppModel.shared
+        NSApp.setActivationPolicy(model.opensWindowAtLaunch ? .regular : .accessory)
 
         Task { @MainActor in
-            AppModel.shared.bootstrap()
+            model.bootstrap()
             // One runloop turn, so the window is created after launch has
-            // settled. Activating too early in launch is ignored, which leaves
-            // the window behind whatever was already frontmost.
+            // settled. Activating too early in launch is ignored.
             try? await Task.sleep(for: .milliseconds(50))
-            AppModel.shared.openWindowIfNeeded()
+            model.openWindowIfNeeded()
         }
 
         // ⌥⌘R — start or stop recording.

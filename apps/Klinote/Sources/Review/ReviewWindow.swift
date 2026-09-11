@@ -16,6 +16,21 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         self.init(window: nil)
     }
 
+    /// SwiftUI opens the Settings scene by itself when the app launches as a
+    /// regular app — a menu-bar app with a `Settings` scene has no other
+    /// "main" window to put on screen. Nobody asked for Settings, and it lands
+    /// on top of the letter and the first-run sheet.
+    ///
+    /// Matched on the frame autosave name, which is the identifier macOS and
+    /// SwiftUI both use for that window, rather than on a title we would be
+    /// guessing at.
+    func closeStraySettingsWindow() {
+        for window in NSApp.windows
+        where window.frameAutosaveName == "com_apple_SwiftUI_Settings_window" {
+            window.close()
+        }
+    }
+
     /// Whether the letter is actually on screen. The copy guard needs to know
     /// whether the clinician can see which consult they are copying.
     var isShowing: Bool {
@@ -378,10 +393,7 @@ struct EncounterSidebar: View {
         .sheet(item: $model.pendingCopy) { encounter in
             CopyConfirmSheet(encounter: encounter, model: model)
         }
-        .sheet(isPresented: Binding(
-            get: { !model.didCompleteSetup },
-            set: { if !$0 { model.didCompleteSetup = true } }
-        )) {
+        .sheet(isPresented: $model.isSettingUp) {
             SetupSheet(model: model)
                 .interactiveDismissDisabled()
         }

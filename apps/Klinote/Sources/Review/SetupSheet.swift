@@ -44,8 +44,10 @@ struct SetupSheet: View {
                 )
                 Point(
                     symbol: "waveform",
-                    title: "Listening downloads once",
-                    detail: "Speech recognition needs a 465 MB model. It downloads once and stays on this Mac. You can skip it and paste a transcript instead."
+                    title: listeningReady ? "Listening is ready" : "Listening downloads once",
+                    detail: listeningReady
+                        ? "The 465 MB speech model is already on this Mac. You can record a consult straight away."
+                        : "Speech recognition needs a 465 MB model. It downloads once and stays on this Mac. You can skip it and paste a transcript instead."
                 )
             }
 
@@ -67,22 +69,24 @@ struct SetupSheet: View {
             }
             .toggleStyle(.checkbox)
 
-            HStack(spacing: KlinoteMetrics.space12) {
-                Text("This build has no retention policy. Delete old consults in Settings.")
+            HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
+                Text(acknowledged
+                     ? "Notes are kept until you delete them, or set a retention period in Settings → Privacy."
+                     : "Tick the box above to continue.")
                     .font(KlinoteFont.label())
-                    .foregroundStyle(KlinoteColor.tertiary)
+                    .foregroundStyle(acknowledged ? KlinoteColor.tertiary : KlinoteColor.caution)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
-                Button("Paste a transcript instead") {
-                    finish()
-                    model.isPasting = true
+                if !listeningReady {
+                    Button("Paste a transcript instead") {
+                        finish()
+                        model.isPasting = true
+                    }
+                    .disabled(!acknowledged)
                 }
-                .disabled(!acknowledged)
-                Button(downloadButtonTitle) {
-                    downloader.start()
-                    finish()
-                }
-                .buttonStyle(KlinotePrimaryButtonStyle())
-                .disabled(!acknowledged || downloader.state == .ready)
+                Button(primaryTitle, action: primaryAction)
+                    .buttonStyle(KlinotePrimaryButtonStyle())
+                    .disabled(!acknowledged)
             }
         }
         .padding(KlinoteMetrics.space32)
@@ -90,16 +94,37 @@ struct SetupSheet: View {
         .background(KlinoteColor.document)
     }
 
-    private var downloadButtonTitle: String {
+    private var listeningReady: Bool { downloader.state == .ready }
+
+    /// There must always be an action here that finishes setup. The first
+    /// version turned the primary button into a disabled *label* — "Listening
+    /// is ready" — once the model was already on disk, which left a clinician
+    /// who wanted to record with no way past this screen except the paste
+    /// button, which is the wrong thing to press.
+    private var primaryTitle: String {
         switch downloader.state {
-        case .ready: "Listening is ready"
-        case .downloading: "Downloading…"
+        case .ready: "Start using Klinote"
+        case .downloading(let fraction): "Continue · listening \(Int(fraction * 100))%"
         default: "Download listening (465 MB)"
         }
     }
 
+    private func primaryAction() {
+        switch downloader.state {
+        case .ready, .downloading:
+            // Already handled, or already running in the background.
+            break
+        case .missing, .failed:
+            downloader.start()
+        }
+        finish()
+    }
+
+    /// The only place setup is ever completed, so the acknowledgement is
+    /// always a deliberate click.
     private func finish() {
         model.didCompleteSetup = true
+        model.isSettingUp = false
     }
 }
 

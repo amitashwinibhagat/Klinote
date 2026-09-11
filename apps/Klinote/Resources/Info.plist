@@ -28,6 +28,10 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
+	<!-- Klinote decides which window to open (see AppModel.openWindowIfNeeded).
+	     macOS restoring the Settings window on top of the letter is noise. -->
+	<key>NSQuitAlwaysKeepsWindows</key>
+	<false/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Amit Ashwini Bhagat. All rights reserved.</string>
 	<key>NSMicrophoneUsageDescription</key>
