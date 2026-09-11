@@ -19,7 +19,7 @@ struct DocumentView: View {
                let transcript = encounter.transcript {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        Letterhead(encounter: encounter, note: note)
+                        Letterhead(model: model, encounter: encounter, note: note)
                         ForEach(note.sections) { section in
                             SectionBlock(section: section, model: model)
                         }
@@ -68,8 +68,13 @@ struct DocumentView: View {
 // MARK: - Letterhead
 
 struct Letterhead: View {
+    @ObservedObject var model: AppModel
     let encounter: Encounter
     let note: ClinicalNote
+
+    private var canSwap: Bool {
+        !encounter.isSyntheticDemo && (encounter.transcript?.speakers.count ?? 0) >= 2
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
@@ -95,6 +100,19 @@ struct Letterhead: View {
 
             ProvisionanceLine(note: note, isSynthetic: encounter.isSyntheticDemo)
 
+            if canSwap {
+                Button {
+                    model.swapSpeakersAndRedraft()
+                } label: {
+                    Text(model.isSwapping ? "Swapping voices…" : "Voices look wrong? Swap clinician and patient")
+                }
+                .buttonStyle(.plain)
+                .font(KlinoteFont.ui(12))
+                .foregroundStyle(KlinoteColor.ink)
+                .disabled(model.isSwapping)
+                .help("⌥⌘S")
+            }
+
             LetterheadRule()
                 .padding(.top, KlinoteMetrics.space4)
         }
@@ -111,6 +129,10 @@ struct Letterhead: View {
     }
 
     private var readinessLabel: String {
+        let names = encounter.transcript?.nameChecks?.count ?? 0
+        if names > 0 {
+            return names == 1 ? "1 name to check" : "\(names) names to check"
+        }
         if !note.unassigned.isEmpty {
             return "\(note.unassigned.count) unfiled"
         }
@@ -310,10 +332,6 @@ struct SignatureBlock: View {
     let note: ClinicalNote
 
     private var isReviewed: Bool { model.selectedEncounter?.state == .approved }
-    private var canSwap: Bool {
-        guard let encounter = model.selectedEncounter else { return false }
-        return !encounter.isSyntheticDemo && (encounter.transcript?.speakers.count ?? 0) >= 2
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space16) {
@@ -324,7 +342,7 @@ struct SignatureBlock: View {
                     Text(isReviewed ? "Reviewed by you" : "Not yet reviewed")
                         .font(KlinoteFont.label())
                         .foregroundStyle(KlinoteColor.secondary)
-                    Text(isReviewed ? "Just now, on this Mac" : "Copy the note, then mark it reviewed.")
+                    Text(isReviewed ? "On this Mac. Not in the record until you paste." : "Paste into the record. Then mark reviewed here.")
                         .font(KlinoteFont.document(14))
                         .foregroundStyle(KlinoteColor.tertiary)
                 }
@@ -335,42 +353,32 @@ struct SignatureBlock: View {
                     Text(model.completenessLine)
                         .font(KlinoteFont.ui(12))
                         .foregroundStyle(
-                            note.missingRequired.isEmpty ? KlinoteColor.secondary : KlinoteColor.caution
+                            model.isPasteReady ? KlinoteColor.secondary : KlinoteColor.caution
                         )
                         .multilineTextAlignment(.trailing)
 
                     HStack(spacing: KlinoteMetrics.space8) {
-                        if canSwap {
-                            Button {
-                                model.swapSpeakersAndRedraft()
-                            } label: {
-                                Text(model.isSwapping ? "Swapping…" : "Swap speakers")
-                            }
-                            .controlSize(.small)
-                            .disabled(model.isSwapping)
-                            .help("Swap clinician and patient, then rebuild the note (⌥⌘S)")
-                        }
-                        Button {
-                            model.copySelectedNote()
-                        } label: {
-                            Text(model.isCopying ? "Copied" : "Copy note")
-                        }
-                        .controlSize(.small)
-                        .help("Copy the note to paste into the record (⌘⇧C)")
                         Button {
                             model.fileSelectedNote()
                         } label: {
                             Text(model.isFiling ? "Saving…" : "Mark as reviewed")
                         }
-                        .buttonStyle(KlinotePrimaryButtonStyle())
-                        .keyboardShortcut(.return, modifiers: .command)
+                        .controlSize(.small)
                         .disabled(model.isFiling || isReviewed)
-                        .help("Mark this draft as reviewed on this Mac (⌘↩)")
+                        .help("Local only. Does not send anything (⌘↩)")
+                        Button {
+                            model.copySelectedNote()
+                        } label: {
+                            Text(model.isCopying ? "Copied" : "Copy note")
+                        }
+                        .buttonStyle(KlinotePrimaryButtonStyle())
+                        .controlSize(.small)
+                        .help("Copy the note to paste into the record (⌘⇧C)")
                     }
                 }
             }
 
-            Text("Copy note puts it on the clipboard. Mark as reviewed stays on this Mac. Nothing is sent.")
+            Text("Copy note is the path into the record. Mark as reviewed stays on this Mac.")
                 .font(KlinoteFont.label())
                 .foregroundStyle(KlinoteColor.tertiary)
         }

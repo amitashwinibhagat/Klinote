@@ -457,6 +457,7 @@ final class AppModel: ObservableObject {
                     self.selectFirstEvidence()
                     RecordingStripController.shared.hide()
                     ReviewWindowController.shared.show()
+                    self.promptPasteIfReady()
                 }
             } catch {
                 try? FileManager.default.removeItem(at: url)
@@ -599,6 +600,7 @@ final class AppModel: ObservableObject {
             encounters[index] = encounter
         }
         persist(encounter)
+        promptPasteIfReady()
     }
 
     func markEdited() {
@@ -617,17 +619,40 @@ final class AppModel: ObservableObject {
         return "waveform.circle"
     }
 
+    var nameCheckCount: Int {
+        selectedEncounter?.transcript?.nameChecks?.count ?? 0
+    }
+
+    /// Ready to paste: required sections filled, no unresolved name checks.
+    var isPasteReady: Bool {
+        guard let note = selectedEncounter?.note else { return false }
+        return note.missingRequired.isEmpty && nameCheckCount == 0
+    }
+
+    func promptPasteIfReady() {
+        if nameCheckCount > 0 {
+            copyBanner = nameCheckCount == 1
+                ? "Check the drug name, then copy."
+                : "Check \(nameCheckCount) names, then copy."
+        } else if isPasteReady {
+            copyBanner = "Ready. Copy the note into the record."
+        }
+    }
+
     var completenessLine: String {
         guard let note = selectedEncounter?.note else { return "" }
         let total = note.sections.count
         let filled = note.sections.filter { !$0.body.trimmingCharacters(in: .whitespaces).isEmpty }.count
-        if note.missingRequired.isEmpty {
-            return "\(filled) of \(total) sections documented · no required section missing"
+        if !note.missingRequired.isEmpty {
+            let names = note.missingRequired.map { key in
+                note.sections.first { $0.key == key }?.title ?? key
+            }
+            return "\(filled) of \(total) sections · missing: \(names.joined(separator: ", "))"
         }
-        let names = note.missingRequired.map { key in
-            note.sections.first { $0.key == key }?.title ?? key
+        if nameCheckCount > 0 {
+            return "\(filled) of \(total) sections · \(nameCheckCount) name\(nameCheckCount == 1 ? "" : "s") to check"
         }
-        return "\(filled) of \(total) sections documented · missing: \(names.joined(separator: ", "))"
+        return "\(filled) of \(total) sections documented · ready to copy"
     }
 
     var isSynthetic: Bool { selectedEncounter?.isSyntheticDemo ?? false }
