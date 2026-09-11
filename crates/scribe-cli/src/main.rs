@@ -75,6 +75,10 @@ struct CommonArgs {
     #[arg(long)]
     db: Option<PathBuf>,
 
+    /// Write the transcript JSON here (whisper/mock segments + speakers).
+    #[arg(long)]
+    out_transcript: Option<PathBuf>,
+
     /// Actor recorded in the audit log.
     #[arg(long, default_value = "cli")]
     actor: String,
@@ -262,6 +266,12 @@ fn finish(
     } else {
         output.note.to_markdown()
     };
+
+    if let Some(path) = &common.out_transcript {
+        let json = serde_json::to_string_pretty(&output.transcript)?;
+        std::fs::write(path, json.as_bytes())?;
+        eprintln!("wrote transcript {}", path.display());
+    }
 
     match &common.out {
         Some(path) => {
