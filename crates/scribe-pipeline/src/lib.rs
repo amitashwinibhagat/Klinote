@@ -187,8 +187,11 @@ impl ScribePipeline {
         transcript.language = language.to_owned();
 
         for asr_segment in segments {
-            let speaker = diarization
-                .speaker_at(asr_segment.start_ms)
+            // Prefer the ASR backend's own speaker annotation (whisper.cpp
+            // SBD) over silence-based diarisation when it is present.
+            let speaker = asr_segment
+                .speaker
+                .or_else(|| diarization.speaker_at(asr_segment.start_ms))
                 .unwrap_or(SpeakerId::CLINICIAN);
             let role = self.role_map.role_for(speaker);
             transcript.push_speaker(Speaker::new(speaker, role));

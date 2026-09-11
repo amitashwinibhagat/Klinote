@@ -14,7 +14,7 @@
 //! `AsrEngine` in Swift and hand the result across the FFI boundary.
 
 use scribe_audio::{AudioBuffer, SpeechSpan};
-use scribe_core::Result;
+use scribe_core::{Result, SpeakerId};
 
 #[derive(Debug, Clone, Default)]
 pub struct AsrOptions {
@@ -31,6 +31,9 @@ pub struct AsrSegment {
     pub end_ms: u64,
     pub text: String,
     pub confidence: Option<f32>,
+    /// Speaker annotation when the backend has one (e.g. whisper.cpp SBD).
+    /// The pipeline prefers this over silence-based diarisation.
+    pub speaker: Option<SpeakerId>,
 }
 
 impl AsrSegment {
@@ -40,6 +43,7 @@ impl AsrSegment {
             end_ms,
             text: text.into(),
             confidence: None,
+            speaker: None,
         }
     }
 }

@@ -17,8 +17,11 @@ Australian Privacy Act or any other regime is a separate assessment that has
 | Audit log | SQLite (`audit_log`), append-only | Actor, action, subject, timestamp. No clinical content. |
 | Logs | Local stderr / shell logs | Must never contain clinical content or identifiers. |
 
-Nothing on this list is transmitted anywhere. There is no network code in the
-workspace.
+Nothing on this list is transmitted anywhere. The Rust engine contains no
+network code (enforced in CI). The **only** inbound network in the product is
+the Swift shell's first-use download of the open-source whisper.cpp model
+(`ggml-small.en-tdrz.bin`) from Hugging Face. Audio and notes never leave the
+Mac.
 
 ## Identifiers
 

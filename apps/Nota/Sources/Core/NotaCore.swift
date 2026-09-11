@@ -197,6 +197,37 @@ enum NotaCore {
         return payload.markdown ?? ""
     }
 
+    /// The audio path: a recorded .wav in, a note out, via whisper.cpp with
+    /// speaker diarisation. `modelPath` points at the downloaded GGUF model;
+    /// pass nil to fall back to the mock engine.
+    static func note(
+        fromAudio audioPath: URL,
+        modelPath: URL?,
+        templateId: String,
+        discipline: String,
+        patientRef: String
+    ) throws -> (note: ClinicalNote, transcript: Transcript) {
+        var request: [String: Any] = [
+            "template_id": templateId,
+            "discipline": discipline,
+            "patient_ref": patientRef,
+            "audio_path": audioPath.path,
+        ]
+        request["model_path"] = modelPath?.path ?? NSNull()
+
+        let requestData = try JSONSerialization.data(withJSONObject: request)
+        guard let requestJSON = String(data: requestData, encoding: .utf8) else {
+            throw NotaCoreError.malformedResponse
+        }
+
+        let payload: NoteEnvelope = try envelope(from: scribe_note_from_audio(requestJSON))
+        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
+        guard let note = payload.note, let transcript = payload.transcript else {
+            throw NotaCoreError.malformedResponse
+        }
+        return (note, transcript)
+    }
+
     // MARK: - Plumbing
 
     private static func envelope<T: Decodable>(from pointer: UnsafeMutablePointer<CChar>?) throws -> T {

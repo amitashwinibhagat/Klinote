@@ -92,7 +92,7 @@ wrapped continuation of the same speaker
 | Speaker diarisation (two-speaker turn-taking) | ✅ heuristic, labelled as such |
 | SQLite store + append-only audit trail | ✅ engine only |
 | C ABI, statically linked into the app bundle | ✅ self-contained 3 MB bundle |
-| Real ASR engine (Whisper / Parakeet / SpeechAnalyzer) | ⛔ next milestone |
+| Real ASR + speaker diarisation (whisper.cpp tinydiarize, Metal) | ✅ first-use download, on-device |
 | Model-backed note generation | ⛔ next milestone |
 | Encryption at rest | ⛔ blocks real patient data |
 

@@ -88,9 +88,29 @@ final class AppModel: ObservableObject {
     @Published var isFiling = false
     @Published var templates: [TemplateSummary] = []
 
+    /// A recording captured before the speech model finished downloading,
+    /// held until the download completes so it is transcribed for real.
+    private var pendingRecording: URL?
+    /// When the current (or just-finished) recording started.
+    private var recordingStart: Date?
+
+    private var downloadObserver: NSObjectProtocol?
     private var ticker: Timer?
 
-    private init() {}
+    private init() {
+        // When the first-use model finishes downloading, transcribe anything
+        // we're holding.
+        downloadObserver = NotificationCenter.default.addObserver(
+            forName: .notaModelDownloadFinished,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleDownloadFinished()
+            }
+        }
+    }
 
     // MARK: - Selected encounter
 
@@ -160,10 +180,30 @@ final class AppModel: ObservableObject {
 
     func startRecording() {
         guard !recordingState.isActive else { return }
-        RecordingStripController.shared.show(model: self)
-        recordingState = .recording(startedAt: Date())
-        elapsed = 0
-        startTicker()
+        Task { @MainActor in
+            if !Recorder.shared.permissionGranted {
+                guard await Recorder.shared.requestPermission() else {
+                    lastError = "Microphone access is required to record. Enable it in System Settings > Privacy & Security > Microphone."
+                    return
+                }
+            }
+            do {
+                _ = try Recorder.shared.start()
+            } catch {
+                lastError = "Could not start the microphone: \(error.localizedDescription)"
+                return
+            }
+            recordingStart = Date()
+            // On first use, begin the speech-model download so a real draft is
+            // possible by the time the consultation ends.
+            if ModelDownloader.shared.state == .missing {
+                ModelDownloader.shared.start()
+            }
+            RecordingStripController.shared.show(model: self)
+            recordingState = .recording(startedAt: Date())
+            elapsed = 0
+            startTicker()
+        }
     }
 
     func pauseRecording() {
@@ -179,6 +219,10 @@ final class AppModel: ObservableObject {
         startTicker()
     }
 
+    /// Stop capture and draft. When the on-device speech model is ready the
+    /// draft comes from a real transcription with speaker diarisation; when it
+    /// is still downloading the recording is held and transcribed the moment
+    /// the download completes. Nota never fabricates a note from a recording.
     func stopAndDraft() {
         guard recordingState.isActive else { return }
         stopTicker()
@@ -186,12 +230,83 @@ final class AppModel: ObservableObject {
         recordingState = .finalising
         RecordingStripController.shared.hide()
 
-        // M1 has no audio engine wired in yet: the draft is produced from the
-        // bundled sample and labelled as synthetic in the document. When a real
-        // ASR engine lands, this is the only method that changes.
-        prepareDemoNote()
-        recordingState = .idle
-        elapsed = 0
+        Recorder.shared.stop()
+        // Do not call cleanup() here: that deletes the WAV. transcribe()
+        // (or the pending-recording path) owns the file and removes it after.
+        let url = Recorder.shared.capturedFile()
+        let startedAt = recordingStart ?? Date()
+        recordingStart = nil
+
+        guard let url else {
+            recordingState = .idle
+            lastError = "No audio was captured."
+            return
+        }
+
+        switch ModelDownloader.shared.state {
+        case .ready:
+            transcribe(url, startedAt: startedAt)
+        case .missing, .downloading:
+            // Hold the audio; the download continues in the background and the
+            // subscription below transcribes it the moment it finishes.
+            pendingRecording = url
+            recordingStart = startedAt
+            recordingState = .idle
+        case .failed:
+            try? FileManager.default.removeItem(at: url)
+            recordingState = .idle
+            lastError = "The speech model could not be downloaded. Retry in Settings, then record again."
+        }
+    }
+
+    /// Transcribe a captured recording on a background queue (the FFI call
+    /// blocks for the whole consultation and must never hold the main actor).
+    private func transcribe(_ url: URL, startedAt: Date) {
+        let templateId = self.templateId
+        let discipline = self.discipline
+        let patientRef = nextPatientRef()
+        let modelPath = ModelDownloader.modelFile
+
+        Task.detached {
+            do {
+                let result = try NotaCore.note(
+                    fromAudio: url,
+                    modelPath: modelPath,
+                    templateId: templateId,
+                    discipline: discipline,
+                    patientRef: patientRef
+                )
+                try? FileManager.default.removeItem(at: url)
+                await MainActor.run {
+                    let encounter = Encounter(
+                        id: result.note.encounterId,
+                        patientRef: patientRef,
+                        discipline: discipline,
+                        templateId: templateId,
+                        startedAt: startedAt,
+                        state: .draft,
+                        note: result.note,
+                        transcript: result.transcript,
+                        isSyntheticDemo: false
+                    )
+                    self.encounters.insert(encounter, at: 0)
+                    self.selection = encounter.id
+                    self.pendingRecording = nil
+                    self.lastError = nil
+                    self.recordingState = .idle
+                    self.elapsed = 0
+                    ReviewWindowController.shared.show()
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: url)
+                await MainActor.run {
+                    self.pendingRecording = nil
+                    self.lastError = error.localizedDescription
+                    self.recordingState = .idle
+                    self.elapsed = 0
+                }
+            }
+        }
     }
 
     func fileSelectedNote() {
@@ -202,6 +317,18 @@ final class AppModel: ObservableObject {
             encounters[index] = encounter
         }
         isFiling = false
+    }
+
+    /// Mint an opaque pseudonymous encounter code. Never a name or MRN.
+    private func nextPatientRef() -> String {
+        "enc-\(UUID().uuidString.prefix(8))"
+    }
+
+    private func handleDownloadFinished() {
+        guard let pendingRecording else { return }
+        let startedAt = recordingStart ?? Date()
+        self.pendingRecording = nil
+        transcribe(pendingRecording, startedAt: startedAt)
     }
 
     func markEdited() {
@@ -245,9 +372,7 @@ final class AppModel: ObservableObject {
                 if case .recording(let startedAt) = self.recordingState {
                     self.elapsed = Date().timeIntervalSince(startedAt)
                 }
-                // A stand-in level so the trace is visibly alive. The real
-                // meter arrives with the audio engine.
-                self.traceLevel = 0.35 + 0.3 * abs(sin(self.elapsed * 1.7))
+                self.traceLevel = Recorder.shared.inputLevel
             }
         }
     }

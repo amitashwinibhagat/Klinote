@@ -1,7 +1,9 @@
 # Speech recognition
 
-The engine abstracts ASR behind `scribe_asr::AsrEngine`. v0 ships only
-`MockAsrEngine`; this document is the plan for going live.
+The engine abstracts ASR behind `scribe_asr::AsrEngine`. The shipped live
+backend is **whisper.cpp with tinydiarize SBD** (`scribe-asr-whisper`), loaded
+from a GGUF the Swift shell downloads on first use. `MockAsrEngine` remains
+the default for tests and CI.
 
 ```rust
 pub trait AsrEngine {
@@ -15,15 +17,15 @@ pub trait AsrEngine {
 
 | Backend | Language | Where | Why | Why not |
 |---|---|---|---|---|
-| **Apple `SpeechAnalyzer`** | Swift | macOS 26+ | Free, streaming, on-device, no model download, no notarisation constraint, Apple-tuned for dictation. Best default. | Swift-only API, so it lives in the shell; requires implementation of `AsrEngine` in Swift and crossing the FFI (or generating the note in Swift). |
-| **whisper.cpp** (`whisper-rs`) | Rust | any macOS | Portable, well understood, large model zoo, word timestamps. | Larger binary/weights, slower than Parakeet, needs a bundled or downloaded model. |
+| **whisper.cpp + tinydiarize SBD** (`scribe-asr-whisper`) | Rust | any macOS | **Shipped.** Open-source, Metal-accelerated, two-speaker SBD, first-use download. | 465 MB model; SBD is A/B not identity; role mapping is a clinician judgment. |
+| **Apple `SpeechAnalyzer`** | Swift | macOS 27+ | Free, streaming, on-device, no model download. | Not in the macOS 26.5 SDK this build targets. Upgrade path when Golden Gate ships. |
 | **sherpa-onnx** (`sherpa-rs`) | Rust | any macOS | Streaming, small models, has diarisation and VAD models in the same runtime. | More integration work; ONNX Runtime dependency. |
 | **Parakeet TDT** | Rust/ONNX | any macOS | Very fast, small, strong English accuracy. | Needs ONNX runtime; fewer languages. |
 | **Cloud** | — | — | — | **Never.** Violates the product's only real promise. |
 
-**Recommendation:** `SpeechAnalyzer` in the Swift shell for the macOS-first
-product; keep `AsrEngine` implemented for a Rust fallback so the engine stays
-useful for batch processing, Windows later, and tests.
+**Shipped:** whisper.cpp (`ggml-small.en-tdrz.bin`) in the Rust core, downloaded
+once by the Swift shell into `~/Library/Application Support/Nota/Models/`.
+`SpeechAnalyzer` remains the upgrade path when macOS 27's SDK lands.
 
 ## Implementation notes, whichever backend
 

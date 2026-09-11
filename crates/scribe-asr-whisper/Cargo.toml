@@ -1,0 +1,13 @@
+[package]
+name = "scribe-asr-whisper"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "whisper.cpp backend for scribe-asr with speaker-boundary detection (SBD)"
+
+[dependencies]
+whisper-rs = { version = "0.16", features = ["metal"] }
+scribe-asr = { path = "../scribe-asr" }
+scribe-audio = { path = "../scribe-audio" }
+scribe-core = { path = "../scribe-core" }

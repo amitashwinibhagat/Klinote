@@ -67,6 +67,21 @@ char *scribe_note_to_markdown(const char *note_json);
  */
 char *scribe_note_from_text(const char *request_json);
 
+/*
+ * The audio path: a recorded .wav in, a note out, via whisper.cpp with
+ * speaker diarisation. The model must already be on disk (the shell owns the
+ * first-use download).
+ *
+ * Input:  {"template_id":"soap","patient_ref":"opaque",
+ *          "discipline":"general_practice",
+ *          "audio_path":"/path/to/recording.wav",
+ *          "model_path":"/path/to/ggml-small.en-tdrz.bin"}
+ *         Pass `model_path: null` to fall back to the mock engine.
+ * Output: {"ok":true,"note":{...},"transcript":{...},"speech_spans":[...]}
+ *         | {"ok":false,"error":"..."}
+ */
+char *scribe_note_from_audio(const char *request_json);
+
 /* Free any string returned by this library. NULL is a no-op. */
 void scribe_string_free(char *pointer);
 

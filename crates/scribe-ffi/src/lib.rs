@@ -208,6 +208,87 @@ pub unsafe extern "C" fn scribe_note_from_text(request_json: *const c_char) -> *
     into_c_string(&payload.to_string())
 }
 
+#[derive(Debug, Deserialize)]
+struct AudioRequest {
+    #[serde(default)]
+    template_id: Option<String>,
+    #[serde(default)]
+    patient_ref: Option<String>,
+    #[serde(default)]
+    discipline: Option<String>,
+    /// Path to a WAV file (16-bit PCM supported; anything hound can read).
+    audio_path: String,
+    /// Path to the whisper GGUF model (or `null` to use mock).
+    #[serde(default)]
+    model_path: Option<String>,
+}
+
+/// The audio path: a recorded .wav in, a note out, via whisper.cpp with
+/// speaker diarisation. The model must already be on disk (the shell owns
+/// the first-use download). Output has the same note+transcript envelope as
+/// the text path.
+///
+/// # Safety
+/// `request_json` must be null or a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_note_from_audio(request_json: *const c_char) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let raw = unsafe { cstr_to_string(request_json) }?;
+        let request: AudioRequest =
+            serde_json::from_str(&raw).map_err(|err| format!("invalid request json: {err}"))?;
+
+        let discipline = request
+            .discipline
+            .as_deref()
+            .map(Discipline::from_key)
+            .unwrap_or(Discipline::GeneralPractice);
+        let patient_ref = request
+            .patient_ref
+            .unwrap_or_else(|| "local-anonymous".to_owned());
+
+        let mut encounter = Encounter::new(patient_ref, discipline);
+        if let Some(template_id) = request.template_id {
+            encounter.template_id = scribe_core::TemplateId::new(template_id);
+        }
+
+        let pipeline = match &request.model_path {
+            Some(path) => {
+                let engine = scribe_asr_whisper::WhisperAsrEngine::new(path, 4)
+                    .map_err(|err| err.to_string())?;
+                ScribePipeline::new()
+                    .map_err(|err| err.to_string())?
+                    .with_asr(Box::new(engine))
+            }
+            None => ScribePipeline::new().map_err(|err| err.to_string())?,
+        };
+
+        let audio = scribe_audio::load_wav(&request.audio_path).map_err(|err| err.to_string())?;
+        let options = scribe_pipeline::AsrOptions {
+            language: Some("en".to_owned()),
+            translate_to_english: false,
+        };
+        let output = pipeline
+            .process_audio(&encounter, &audio, &options)
+            .map_err(|err| err.to_string())?;
+
+        let spans: Vec<Value> = output
+            .speech_spans
+            .iter()
+            .map(|span| json!({ "start_ms": span.start_ms, "end_ms": span.end_ms }))
+            .collect();
+
+        Ok(json!({
+            "ok": true,
+            "note": output.note,
+            "transcript": output.transcript,
+            "speech_spans": spans,
+        }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
 /// Free a string returned by this library. Passing null is a no-op.
 ///
 /// # Safety
@@ -352,6 +433,41 @@ mod tests {
 
         assert_eq!(json["ok"], false);
         assert!(json["error"].as_str().unwrap().contains("empty"));
+    }
+
+    #[test]
+    fn audio_path_without_model_uses_mock() {
+        // Writing a tiny valid WAV that the mock engine then ignores.
+        let dir = std::env::temp_dir().join("scribe-ffi-audio-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let wav = dir.join("silence.wav");
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 16_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&wav, spec).unwrap();
+        for _ in 0..16_000 {
+            writer.write_sample::<i16>(0i16).unwrap();
+        }
+        writer.finalize().unwrap();
+
+        let request = serde_json::json!({
+            "template_id": "soap",
+            "patient_ref": "demo-audio",
+            "audio_path": wav.to_string_lossy(),
+            "model_path": null,
+        })
+        .to_string();
+        let input = CString::new(request).unwrap();
+        let output = unsafe { scribe_note_from_audio(input.as_ptr()) };
+        let json: Value =
+            serde_json::from_str(&unsafe { cstr_to_string(output) }.unwrap()).unwrap();
+        unsafe { scribe_string_free(output) };
+
+        assert_eq!(json["ok"], true, "{json}");
+        assert_eq!(json["transcript"]["engine"], "mock");
     }
 
     #[test]

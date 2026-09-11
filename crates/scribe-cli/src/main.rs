@@ -96,7 +96,7 @@ struct TranscribeArgs {
     #[arg(long)]
     audio: PathBuf,
 
-    /// ASR engine to use. Only `mock` ships in this build.
+    /// ASR engine to use: `mock` (synthetic) or `whisper` (on-device whisper.cpp, requires the model).
     #[arg(long, default_value = "mock")]
     engine: String,
 
@@ -164,18 +164,29 @@ fn run_note(args: NoteArgs) -> Result<()> {
 }
 
 fn run_transcribe(args: TranscribeArgs) -> Result<()> {
-    if args.engine != "mock" {
-        return Err(scribe_core::ScribeError::InvalidInput(format!(
-            "unknown ASR engine '{}'; this build ships only 'mock'. \
-             See docs/engineering/ASR.md for wiring a real engine.",
-            args.engine
-        )));
-    }
-
     let audio = scribe_audio::load_wav(&args.audio)?;
     let encounter = build_encounter(&args.common);
-    let pipeline = ScribePipeline::new()?;
-    let options = scribe_pipeline::AsrOptions::default();
+    let mut pipeline = ScribePipeline::new()?;
+
+    match args.engine.as_str() {
+        "mock" => {}
+        "whisper" => {
+            let model = resolve_whisper_model()?;
+            let engines = scribe_asr_whisper::WhisperAsrEngine::new(model, 4)?;
+            pipeline = pipeline.with_asr(Box::new(engines));
+        }
+        other => {
+            return Err(scribe_core::ScribeError::InvalidInput(format!(
+                "unknown ASR engine '{other}'; this build ships 'mock' and 'whisper'. \
+                 See docs/engineering/ASR.md for wiring a real engine."
+            )));
+        }
+    }
+
+    let options = scribe_pipeline::AsrOptions {
+        language: Some("en".to_owned()),
+        translate_to_english: false,
+    };
     let output = pipeline.process_audio(&encounter, &audio, &options)?;
 
     eprintln!(
@@ -186,6 +197,26 @@ fn run_transcribe(args: TranscribeArgs) -> Result<()> {
     );
 
     finish(&args.common, &encounter, output)
+}
+
+/// Resolve the whisper model path: explicit env override, then the app's
+/// standard download location. Mirrors the app's `ModelDownloader`.
+fn resolve_whisper_model() -> Result<PathBuf> {
+    if let Ok(explicit) = std::env::var("NOTA_WHISPER_MODEL") {
+        return Ok(PathBuf::from(explicit));
+    }
+    let home = std::env::var("HOME")
+        .map_err(|_| scribe_core::ScribeError::InvalidInput("HOME is not set".to_owned()))?;
+    let path = PathBuf::from(home)
+        .join("Library/Application Support/Nota/Models")
+        .join(scribe_asr_whisper::DEFAULT_MODEL_NAME);
+    if path.is_file() {
+        return Ok(path);
+    }
+    Err(scribe_core::ScribeError::InvalidInput(format!(
+        "whisper model not found at {} — download it on first use, or set NOTA_WHISPER_MODEL",
+        path.display()
+    )))
 }
 
 fn run_audit(args: AuditArgs) -> Result<()> {

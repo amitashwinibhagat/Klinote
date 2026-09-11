@@ -80,8 +80,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct MenuBarContent: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var downloader = ModelDownloader.shared
 
     var body: some View {
+        if case .downloading(let fraction) = downloader.state {
+            Text("Downloading speech model \(Int(fraction * 100))%")
+            Divider()
+        } else if case .failed(let message) = downloader.state {
+            Text("Speech model: \(message)")
+            Button("Retry download") { downloader.start() }
+            Divider()
+        }
+
         if model.recordingState.isActive {
             Text(model.recordingState.isPaused ? "Recording paused" : "Recording")
             Button("Stop and draft") { model.stopAndDraft() }

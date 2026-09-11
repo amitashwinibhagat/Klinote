@@ -108,9 +108,34 @@ private struct TemplateSettings: View {
 
 private struct RecordingSettings: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var downloader = ModelDownloader.shared
 
     var body: some View {
         Form {
+            Section("Speech model") {
+                LabeledContent("Status", value: downloader.state.word)
+                switch downloader.state {
+                case .missing:
+                    Button("Download speech model (465 MB)") {
+                        downloader.start()
+                    }
+                    Text("Open-source whisper.cpp with speaker diarisation. Downloaded once, then runs entirely on this Mac. Audio never leaves the device.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .downloading(let fraction):
+                    ProgressView(value: fraction)
+                    Button("Cancel") { downloader.cancel() }
+                case .ready:
+                    Text("Ready. Consultations are transcribed on this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .failed(let message):
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Button("Retry download") { downloader.start() }
+                }
+            }
             Section("Shortcuts") {
                 LabeledContent("Start or stop recording", value: "⌥⌘R")
                 LabeledContent("Pause or resume", value: "⌥⌘P")
@@ -134,7 +159,7 @@ private struct PrivacySettings: View {
                 Text("Everything Nota produces stays in this Mac's application support folder. There is no account, no sync, and no server.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("Nota contains no networking code at all. This is enforced in continuous integration, not just promised.")
+                Text("The only thing that ever crosses the network is the open-source speech model, downloaded once on first use. Audio and notes never leave this Mac. The Rust engine itself contains no networking code — enforced in continuous integration.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -41,6 +41,11 @@ targets:
           - "$(SRCROOT)/../../target/nota-link"
         OTHER_LDFLAGS:
           - "-lscribe_core_ffi"
+          - "-lc++"
+          - "-framework Accelerate"
+          - "-framework Metal"
+          - "-framework MetalKit"
+          - "-framework Foundation"
         SWIFT_STRICT_CONCURRENCY: minimal
     preBuildScripts:
       - name: Build Rust core
