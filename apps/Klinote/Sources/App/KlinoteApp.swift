@@ -41,6 +41,12 @@ struct KlinoteApp: App {
             // The global hotkeys stay on Carbon so they work while the
             // clinician is in the record system. These menu items are for
             // discovery, so they deliberately bind no shortcut of their own.
+            CommandGroup(replacing: .printItem) {
+                Button("Print…") { model.printSelectedNote() }
+                    .keyboardShortcut("p")
+                    .disabled(model.selectedEncounter?.note == nil)
+            }
+
             CommandMenu("Consult") {
                 Button("Record this consult") { model.startRecording() }
                     .disabled(model.recordingState.isActive)
@@ -50,6 +56,8 @@ struct KlinoteApp: App {
                     .disabled(!model.recordingState.isActive)
                 Divider()
                 Button("Copy note") { model.copySelectedNote() }
+                    .disabled(model.selectedEncounter?.note == nil)
+                Button("Print…") { model.printSelectedNote() }
                     .disabled(model.selectedEncounter?.note == nil)
                 Button("Mark as reviewed") { model.fileSelectedNote() }
                     .disabled(model.selectedEncounter?.state == .approved)
@@ -98,13 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             modifiers: optionKey | cmdKey
         ) {
             Task { @MainActor in
-                let model = AppModel.shared
-                guard model.recordingState.isActive else { return }
-                if model.recordingState.isPaused {
-                    model.resumeRecording()
-                } else {
-                    model.pauseRecording()
-                }
+                AppModel.shared.togglePause()
             }
         }
 
@@ -145,6 +147,12 @@ struct MenuBarContent: View {
     @ObservedObject var model: AppModel
     @ObservedObject private var downloader = ModelDownloader.shared
 
+    private var recordingWord: String {
+        if model.recordingState.isPaused { return "Paused — not recording" }
+        if model.recordingState.isHolding { return "Held — not recording" }
+        return "Recording"
+    }
+
     var body: some View {
         if let error = model.lastError {
             Text(error)
@@ -165,12 +173,15 @@ struct MenuBarContent: View {
         if model.recordingState.isDrafting {
             Text("Writing the note")
         } else if model.recordingState.isActive {
-            Text(model.recordingState.isPaused ? "Paused — not recording" : "Recording")
+            Text(recordingWord)
             Button("Stop and write the note") { model.stopAndDraft() }
-            if model.recordingState.isPaused {
+            if model.recordingState.isHolding {
+                Button("End hold") { model.endHold() }
+            } else if model.recordingState.isPaused {
                 Button("Resume") { model.resumeRecording() }
             } else {
                 Button("Pause") { model.pauseRecording() }
+                Button("Hold — do not record this part") { model.holdRecording() }
             }
         } else {
             Button("Record this consult") { model.startRecording() }

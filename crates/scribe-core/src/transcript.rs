@@ -102,6 +102,11 @@ pub struct Transcript {
     /// Possible drug-name mishearings. Suggestions only; never auto-applied.
     #[serde(default)]
     pub name_checks: Vec<crate::formulary::NameCheck>,
+    /// Milliseconds deliberately not captured, because the clinician held the
+    /// recording. Recorded so a gap in the note is explained rather than
+    /// mysterious.
+    #[serde(default)]
+    pub held_ms: u64,
 }
 
 /// A run of consecutive segments from one speaker — the unit the note
@@ -127,6 +132,7 @@ impl Transcript {
             created_at: Utc::now(),
             human_supplied: false,
             name_checks: Vec::new(),
+            held_ms: 0,
         }
     }
 

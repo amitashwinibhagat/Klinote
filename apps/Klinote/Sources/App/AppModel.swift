@@ -15,6 +15,10 @@ enum RecordingState: Equatable {
     case idle
     case recording(startedAt: Date)
     case paused(elapsedMs: UInt64)
+    /// Deliberately not capturing: the sensitive aside, the third party, the
+    /// disclosure. Different from pause because it is a documentation decision,
+    /// and the note says so.
+    case holding(elapsedMs: UInt64)
     case finalising
 
     var isRecording: Bool {
@@ -27,7 +31,12 @@ enum RecordingState: Equatable {
         return false
     }
 
-    var isActive: Bool { isRecording || isPaused }
+    var isHolding: Bool {
+        if case .holding = self { return true }
+        return false
+    }
+
+    var isActive: Bool { isRecording || isPaused || isHolding }
 
     var isIdle: Bool {
         if case .idle = self { return true }
@@ -44,6 +53,7 @@ enum RecordingState: Equatable {
         case .idle: "Not recording"
         case .recording: "Recording"
         case .paused: "Paused"
+        case .holding: "Off the record"
         case .finalising: "Writing"
         }
     }
@@ -130,6 +140,10 @@ final class AppModel: ObservableObject {
     private var pendingRecording: URL?
     /// When the current (or just-finished) recording started.
     private var recordingStart: Date?
+    /// When the current hold began, if one is running.
+    private var holdStartedAt: Date?
+    /// Total time deliberately not captured in the current recording.
+    private var heldMs: UInt64 = 0
 
     private var downloadObserver: NSObjectProtocol?
     private var ticker: Timer?
@@ -290,6 +304,69 @@ final class AppModel: ObservableObject {
 
     var noteTemplates: [TemplateSummary] {
         templates.filter { !$0.isDocument }
+    }
+
+    func reloadTemplates() {
+        if let loaded = try? KlinoteCore.templates() {
+            templates = loaded
+        }
+    }
+
+    /// Print exactly what Copy note would have put on the clipboard.
+    func printSelectedNote() {
+        guard let encounter = selectedEncounter, let note = encounter.note else { return }
+        PrintNote.run(
+            for: note,
+            patientRef: encounter.patientRef,
+            title: displayName(for: encounter)
+        )
+    }
+
+    /// Encounters grouped by the day they happened, newest first.
+    ///
+    /// A flat list is fine at five consults and useless at fifty, which is one
+    /// clinic week. Grouping also answers "what did I do on Tuesday?" without
+    /// a filter UI.
+    func encounterGroups(matching query: String) -> [(day: String, encounters: [Encounter])] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let filtered = encounters.filter { encounter in
+            guard !trimmed.isEmpty else { return true }
+            if encounter.patientRef.lowercased().contains(trimmed) { return true }
+            if displayName(for: encounter).lowercased().contains(trimmed) { return true }
+            if encounter.templateId.lowercased().contains(trimmed) { return true }
+            if encounter.state.word.lowercased().contains(trimmed) { return true }
+            let note = encounter.note?.sections.map(\.body).joined(separator: " ") ?? ""
+            if note.lowercased().contains(trimmed) { return true }
+            let words = encounter.transcript?.segments.map(\.text).joined(separator: " ") ?? ""
+            return words.lowercased().contains(trimmed)
+        }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var order: [Date] = []
+        var byDay: [Date: [Encounter]] = [:]
+        for encounter in filtered.sorted(by: { $0.startedAt > $1.startedAt }) {
+            let day = calendar.startOfDay(for: encounter.startedAt)
+            if byDay[day] == nil {
+                byDay[day] = []
+                order.append(day)
+            }
+            byDay[day]?.append(encounter)
+        }
+        return order.map { day in
+            (day: Self.dayLabel(day, today: today), encounters: byDay[day] ?? [])
+        }
+    }
+
+    private static func dayLabel(_ day: Date, today: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = calendar.isDate(day, equalTo: today, toGranularity: .year)
+            ? "EEEE d MMMM"
+            : "d MMMM yyyy"
+        return formatter.string(from: day)
     }
 
     /// A friendly label for the sidebar: "Clinical note", "Referral Letter", …
@@ -500,6 +577,8 @@ final class AppModel: ObservableObject {
             }
             lastError = nil
             recordingStart = Date()
+            heldMs = 0
+            holdStartedAt = nil
             RecordingStripController.shared.show(model: self)
             recordingState = .recording(startedAt: Date())
             elapsed = 0
@@ -515,8 +594,28 @@ final class AppModel: ObservableObject {
         traceLevel = 0
     }
 
+    /// Hold means "do not document this". Capture stops, and the milliseconds
+    /// are counted so the note can say a gap was deliberate.
+    func holdRecording() {
+        guard recordingState.isRecording else { return }
+        Recorder.shared.pause()
+        recordingState = .holding(elapsedMs: UInt64(elapsed * 1000))
+        holdStartedAt = Date()
+        stopTicker()
+        traceLevel = 0
+    }
+
+    func endHold() {
+        guard recordingState.isHolding else { return }
+        if let started = holdStartedAt {
+            heldMs += UInt64(Date().timeIntervalSince(started) * 1000)
+        }
+        holdStartedAt = nil
+        resumeRecording()
+    }
+
     func resumeRecording() {
-        guard recordingState.isPaused else { return }
+        guard recordingState.isPaused || recordingState.isHolding else { return }
         do {
             try Recorder.shared.resume()
         } catch {
@@ -557,6 +656,9 @@ final class AppModel: ObservableObject {
         let discipline = self.discipline
         let patientRef = nextPatientRef()
         let modelPath = ModelDownloader.modelFile
+        // Capture the hold before the background task starts; the property is
+        // main-actor state and the recording is over by the time we are here.
+        let held = heldMs
 
         Task.detached {
             do {
@@ -573,7 +675,10 @@ final class AppModel: ObservableObject {
                 }
                 // This practice's own vocabulary, learned from corrections the
                 // clinician accepted. Applied before drafting, and announced.
-                let (transcript, learned) = LearnedTerms.apply(to: result.transcript)
+                var (transcript, learned) = LearnedTerms.apply(to: result.transcript)
+                // Say that the gap was deliberate. Silence in a consult is
+                // ambiguous; a held stretch is a decision.
+                transcript.heldMs = held
                 let fallback = learned > 0
                     ? (try? KlinoteCore.note(fromTranscript: transcript, templateId: templateId)) ?? result.note
                     : result.note

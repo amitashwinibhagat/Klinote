@@ -144,6 +144,7 @@ struct ReviewWindow: View {
 /// Ruled spines. Columns never move; only the state styling changes.
 struct EncounterSidebar: View {
     @ObservedObject var model: AppModel
+    @State private var search = ""
     @State private var renameID: String?
     @State private var renameDraft = ""
     @State private var pendingDelete: Encounter?
@@ -171,6 +172,34 @@ struct EncounterSidebar: View {
             .padding(.horizontal, KlinoteMetrics.space16)
             .padding(.vertical, KlinoteMetrics.space12)
 
+            if !model.encounters.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(KlinoteColor.tertiary)
+                    TextField("Search consults", text: $search)
+                        .textFieldStyle(.plain)
+                        .font(KlinoteFont.ui(12))
+                    if !search.isEmpty {
+                        Button {
+                            search = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(KlinoteColor.tertiary)
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Clear the search")
+                    }
+                }
+                .padding(.horizontal, KlinoteMetrics.space12)
+                .padding(.vertical, 6)
+                .background(KlinoteColor.recessed)
+                .clipShape(RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous))
+                .padding(.horizontal, KlinoteMetrics.space12)
+                .padding(.bottom, KlinoteMetrics.space8)
+            }
+
             Hairline()
 
             if model.encounters.isEmpty {
@@ -193,8 +222,10 @@ struct EncounterSidebar: View {
                 Spacer()
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(model.encounters) { encounter in
+                    LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        ForEach(model.encounterGroups(matching: search), id: \.day) { group in
+                            Section {
+                                ForEach(group.encounters) { encounter in
                             EncounterSpine(
                                 encounter: encounter,
                                 isSelected: encounter.id == model.selection,
@@ -218,9 +249,34 @@ struct EncounterSidebar: View {
                                 model.selectedSentenceID = nil
                             }
                             Hairline()
+                                }
+                            } header: {
+                                HStack {
+                                    TabLabel(text: group.day)
+                                    Spacer()
+                                    Text("\(group.encounters.count)")
+                                        .font(KlinoteFont.data(10))
+                                        .foregroundStyle(KlinoteColor.tertiary)
+                                }
+                                .padding(.horizontal, KlinoteMetrics.space16)
+                                .padding(.vertical, 6)
+                                .background(KlinoteColor.margin)
+                                .overlay(alignment: .top) { Hairline() }
+                                .overlay(alignment: .bottom) { Hairline() }
+                            }
                         }
                     }
                 }
+            }
+
+            if model.encounters.isEmpty == false,
+               model.encounterGroups(matching: search).isEmpty {
+                EmptyState(
+                    title: "Nothing matched",
+                    message: "No consult matches \"\(search)\"."
+                )
+                .padding(KlinoteMetrics.space16)
+                Spacer()
             }
 
             Hairline()

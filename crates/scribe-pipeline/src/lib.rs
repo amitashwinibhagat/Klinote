@@ -78,7 +78,7 @@ impl ScribePipeline {
     /// [`ScribePipeline::with_asr`] to go live.
     pub fn new() -> Result<Self> {
         Ok(Self {
-            templates: TemplateLibrary::builtin()?,
+            templates: TemplateLibrary::for_this_machine()?,
             asr: Box::new(MockAsrEngine),
             diarizer: Box::new(TurnTakingDiarizer::default()),
             generator: Box::new(RuleBasedGenerator),

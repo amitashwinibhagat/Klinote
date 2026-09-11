@@ -11,6 +11,11 @@ import SwiftUI
 
 struct MarginView: View {
     @ObservedObject var model: AppModel
+    /// Evidence answers "why is this in my note?". The whole consultation
+    /// answers "what did we actually say?", which is what a clinician asks
+    /// when a complaint or a re-referral arrives months later.
+    @State private var showingWholeConsult = false
+    @State private var transcriptSearch = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -18,6 +23,32 @@ struct MarginView: View {
             Hairline()
 
             if let transcript = model.selectedEncounter?.transcript {
+                Picker("", selection: $showingWholeConsult) {
+                    Text("Evidence").tag(false)
+                    Text("Whole consult").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, KlinoteMetrics.space16)
+                .padding(.bottom, KlinoteMetrics.space8)
+
+                if showingWholeConsult {
+                    HStack(spacing: 6) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11))
+                            .foregroundStyle(KlinoteColor.tertiary)
+                        TextField("Search the words", text: $transcriptSearch)
+                            .textFieldStyle(.plain)
+                            .font(KlinoteFont.ui(12))
+                    }
+                    .padding(.horizontal, KlinoteMetrics.space8)
+                    .padding(.vertical, 5)
+                    .background(KlinoteColor.recessed)
+                    .clipShape(RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous))
+                    .padding(.horizontal, KlinoteMetrics.space16)
+                    .padding(.bottom, KlinoteMetrics.space8)
+                }
+
                 if transcript.humanSupplied {
                     Text("This note came from typed text, not a recording.")
                         .font(KlinoteFont.label())
@@ -31,12 +62,12 @@ struct MarginView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(transcript.segments) { segment in
+                            ForEach(visibleSegments(transcript)) { segment in
                                 UtteranceRow(
                                     segment: segment,
                                     role: label(for: segment, in: transcript),
-                                    isEvidence: evidenceIDs.contains(segment.id),
-                                    isPrimary: primaryEvidenceID == segment.id
+                                    isEvidence: !showingWholeConsult && evidenceIDs.contains(segment.id),
+                                    isPrimary: !showingWholeConsult && primaryEvidenceID == segment.id
                                 )
                                 .id(segment.id)
                                 Hairline()
@@ -62,10 +93,22 @@ struct MarginView: View {
         .background(KlinoteColor.margin)
     }
 
+    private func visibleSegments(_ transcript: Transcript) -> [TranscriptSegment] {
+        guard showingWholeConsult, !transcriptSearch.isEmpty else {
+            return transcript.segments
+        }
+        let needle = transcriptSearch.lowercased()
+        return transcript.segments.filter { $0.text.lowercased().contains(needle) }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            TabLabel(text: "Evidence")
-            if let sentenceNumber = selectedSentenceNumber {
+            TabLabel(text: showingWholeConsult ? "Whole consultation" : "Evidence")
+            if showingWholeConsult {
+                Text("\(model.selectedEncounter?.transcript?.segments.count ?? 0) things said. A gap marked held was not recorded.")
+                    .font(KlinoteFont.ui(12))
+                    .foregroundStyle(KlinoteColor.secondary)
+            } else if let sentenceNumber = selectedSentenceNumber {
                 Text("Words that produced sentence \(sentenceNumber)")
                     .font(KlinoteFont.ui(12, weight: .medium))
                     .foregroundStyle(KlinoteColor.primary)

@@ -82,6 +82,7 @@ struct RecordingStripView: View {
     private var headline: String {
         switch model.recordingState {
         case .paused: "Paused — not recording"
+        case .holding: "Held — this part is not being recorded"
         case .finalising: "Writing the note on this Mac"
         default: "Recording this consult on this Mac only"
         }
@@ -91,8 +92,8 @@ struct RecordingStripView: View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
             HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
                 RecordingLamp(
-                    isRecording: isLive,
-                    isPaused: model.recordingState.isPaused
+                    isRecording: isLive && !model.recordingState.isHolding,
+                    isPaused: model.recordingState.isPaused || model.recordingState.isHolding
                 )
                 Text(headline)
                     .font(KlinoteFont.ui(14, weight: .semibold))
@@ -115,16 +116,28 @@ struct RecordingStripView: View {
             .frame(height: 26)
 
             HStack(spacing: KlinoteMetrics.space8) {
-                Button(model.recordingState.isPaused ? "Resume" : "Pause") {
-                    if model.recordingState.isPaused {
-                        model.resumeRecording()
-                    } else {
-                        model.pauseRecording()
-                    }
+                if model.recordingState.isHolding {
+                    Button("End hold") { model.endHold() }
+                        .controlSize(.small)
+                        .disabled(isDrafting)
+                        .accessibilityLabel("End the hold and start recording again")
+                } else if model.recordingState.isPaused {
+                    Button("Resume") { model.resumeRecording() }
+                        .controlSize(.small)
+                        .disabled(isDrafting)
+                        .accessibilityLabel("Resume recording")
+                } else {
+                    Button("Pause") { model.pauseRecording() }
+                        .controlSize(.small)
+                        .disabled(isDrafting)
+                        .accessibilityLabel("Pause recording")
+                    // Not the same as pause: this part does not go in the note.
+                    Button("Hold") { model.holdRecording() }
+                        .controlSize(.small)
+                        .disabled(isDrafting)
+                        .help("Stop recording without ending the consult. The held part is not captured and the note says so.")
+                        .accessibilityLabel("Hold: do not record this part")
                 }
-                .controlSize(.small)
-                .disabled(isDrafting)
-                .accessibilityLabel(model.recordingState.isPaused ? "Resume recording" : "Pause recording")
 
                 Button("Stop and write the note") {
                     model.stopAndDraft()

@@ -24,7 +24,7 @@
 
 use std::ffi::{CStr, CString, c_char};
 
-use scribe_core::{ClinicalNote, Discipline, Encounter, SCHEMA_VERSION, Transcript};
+use scribe_core::{ClinicalNote, Discipline, Encounter, SCHEMA_VERSION, Template, Transcript};
 use scribe_note::TemplateLibrary;
 use scribe_pipeline::ScribePipeline;
 use serde::Deserialize;
@@ -39,7 +39,7 @@ pub extern "C" fn scribe_schema_version() -> *mut c_char {
 /// JSON: `{"ok":true,"templates":[{...}]}`.
 #[unsafe(no_mangle)]
 pub extern "C" fn scribe_list_templates() -> *mut c_char {
-    let result = TemplateLibrary::builtin().map(|library| {
+    let result = TemplateLibrary::for_this_machine().map(|library| {
         let templates: Vec<Value> = library
             .iter()
             .map(|template| {
@@ -52,11 +52,13 @@ pub extern "C" fn scribe_list_templates() -> *mut c_char {
                     "voice": template.voice,
                     "family": template.family,
                     "render": template.render,
+                    "audience": template.audience,
                     "sections": template.sections.iter().map(|section| json!({
                         "key": section.key,
                         "title": section.title,
                         "guidance": section.guidance,
                         "required": section.required,
+                        "cues": section.cues,
                     })).collect::<Vec<_>>(),
                 })
             })
@@ -163,6 +165,43 @@ pub unsafe extern "C" fn scribe_note_to_record_text(note_json: *const c_char) ->
         Ok(json!({ "ok": true, "text": note.to_record_text() }))
     })()
     .unwrap_or_else(|error| error_envelope(error.to_string()));
+
+    into_c_string(&payload.to_string())
+}
+
+/// Save one template as a practice override. Input: a Template JSON object
+/// (the same shape `scribe_list_templates` returns).
+/// Output: `{"ok":true,"path":"..."}`.
+///
+/// # Safety
+/// `template_json` must be null or a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_template_save(template_json: *const c_char) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let raw = unsafe { cstr_to_string(template_json) }?;
+        let template: Template =
+            serde_json::from_str(&raw).map_err(|err| format!("invalid template json: {err}"))?;
+        let path = TemplateLibrary::save_override(&template).map_err(|err| err.to_string())?;
+        Ok(json!({ "ok": true, "path": path.to_string_lossy() }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
+/// Remove a practice override, restoring the built-in.
+/// Output: `{"ok":true,"removed":true|false}`.
+///
+/// # Safety
+/// `template_id` must be null or a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_template_revert(template_id: *const c_char) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let id = unsafe { cstr_to_string(template_id) }?;
+        let removed = TemplateLibrary::delete_override(&id).map_err(|err| err.to_string())?;
+        Ok(json!({ "ok": true, "removed": removed }))
+    })()
+    .unwrap_or_else(error_envelope);
 
     into_c_string(&payload.to_string())
 }
@@ -539,6 +578,75 @@ mod tests {
             "On examination the throat shows erythema.",
         ));
         serde_json::to_string(&transcript).unwrap()
+    }
+
+    /// The contract the Settings editor depends on: it hands back the exact
+    /// JSON that `scribe_list_templates` returned, with a field changed, and
+    /// the engine must accept it, persist it, and use it.
+    #[test]
+    fn template_save_accepts_listed_json_and_takes_effect() {
+        let dir =
+            std::env::temp_dir().join(format!("klinote-ffi-templates-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // SAFETY: this test owns the variable.
+        unsafe { std::env::set_var("KLINOTE_TEMPLATES_DIR", &dir) };
+
+        let listed = unsafe { cstr_to_string(scribe_list_templates()) }.unwrap();
+        let listed: Value = serde_json::from_str(&listed).unwrap();
+        let mut soap = listed["templates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|template| template["id"] == "soap")
+            .expect("soap is listed")
+            .clone();
+
+        // Cues and audience must survive the round trip, or the editor cannot
+        // edit them.
+        assert!(soap["audience"].is_string());
+        let first_cues = soap["sections"][0]["cues"].as_array().unwrap().len();
+        assert!(first_cues > 0, "cues are listed");
+
+        soap["name"] = json!("Our House SOAP");
+        soap["sections"][0]["cues"] = json!(["our-cue"]);
+        let input = CString::new(soap.to_string()).unwrap();
+        let saved = unsafe { scribe_template_save(input.as_ptr()) };
+        let saved: Value =
+            serde_json::from_str(&unsafe { cstr_to_string(saved) }.unwrap()).unwrap();
+        assert_eq!(saved["ok"], true, "save failed: {saved}");
+
+        // The engine now reads the practice's version.
+        let relisted = unsafe { cstr_to_string(scribe_list_templates()) }.unwrap();
+        let relisted: Value = serde_json::from_str(&relisted).unwrap();
+        let soap = relisted["templates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|template| template["id"] == "soap")
+            .unwrap();
+        assert_eq!(soap["name"], "Our House SOAP");
+        assert_eq!(soap["sections"][0]["cues"], json!(["our-cue"]));
+
+        // And reverting brings the built-in back.
+        let id = CString::new("soap").unwrap();
+        let reverted = unsafe { scribe_template_revert(id.as_ptr()) };
+        let reverted: Value =
+            serde_json::from_str(&unsafe { cstr_to_string(reverted) }.unwrap()).unwrap();
+        assert_eq!(reverted["removed"], true);
+        let after = unsafe { cstr_to_string(scribe_list_templates()) }.unwrap();
+        let after: Value = serde_json::from_str(&after).unwrap();
+        let soap = after["templates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|template| template["id"] == "soap")
+            .unwrap();
+        assert_eq!(soap["name"], "SOAP Note");
+
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: as above.
+        unsafe { std::env::remove_var("KLINOTE_TEMPLATES_DIR") };
     }
 
     #[test]

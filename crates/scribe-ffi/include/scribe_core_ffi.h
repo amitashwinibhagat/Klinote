@@ -41,6 +41,19 @@ char *scribe_schema_version(void);
 char *scribe_list_templates(void);
 
 /*
+ * Save one template as a practice override. Input is a Template JSON object of
+ * the same shape `scribe_list_templates` returns.
+ * Output: {"ok":true,"path":"..."} | {"ok":false,"error":"..."}
+ */
+char *scribe_template_save(const char *template_json);
+
+/*
+ * Remove a practice override, restoring the built-in with that id.
+ * Output: {"ok":true,"removed":true|false} | {"ok":false,"error":"..."}
+ */
+char *scribe_template_revert(const char *template_id);
+
+/*
  * Input:  {"encounter":{...},"transcript":{...}}  or
  *         {"template_id":"soap","transcript":{...}}
  * Output: {"ok":true,"note":{...}} | {"ok":false,"error":"..."}

@@ -96,6 +96,12 @@ struct Letterhead: View {
                 Field(label: "Recorded", value: EncounterSpine.time(encounter.startedAt))
                 Field(label: "Duration", value: durationLabel)
                 Field(label: "Status", value: readinessLabel)
+                if let held = encounter.transcript?.heldMs, held > 0 {
+                    Field(
+                        label: "Held",
+                        value: RecordingStripView.clock(Double(held) / 1000)
+                    )
+                }
             }
 
             ProvisionanceLine(

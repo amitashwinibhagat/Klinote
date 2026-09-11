@@ -73,6 +73,15 @@ private struct GeneralSettings: View {
 
 private struct TemplateSettings: View {
     @ObservedObject var model: AppModel
+    @State private var selectedID = ""
+    @State private var draft: TemplateSummary?
+    @State private var status: String?
+
+    private var hasOverride: Bool {
+        let path = KlinoteCore.templatesDirectory
+            .appendingPathComponent("\(selectedID).toml")
+        return FileManager.default.fileExists(atPath: path.path)
+    }
 
     var body: some View {
         Form {
@@ -81,34 +90,101 @@ private struct TemplateSettings: View {
                     Text("No templates loaded.")
                         .foregroundStyle(.secondary)
                 }
-            }
-            ForEach(model.templates) { template in
-                Section(template.name) {
-                    LabeledContent("Discipline", value: template.discipline)
-                    LabeledContent("Version", value: template.version)
-                    if !template.description.isEmpty {
-                        Text(template.description)
+            } else {
+                Section("Template") {
+                    Picker("Editing", selection: $selectedID) {
+                        ForEach(model.templates) { template in
+                            Text(template.name).tag(template.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                if let draft = Binding($draft) {
+                    Section("About this template") {
+                        TextField("Name", text: draft.name)
+                        TextField("Description", text: draft.description)
+                        TextField(
+                            "Register (how the model should write it)",
+                            text: Binding(
+                                get: { draft.wrappedValue.voice ?? "" },
+                                set: { draft.wrappedValue.voice = $0 }
+                            ),
+                            axis: .vertical
+                        )
+                        LabeledContent("Id", value: draft.wrappedValue.id)
+                            .font(.caption)
+                    }
+
+                    ForEach(draft.sections) { section in
+                        Section(section.wrappedValue.title) {
+                            TextField("Title", text: section.title)
+                            Toggle("Required before signing", isOn: section.required)
+                            TextField("Guidance", text: section.guidance, axis: .vertical)
+                            TextField("Cues (comma separated)", text: section.cuesText, axis: .vertical)
+                                .font(.system(size: 11, design: .monospaced))
+                            Text(
+                                section.wrappedValue.cues.isEmpty
+                                    ? "No cues: the rule-based engine will not route anything here."
+                                    : "\(section.wrappedValue.cues.count) cues"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Section {
+                        HStack {
+                            Button("Save") { save() }
+                            Button("Revert to built-in") { revert() }
+                                .disabled(!hasOverride)
+                            Spacer()
+                            if let status {
+                                Text(status)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Text("Saved to \(KlinoteCore.templatesDirectory.path). A practice template survives an app update and can be read, diffed or shared. Deleting it restores the built-in.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    ForEach(template.sections) { section in
-                        HStack {
-                            Text(section.title)
-                            Spacer()
-                            Text(section.required ? "Required" : "Optional")
-                                .font(.caption)
-                                .foregroundStyle(section.required ? .primary : .secondary)
-                        }
-                    }
                 }
-            }
-            Section {
-                Text("Required sections are a clinical decision. That is why templates are read-only here.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+        .onAppear(perform: load)
+        .onChange(of: selectedID) { _, _ in load() }
+        .onChange(of: model.templates) { _, _ in load() }
+    }
+
+    private func load() {
+        if selectedID.isEmpty || !model.templates.contains(where: { $0.id == selectedID }) {
+            selectedID = model.templates.first?.id ?? ""
+        }
+        draft = model.templates.first { $0.id == selectedID }
+        status = nil
+    }
+
+    private func save() {
+        guard let draft else { return }
+        do {
+            try KlinoteCore.saveTemplate(draft)
+            model.reloadTemplates()
+            status = "Saved"
+        } catch {
+            status = "Could not save: \(error.localizedDescription)"
+        }
+    }
+
+    private func revert() {
+        do {
+            try KlinoteCore.revertTemplate(id: selectedID)
+            model.reloadTemplates()
+            status = "Built-in restored"
+        } catch {
+            status = "Could not revert: \(error.localizedDescription)"
+        }
     }
 }
 

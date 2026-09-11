@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use scribe_core::{Result, ScribeError, Template, TemplateId};
 
@@ -41,6 +41,18 @@ const BUILTIN: &[(&str, &str)] = &[
         include_str!("../../../templates/patient_summary.toml"),
     ),
 ];
+
+/// A practice's template directory, or `KLINOTE_TEMPLATES_DIR` for tests and
+/// for anyone keeping templates in a shared folder.
+fn overrides_dir() -> Option<PathBuf> {
+    if let Ok(explicit) = std::env::var("KLINOTE_TEMPLATES_DIR")
+        && !explicit.trim().is_empty()
+    {
+        return Some(PathBuf::from(explicit));
+    }
+    let home = std::env::var("HOME").ok()?;
+    Some(PathBuf::from(home).join("Library/Application Support/Klinote/Templates"))
+}
 
 impl TemplateLibrary {
     pub fn builtin() -> Result<Self> {
@@ -101,6 +113,58 @@ impl TemplateLibrary {
         Ok(library)
     }
 
+    /// Built-ins, plus any templates this practice has saved.
+    ///
+    /// A practice override lives as TOML next to the database, so a template a
+    /// clinician edited survives an app update and can be read by hand,
+    /// diffed, or put in a shared folder. A built-in with the same id is
+    /// replaced; deleting the override restores it.
+    pub fn for_this_machine() -> Result<Self> {
+        let Some(dir) = overrides_dir() else {
+            return Self::builtin();
+        };
+        if !dir.is_dir() {
+            return Self::builtin();
+        }
+        Self::load_dir(dir)
+    }
+
+    /// Where a practice's own templates are written.
+    pub fn overrides_dir() -> Option<PathBuf> {
+        overrides_dir()
+    }
+
+    /// Write one template as TOML. The engine owns the file format so the app
+    /// cannot drift from it.
+    pub fn save_override(template: &Template) -> Result<PathBuf> {
+        template.validate()?;
+        let dir = overrides_dir().ok_or_else(|| {
+            ScribeError::InvalidInput("no template directory on this machine".to_owned())
+        })?;
+        std::fs::create_dir_all(&dir)?;
+        let body =
+            toml::to_string_pretty(template).map_err(|err| ScribeError::InvalidTemplate {
+                id: template.id.to_string(),
+                reason: err.to_string(),
+            })?;
+        let path = dir.join(format!("{}.toml", template.id.as_str()));
+        std::fs::write(&path, body)?;
+        Ok(path)
+    }
+
+    /// Remove a practice override, restoring the built-in if there is one.
+    pub fn delete_override(id: &str) -> Result<bool> {
+        let Some(dir) = overrides_dir() else {
+            return Ok(false);
+        };
+        let path = dir.join(format!("{id}.toml"));
+        if !path.exists() {
+            return Ok(false);
+        }
+        std::fs::remove_file(path)?;
+        Ok(true)
+    }
+
     pub fn insert(&mut self, template: Template) -> Result<()> {
         template.validate()?;
         self.templates.insert(template.id.clone(), template);
@@ -138,6 +202,44 @@ impl TemplateLibrary {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An override must survive a round trip through TOML and replace the
+    /// built-in, and reverting must bring the built-in back.
+    #[test]
+    fn practise_override_round_trips() {
+        let dir = std::env::temp_dir().join(format!("klinote-templates-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: this test owns the variable; others do not read it.
+        unsafe { std::env::set_var("KLINOTE_TEMPLATES_DIR", &dir) };
+
+        let mut soap = TemplateLibrary::builtin()
+            .unwrap()
+            .get("soap")
+            .unwrap()
+            .clone();
+        soap.name = "Our House SOAP".to_owned();
+        soap.sections[0].cues.push("our-cue".to_owned());
+        let path = TemplateLibrary::save_override(&soap).unwrap();
+        assert!(path.exists());
+
+        let loaded = TemplateLibrary::for_this_machine().unwrap();
+        assert_eq!(loaded.get("soap").unwrap().name, "Our House SOAP");
+        assert!(
+            loaded.get("soap").unwrap().sections[0]
+                .cues
+                .contains(&"our-cue".to_owned())
+        );
+        // The other built-ins are still there.
+        assert!(loaded.contains("referral_letter"));
+
+        assert!(TemplateLibrary::delete_override("soap").unwrap());
+        let restored = TemplateLibrary::for_this_machine().unwrap();
+        assert_eq!(restored.get("soap").unwrap().name, "SOAP Note");
+
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: as above.
+        unsafe { std::env::remove_var("KLINOTE_TEMPLATES_DIR") };
+    }
 
     #[test]
     fn builtins_parse_and_validate() {

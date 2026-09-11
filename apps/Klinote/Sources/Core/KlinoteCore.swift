@@ -132,6 +132,13 @@ struct Transcript: Codable {
     var humanSupplied: Bool
     var createdAt: String?
     var nameChecks: [NameCheck]?
+    /// Milliseconds deliberately not captured, because the clinician held the
+    /// recording. Shown on the letter so a gap is explained.
+    ///
+    /// Optional, and it must stay optional: a consult saved before holding
+    /// existed has no `held_ms`, and a synthesized decoder would refuse the
+    /// whole transcript — losing the clinician's history to add a timestamp.
+    var heldMs: UInt64?
 
     /// Flip clinician ↔ patient on the two well-known speakers. Other roles stay.
     mutating func swapClinicianAndPatient() {
@@ -160,13 +167,13 @@ struct TranscriptSegment: Codable, Identifiable {
     let confidence: Double?
 }
 
-struct TemplateSummary: Decodable, Identifiable, Hashable {
+struct TemplateSummary: Codable, Identifiable, Hashable {
     let id: String
-    let name: String
-    let discipline: String
+    var name: String
+    var discipline: String
     let version: String
-    let description: String
-    let voice: String?
+    var description: String
+    var voice: String?
     /// "note" or "document". Documents are the other things the consult owes:
     /// a referral letter, the patient's copy.
     let family: String?
@@ -174,20 +181,33 @@ struct TemplateSummary: Decodable, Identifiable, Hashable {
     let render: String?
     /// "clinical" or "patient".
     let audience: String?
-    let sections: [TemplateSectionSummary]
+    var sections: [TemplateSectionSummary]
 
     var isDocument: Bool { family == "document" }
     var isLetter: Bool { render == "letter" }
     var isPatientFacing: Bool { audience == "patient" }
 }
 
-struct TemplateSectionSummary: Decodable, Identifiable, Hashable {
+struct TemplateSectionSummary: Codable, Identifiable, Hashable {
     let key: String
-    let title: String
-    let guidance: String
-    let required: Bool
+    var title: String
+    var guidance: String
+    var required: Bool
+    /// The vocabulary the rule-based engine routes on. Editable per practice.
+    var cues: [String]
 
     var id: String { key }
+
+    /// Cues as one editable line.
+    var cuesText: String {
+        get { cues.joined(separator: ", ") }
+        set {
+            cues = newValue
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+    }
 }
 
 // MARK: - Errors
@@ -399,6 +419,29 @@ enum KlinoteCore {
         )
         guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not purge") }
         return envelope.deleted ?? 0
+    }
+
+    /// Save one template as a practice override.
+    static func saveTemplate(_ template: TemplateSummary) throws {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(template)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw KlinoteCoreError.malformedResponse
+        }
+        let envelope: EngineEnvelope<Bool> = try envelope(from: scribe_template_save(json))
+        guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not save") }
+    }
+
+    /// Remove a practice override, restoring the built-in.
+    static func revertTemplate(id: String) throws {
+        let envelope: EngineEnvelope<Bool> = try envelope(from: scribe_template_revert(id))
+        guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not revert") }
+    }
+
+    /// Where this practice's own templates live, for showing in Settings.
+    static var templatesDirectory: URL {
+        ModelDownloader.supportDirectory.appendingPathComponent("Templates", isDirectory: true)
     }
 
     static func loadSessions() throws -> [StoredSession] {
