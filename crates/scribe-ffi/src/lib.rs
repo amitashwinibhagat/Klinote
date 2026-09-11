@@ -146,6 +146,24 @@ pub unsafe extern "C" fn scribe_note_to_markdown(note_json: *const c_char) -> *m
     into_c_string(&payload.to_string())
 }
 
+/// Input: a note JSON object. Output: `{"ok":true,"text":"..."}` — plain
+/// text for the record system (no Markdown, no metadata).
+///
+/// # Safety
+/// `note_json` must be null or a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_note_to_record_text(note_json: *const c_char) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let raw = unsafe { cstr_to_string(note_json) }?;
+        let note: ClinicalNote =
+            serde_json::from_str(&raw).map_err(|err| format!("invalid note json: {err}"))?;
+        Ok(json!({ "ok": true, "text": note.to_record_text() }))
+    })()
+    .unwrap_or_else(|error| error_envelope(error.to_string()));
+
+    into_c_string(&payload.to_string())
+}
+
 #[derive(Debug, Deserialize)]
 struct TextRequest {
     #[serde(default)]

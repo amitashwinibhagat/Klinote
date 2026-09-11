@@ -57,6 +57,14 @@ char *scribe_note_from_transcript(const char *request_json);
 char *scribe_note_to_markdown(const char *note_json);
 
 /*
+ * Input:  a serialised ClinicalNote.
+ * Output: {"ok":true,"text":"..."} — plain text for pasting into the record
+ *         system. Section titles and bodies only: no Markdown, no engine
+ *         metadata, no unfiled statements, no footer.
+ */
+char *scribe_note_to_record_text(const char *note_json);
+
+/*
  * The plain-text path: a pasted or human-typed transcript in, a note out.
  * No audio, no model. Used by the app's bundled demonstration and by any
  * clinician who already has a transcript.

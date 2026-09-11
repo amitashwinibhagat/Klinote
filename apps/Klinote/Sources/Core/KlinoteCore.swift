@@ -38,6 +38,12 @@ struct MarkdownEnvelope: Decodable {
     let markdown: String?
 }
 
+struct NoteTextEnvelope: Decodable {
+    let ok: Bool
+    let error: String?
+    let text: String?
+}
+
 struct StoreListEnvelope: Decodable {
     let ok: Bool
     let error: String?
@@ -230,6 +236,21 @@ enum KlinoteCore {
         let payload: MarkdownEnvelope = try envelope(from: scribe_note_to_markdown(json))
         guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
         return payload.markdown ?? ""
+    }
+
+    /// Plain text for the record system: section titles and bodies only. No
+    /// Markdown, no engine metadata, no unfiled statements, no footer. This is
+    /// what `Copy note` puts on the clipboard.
+    static func recordText(for note: ClinicalNote) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(note)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw KlinoteCoreError.malformedResponse
+        }
+        let payload: NoteTextEnvelope = try envelope(from: scribe_note_to_record_text(json))
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
+        return payload.text ?? ""
     }
 
     /// The audio path: a recorded .wav in, a note out, via whisper.cpp with

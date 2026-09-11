@@ -114,6 +114,7 @@ final class AppModel: ObservableObject {
     @Published var isCopying = false
     @Published var copyBanner: String?
     @Published var isSwapping = false
+    @Published var isPasting = false
     @Published var templates: [TemplateSummary] = []
 
     /// A recording captured before the speech model finished downloading,
@@ -203,6 +204,45 @@ final class AppModel: ObservableObject {
         if let date = formatter.date(from: value) { return date }
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.date(from: value)
+    }
+
+    /// Text → note, with no model and no download. The fastest honest path to
+    /// a letter: paste what was said, get a draft in the template.
+    func makeNote(fromPastedText text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            lastError = "Nothing was pasted."
+            return
+        }
+        isPasting = false
+        let patientRef = "pasted-\(UUID().uuidString.prefix(6))"
+        do {
+            let result = try KlinoteCore.note(
+                fromText: trimmed,
+                templateId: templateId,
+                discipline: discipline,
+                patientRef: patientRef
+            )
+            let encounter = Encounter(
+                id: result.note.encounterId,
+                patientRef: patientRef,
+                discipline: discipline,
+                templateId: templateId,
+                startedAt: Date(),
+                state: .draft,
+                note: result.note,
+                transcript: result.transcript,
+                isSyntheticDemo: false
+            )
+            encounters.insert(encounter, at: 0)
+            selection = encounter.id
+            persist(encounter)
+            selectFirstEvidence()
+            promptPasteIfReady()
+            ReviewWindowController.shared.show()
+        } catch {
+            lastError = "Could not read that transcript. Check it has CLINICIAN: and PATIENT: lines."
+        }
     }
 
     func renameEncounter(_ id: String, to patientRef: String) {
@@ -330,19 +370,8 @@ final class AppModel: ObservableObject {
             lastError = "Listening could not be downloaded. Retry in Settings → Recording."
             return
         }
-        switch ModelDownloader.shared.noteState {
-        case .ready:
-            break
-        case .missing:
-            lastError = "Download Quire first (Settings → Recording). 1.9 GB, once, stays on this Mac."
-            return
-        case .downloading:
-            lastError = "Quire is still downloading. Record when Settings says it is ready."
-            return
-        case .failed:
-            lastError = "Quire could not be downloaded. Retry in Settings → Recording."
-            return
-        }
+        // Quire is an upgrade, not a ticket. Without it the rule-based engine
+        // still produces a note from the transcript, and AFM is tried first.
         Task { @MainActor in
             if !Recorder.shared.permissionGranted {
                 guard await Recorder.shared.requestPermission() else {
@@ -504,13 +533,18 @@ final class AppModel: ObservableObject {
         return fallback
     }
 
-    /// Puts the engine Markdown on the clipboard so it can be pasted into the record.
+    /// Puts paste-ready plain text on the clipboard. Section titles and bodies
+    /// only: no Markdown, no engine name, no unfiled statements, no footer.
     func copySelectedNote() {
         guard let note = selectedEncounter?.note else { return }
         do {
-            let markdown = try KlinoteCore.markdown(for: note)
+            let text = try KlinoteCore.recordText(for: note)
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                lastError = "Nothing to copy yet — this note has no documented sections."
+                return
+            }
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(markdown, forType: .string)
+            NSPasteboard.general.setString(text, forType: .string)
             isCopying = true
             copyBanner = "Copied. Paste into the record."
             Task { @MainActor in

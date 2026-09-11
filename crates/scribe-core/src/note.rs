@@ -126,6 +126,28 @@ impl ClinicalNote {
         !self.missing_required.is_empty()
     }
 
+    /// Clipboard text for the record system: section titles and bodies only.
+    ///
+    /// No Markdown, no engine metadata, no unfiled statements, no footer. What
+    /// a clinician pastes into an EHR text field, and nothing else.
+    pub fn to_record_text(&self) -> String {
+        let mut out = String::new();
+        for section in &self.sections {
+            let body = section.body.trim();
+            if body.is_empty() {
+                continue;
+            }
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(section.title.trim());
+            out.push('\n');
+            out.push_str(body);
+            out.push('\n');
+        }
+        out.trim_end().to_owned()
+    }
+
     /// Clinician-facing markdown. This is what the concierge loop emails out.
     pub fn to_markdown(&self) -> String {
         use std::fmt::Write as _;
@@ -187,6 +209,32 @@ impl ClinicalNote {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn record_text_is_sections_only() {
+        let mut note = note_with(vec![
+            NoteSection {
+                key: "subjective".into(),
+                title: "Subjective".into(),
+                body: "Sore throat 4 days.".into(),
+                evidence: vec![],
+                sentences: vec![],
+                complete: true,
+            },
+            NoteSection::empty("objective", "Objective"),
+        ]);
+        note.engine = "quire-phlox".into();
+        note.unassigned.push(UnassignedItem {
+            text: "parking was awful".into(),
+            speaker_role: "clinician".into(),
+            evidence: vec![],
+        });
+        let text = note.to_record_text();
+        assert_eq!(text, "Subjective\nSore throat 4 days.");
+        for banned in ["#", "**", "Objective", "parking", "quire", "Draft"] {
+            assert!(!text.contains(banned), "{banned} leaked: {text}");
+        }
+    }
 
     fn note_with(sections: Vec<NoteSection>) -> ClinicalNote {
         ClinicalNote {

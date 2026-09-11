@@ -154,6 +154,13 @@ struct EncounterSidebar: View {
                 TabLabel(text: "Encounters")
                 Spacer()
                 Button {
+                    model.isPasting = true
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                }
+                .buttonStyle(.borderless)
+                .help("Paste a transcript you already have")
+                Button {
                     model.startRecording()
                 } label: {
                     Image(systemName: "plus")
@@ -167,11 +174,21 @@ struct EncounterSidebar: View {
             Hairline()
 
             if model.encounters.isEmpty {
-                EmptyState(
-                    title: "No consults yet",
-                    message: "Record a consult, or open the sample to see how a note reads.",
-                    action: (title: "Open the sample note", handler: { model.prepareDemoNote() })
-                )
+                VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
+                    Text("No consults yet")
+                        .font(KlinoteFont.ui(15, weight: .semibold))
+                        .foregroundStyle(KlinoteColor.primary)
+                    Text("Already have a transcript? Paste it and get a note now — no download. Or record a consult.")
+                        .font(KlinoteFont.ui())
+                        .foregroundStyle(KlinoteColor.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Paste a transcript") { model.isPasting = true }
+                        .buttonStyle(KlinotePrimaryButtonStyle())
+                    Button("Open the sample note") { model.prepareDemoNote() }
+                        .buttonStyle(.plain)
+                        .font(KlinoteFont.ui())
+                        .foregroundStyle(KlinoteColor.ink)
+                }
                 .padding(KlinoteMetrics.space16)
                 Spacer()
             } else {
@@ -214,6 +231,9 @@ struct EncounterSidebar: View {
             .padding(.vertical, KlinoteMetrics.space12)
         }
         .background(KlinoteColor.desk)
+        .sheet(isPresented: $model.isPasting) {
+            PasteTranscriptSheet(model: model)
+        }
         .alert("Rename consult", isPresented: Binding(
             get: { renameID != nil },
             set: { if !$0 { renameID = nil } }

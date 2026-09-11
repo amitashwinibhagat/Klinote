@@ -67,6 +67,11 @@ struct CommonArgs {
     #[arg(long)]
     json: bool,
 
+    /// Emit paste-ready plain text for the record system: section titles and
+    /// bodies only. No Markdown, no metadata, no unfiled statements, no footer.
+    #[arg(long)]
+    record_text: bool,
+
     /// Write output here instead of stdout.
     #[arg(long)]
     out: Option<PathBuf>,
@@ -263,6 +268,8 @@ fn finish(
 
     let rendered = if common.json {
         serde_json::to_string_pretty(&output.note)?
+    } else if common.record_text {
+        output.note.to_record_text()
     } else {
         output.note.to_markdown()
     };
