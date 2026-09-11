@@ -47,6 +47,24 @@
       "why": "Newest Qwen tiny at full Q8."
     },
     {
+      "id": "lfm25-1.2b-q4",
+      "band": "sub-1gb",
+      "name": "LFM2.5-1.2B Instruct Q4_K_M",
+      "file": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
+      "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-GGUF/resolve/main/LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
+      "bytes": 730895168,
+      "why": "Liquid LFM2.5-1.2B instruct, edge Q4. Flagship 1.2B chat/tool-calling."
+    },
+    {
+      "id": "lfm25-1.2b-q8",
+      "band": "1-2gb",
+      "name": "LFM2.5-1.2B Instruct Q8_0",
+      "file": "LFM2.5-1.2B-Instruct-Q8_0.gguf",
+      "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-GGUF/resolve/main/LFM2.5-1.2B-Instruct-Q8_0.gguf",
+      "bytes": 1246253888,
+      "why": "Liquid LFM2.5-1.2B instruct at Q8 (1.25 GB). Tests the architecture, not the quant."
+    },
+    {
       "id": "minicpm5-2b-q4",
       "band": "1-2gb",
       "name": "MiniCPM5-2B Q4_K_M",

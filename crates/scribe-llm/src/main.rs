@@ -132,11 +132,20 @@ fn run(model_path: &PathBuf, request: &Request) -> Result<ClinicalNote, String> 
         }
     }
 
+    let engine = format!(
+        "{}-phlox",
+        model_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("gguf")
+            .to_ascii_lowercase()
+    );
     Ok(assemble(
         draft,
         &request.transcript,
         &utterances,
         &request.template,
+        engine,
     ))
 }
 
@@ -223,19 +232,18 @@ fn render_chat(model: &LlamaModel, system: &str, user: &str) -> Result<(String, 
         let mut prompt = model
             .apply_chat_template(&tmpl, &messages, true)
             .map_err(|err| err.to_string())?;
-        // MiniCPM5 hybrid-reasoning: empty think block = no-think.
-        // llama.cpp does not pass enable_thinking=false through this template.
-        if prompt.ends_with("<|im_start|>assistant\n")
-            || prompt.ends_with("<|im_start|>assistant\n\n")
+        // MiniCPM5 / Qwen3 hybrid-reasoning only. Do not inject <think> into ChatML models (LFM, etc.).
+        let tmpl_text = tmpl.to_str().unwrap_or("");
+        if tmpl_text.contains("enable_thinking")
+            && (prompt.ends_with("<|im_start|>assistant\n")
+                || prompt.ends_with("<|im_start|>assistant\n\n"))
         {
             prompt.push_str("<think>\n\n</think>\n\n");
         }
         return Ok((prompt, AddBos::Never));
     }
     Ok((
-        format!(
-            "<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
-        ),
+        format!("<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n<|im_start|>assistant\n"),
         AddBos::Always,
     ))
 }
@@ -328,6 +336,7 @@ fn assemble(
     transcript: &scribe_core::Transcript,
     utterances: &[Utterance],
     template: &TemplateIn,
+    engine: String,
 ) -> ClinicalNote {
     let by_index: std::collections::HashMap<i32, &Utterance> =
         utterances.iter().map(|item| (item.index, item)).collect();
@@ -411,14 +420,7 @@ fn assemble(
         sections,
         unassigned,
         generated_at: chrono::Utc::now(),
-        engine: format!(
-            "{}-phlox",
-            model_path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("gguf")
-                .to_ascii_lowercase()
-        ),
+        engine,
         review_state: ReviewState::Draft,
         missing_required,
         machine_generated: true,
