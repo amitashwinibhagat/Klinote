@@ -185,9 +185,9 @@ fn extract_prompt(request: &Request, utterances: &[Utterance]) -> (String, Strin
         .collect::<Vec<_>>()
         .join("\n");
     (
-        "You extract clinical documentation from a consultation transcript for a qualified clinician. Work only from the transcript. Do not invent findings, diagnoses, drugs, or plans. Each sentence must cite utterance indices. Prefer the patient's words for history; the clinician's for examination, assessment and plan. Empty sentences if nothing belongs in a field. Do not write <think> tags. Reply with JSON only, first character {".into(),
+        "You extract clinical documentation from a consultation transcript for a qualified clinician. Work only from the transcript. Do not invent findings, diagnoses, drugs, or plans. Each sentence must cite utterance indices. Prefer the patient's words for history; the clinician's for examination, assessment and plan. Empty sentences if nothing belongs in a field. Do not write <think> tags. Reply with JSON only, first character {. Each section is its own object in the sections array — never two key fields in one object.".into(),
         format!(
-            "Extract relevant information for each field.\n\nTemplate {} — {}\nFields:\n{}\n\nTranscript:\n{}\n\nReturn ONLY JSON:\n{{\"sections\":[{{\"key\":\"subjective\",\"sentences\":[{{\"text\":\"...\",\"evidence\":[1]}}]}}]}}",
+            "Extract relevant information for each field.\n\nTemplate {} — {}\nFields:\n{}\n\nTranscript:\n{}\n\nReturn ONLY JSON. Four separate section objects:\n{{\"sections\":[{{\"key\":\"subjective\",\"sentences\":[{{\"text\":\"...\",\"evidence\":[1]}}]}},{{\"key\":\"objective\",\"sentences\":[]}},{{\"key\":\"assessment\",\"sentences\":[]}},{{\"key\":\"plan\",\"sentences\":[]}}]}}",
             request.template.id,
             request.template.name,
             fields,
@@ -259,12 +259,23 @@ fn strip_think(raw: &str) -> String {
     text
 }
 
+fn repair_json(json: &str) -> String {
+    // Qwen3.5 often emits one object with repeated "key" fields.
+    // After a sentences array, a new key starts a new section object.
+    json.replace("],\"key\"", "]},{\"key\"")
+        .replace("], \"key\"", "]}, {\"key\"")
+}
+
 fn parse_draft(raw: &str) -> Result<LlmDraft, String> {
     let trimmed = strip_think(raw).trim().to_owned();
     let json = match (trimmed.find('{'), trimmed.rfind('}')) {
         (Some(start), Some(end)) if end > start => trimmed[start..=end].to_owned(),
         _ => trimmed.clone(),
     };
+    let repaired = repair_json(&json);
+    if let Ok(draft) = serde_json::from_str(&repaired) {
+        return Ok(draft);
+    }
     serde_json::from_str(&json).map_err(|err| {
         let preview: String = trimmed.chars().take(180).collect();
         format!("model json: {err}; preview={preview:?}")
@@ -301,7 +312,8 @@ fn complete(
     ctx.decode(&mut batch)
         .map_err(|err| format!("decode prompt: {err}"))?;
 
-    let mut sampler = LlamaSampler::chain_simple([LlamaSampler::temp(0.1), LlamaSampler::greedy()]);
+    let mut sampler =
+        LlamaSampler::chain_simple([LlamaSampler::temp(0.1), LlamaSampler::greedy()]);
 
     let mut out = String::new();
     let mut pos = tokens.len() as i32;
