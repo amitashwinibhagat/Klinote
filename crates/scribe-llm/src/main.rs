@@ -1,7 +1,7 @@
 //! Local GGUF note drafter (llama.cpp).
 //!
 //! Separate binary from the Whisper engine so the two ggml copies never link
-//! into one process. The Swift shell downloads a Qwen3-4B instruct GGUF
+//! into one process. The Swift shell downloads a GGUF
 //! and invokes this with JSON on stdin.
 //!
 //! Phlox-style: extract per template field as JSON, then a brevity pass.

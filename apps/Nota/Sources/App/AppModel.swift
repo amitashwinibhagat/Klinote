@@ -265,18 +265,20 @@ final class AppModel: ObservableObject {
             selectFirstEvidence()
             let encounterId = encounter.id
             let transcript = result.transcript
-            let templateId = self.templateId
-            Task {
-                guard let template = self.templates.first(where: { $0.id == templateId }) ?? self.templates.first else { return }
-                guard let drafted = await NoteDrafter.draft(
+            let template = templates.first(where: { $0.id == templateId }) ?? templates.first
+            let fallback = result.note
+            Task.detached {
+                let drafted = await Self.preferLocalDraft(
                     transcript: transcript,
                     template: template,
-                    encounterId: encounterId
-                ) else { return }
-                if let index = self.encounters.firstIndex(where: { $0.id == encounterId }) {
-                    self.encounters[index].note = drafted
-                    self.persist(self.encounters[index])
-                    self.selectFirstEvidence()
+                    fallback: fallback
+                )
+                await MainActor.run {
+                    if let index = self.encounters.firstIndex(where: { $0.id == encounterId }) {
+                        self.encounters[index].note = drafted
+                        self.persist(self.encounters[index])
+                        self.selectFirstEvidence()
+                    }
                 }
             }
         } catch {
@@ -318,7 +320,7 @@ final class AppModel: ObservableObject {
         case .ready:
             break
         case .missing:
-            lastError = "Download the note engine first (Settings → Recording). Qwen3 4B, 1.9 GB, once, stays on this Mac."
+            lastError = "Download Quire first (Settings → Recording). 1.9 GB, once, stays on this Mac."
             return
         case .downloading:
             lastError = "The note engine is still downloading. Record when Settings says it is ready."
@@ -413,20 +415,11 @@ final class AppModel: ObservableObject {
                 let template = await MainActor.run {
                     self.templates.first(where: { $0.id == templateId }) ?? self.templates.first
                 }
-                let note: ClinicalNote
-                if let template, LocalLlm.isReady,
-                   let drafted = try? LocalLlm.draft(transcript: result.transcript, template: template) {
-                    note = drafted
-                } else if let template,
-                          let drafted = await NoteDrafter.draft(
-                            transcript: result.transcript,
-                            template: template,
-                            encounterId: result.note.encounterId
-                          ) {
-                    note = drafted
-                } else {
-                    note = result.note
-                }
+                let note = await Self.preferLocalDraft(
+                    transcript: result.transcript,
+                    template: template,
+                    fallback: result.note
+                )
                 await MainActor.run {
                     let encounter = Encounter(
                         id: result.note.encounterId,
@@ -475,6 +468,27 @@ final class AppModel: ObservableObject {
         isFiling = false
     }
 
+    /// Local GGUF first, then Apple Foundation Models, then the rule-based note.
+    nonisolated private static func preferLocalDraft(
+        transcript: Transcript,
+        template: TemplateSummary?,
+        fallback: ClinicalNote
+    ) async -> ClinicalNote {
+        if let template, LocalLlm.isReady,
+           let drafted = try? LocalLlm.draft(transcript: transcript, template: template) {
+            return drafted
+        }
+        if let template,
+           let drafted = await NoteDrafter.draft(
+            transcript: transcript,
+            template: template,
+            encounterId: fallback.encounterId
+           ) {
+            return drafted
+        }
+        return fallback
+    }
+
     /// Puts the engine Markdown on the clipboard so it can be pasted into the record.
     func copySelectedNote() {
         guard let note = selectedEncounter?.note else { return }
@@ -506,15 +520,12 @@ final class AppModel: ObservableObject {
         let template = templates.first(where: { $0.id == templateId }) ?? templates.first
         Task.detached {
             do {
-                var note = try NotaCore.note(fromTranscript: transcript, templateId: templateId)
-                if let template,
-                   let drafted = await NoteDrafter.draft(
+                let rules = try NotaCore.note(fromTranscript: transcript, templateId: templateId)
+                let note = await Self.preferLocalDraft(
                     transcript: transcript,
                     template: template,
-                    encounterId: note.encounterId
-                   ) {
-                    note = drafted
-                }
+                    fallback: rules
+                )
                 await MainActor.run {
                     encounter.note = note
                     encounter.transcript = transcript

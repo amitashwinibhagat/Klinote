@@ -60,7 +60,10 @@ targets:
           # at an absolute path in target/ and unable to run anywhere else.
           mkdir -p target/nota-link
           cp target/release/libscribe_core_ffi.a target/nota-link/
-    copyFiles:
-      - destination: executables
-        files:
-          - path: ../../target/release/scribe-llm
+    postBuildScripts:
+      - name: Embed scribe-llm
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          cp "$SRCROOT/../../target/release/scribe-llm" "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/scribe-llm"
+          chmod +x "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/scribe-llm"

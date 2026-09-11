@@ -148,16 +148,16 @@ private struct RecordingSettings: View {
                 LabeledContent("Status", value: downloader.noteState.word.replacingOccurrences(of: "Speech engine", with: "Note engine"))
                 switch downloader.noteState {
                 case .missing:
-                    Button("Download Qwen3 4B (1.9 GB, once)") {
+                    Button("Download Quire (1.9 GB, once)") {
                         downloader.startNote()
                     }
-                    Text("Qwen3-4B Instruct, 3-bit. Drafts SOAP from the transcript on this Mac. No Apple Intelligence required.")
+                    Text("On-device draft engine. Stays on this Mac. No Apple Intelligence required.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .downloading(let fraction):
                     ProgressView(value: fraction)
                 case .ready:
-                    Text("Ready. Notes are drafted by Qwen3 on this Mac.")
+                    Text("Ready. Notes are drafted on this Mac.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .failed(let message):

@@ -47,11 +47,21 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
     static let noteURL = URL(
         string: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q3_K_S.gguf"
     )!
-    /// Qwen3-4B Instruct 2507 Q3_K_S (~1.89 GB). SOAP bench baseline.
+    /// ~1.89 GB. Ships on disk as quire.gguf — never the upstream filename.
     static let noteExpectedSize: Int64 = 1_886_997_600
 
     nonisolated static var noteFile: URL {
-        modelsDirectory.appendingPathComponent("Qwen3-4B-Instruct-2507-Q3_K_S.gguf")
+        modelsDirectory.appendingPathComponent("quire.gguf")
+    }
+
+    nonisolated static func adoptLegacyNoteFileIfNeeded() {
+        let dest = noteFile
+        guard !FileManager.default.fileExists(atPath: dest.path) else { return }
+        let legacy = modelsDirectory.appendingPathComponent(
+            "Qwen3-4B-Instruct-2507-Q3_K_S.gguf"
+        )
+        guard FileManager.default.fileExists(atPath: legacy.path) else { return }
+        try? FileManager.default.moveItem(at: legacy, to: dest)
     }
 
     @Published var state: ModelState = .missing
@@ -82,6 +92,7 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
     }
 
     func refresh() {
+        Self.adoptLegacyNoteFileIfNeeded()
         if FileManager.default.fileExists(atPath: Self.modelFile.path) {
             if case .downloading = state {} else { state = .ready }
         } else if case .downloading = state {

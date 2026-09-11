@@ -1,8 +1,8 @@
 //
 // LocalLlm.swift
 //
-// Dedicated local instruct model (Qwen 2.5 3B GGUF via llama.cpp) for SOAP
-// drafts. Runs as a sibling process so ggml does not clash with Whisper.
+// Dedicated local instruct GGUF (llama.cpp) for SOAP drafts. Runs as a sibling
+// process so ggml does not clash with Whisper.
 // Phlox extract → refine, with evidence indices. Nothing leaves the Mac.
 //
 
