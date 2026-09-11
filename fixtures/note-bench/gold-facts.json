@@ -1,0 +1,19 @@
+{
+  "must_appear": [
+    "sore throat",
+    "four days",
+    "swallow",
+    "tired",
+    "cetirizine",
+    "37.4",
+    "erythema",
+    "viral",
+    "paracetamol",
+    "ibuprofen",
+    "one week"
+  ],
+  "must_not_appear": [
+    "parking"
+  ],
+  "notes": "The parking line is deliberately unclinical and must stay unfiled, not in SOAP."
+}

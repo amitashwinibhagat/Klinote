@@ -314,6 +314,19 @@ final class AppModel: ObservableObject {
             lastError = "The speech engine could not be downloaded. Retry in Settings → Recording."
             return
         }
+        switch ModelDownloader.shared.noteState {
+        case .ready:
+            break
+        case .missing:
+            lastError = "Download the note engine first (Settings → Recording). MiniCPM 5 1B, 656 MB, once, stays on this Mac."
+            return
+        case .downloading:
+            lastError = "The note engine is still downloading. Record when Settings says it is ready."
+            return
+        case .failed:
+            lastError = "The note engine could not be downloaded. Retry in Settings → Recording."
+            return
+        }
         Task { @MainActor in
             if !Recorder.shared.permissionGranted {
                 guard await Recorder.shared.requestPermission() else {
@@ -401,12 +414,15 @@ final class AppModel: ObservableObject {
                     self.templates.first(where: { $0.id == templateId }) ?? self.templates.first
                 }
                 let note: ClinicalNote
-                if let template,
-                   let drafted = await NoteDrafter.draft(
-                    transcript: result.transcript,
-                    template: template,
-                    encounterId: result.note.encounterId
-                   ) {
+                if let template, LocalLlm.isReady,
+                   let drafted = try? LocalLlm.draft(transcript: result.transcript, template: template) {
+                    note = drafted
+                } else if let template,
+                          let drafted = await NoteDrafter.draft(
+                            transcript: result.transcript,
+                            template: template,
+                            encounterId: result.note.encounterId
+                          ) {
                     note = drafted
                 } else {
                     note = result.note

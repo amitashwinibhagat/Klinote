@@ -44,7 +44,18 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
     /// Expected size in bytes; used to sanity-check a completed download.
     static let expectedSize: Int64 = 487_614_184
 
+    static let noteURL = URL(
+        string: "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf"
+    )!
+    /// MiniCPM5-1B Q4_K_M (~656 MiB). Under 1 GB, on-device SOTA in the 1B class.
+    static let noteExpectedSize: Int64 = 688_065_920
+
+    nonisolated static var noteFile: URL {
+        modelsDirectory.appendingPathComponent("MiniCPM5-1B-Q4_K_M.gguf")
+    }
+
     @Published var state: ModelState = .missing
+    @Published var noteState: ModelState = .missing
 
     private var session: URLSession!
     private var task: URLSessionDownloadTask?
@@ -72,13 +83,18 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
 
     func refresh() {
         if FileManager.default.fileExists(atPath: Self.modelFile.path) {
-            state = .ready
+            if case .downloading = state {} else { state = .ready }
         } else if case .downloading = state {
-            // keep progress
         } else if case .failed = state {
-            // keep the failure so the user can retry
         } else {
             state = .missing
+        }
+        if FileManager.default.fileExists(atPath: Self.noteFile.path) {
+            if case .downloading = noteState {} else { noteState = .ready }
+        } else if case .downloading = noteState {
+        } else if case .failed = noteState {
+        } else {
+            noteState = .missing
         }
     }
 
@@ -97,6 +113,7 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
         } else {
             downloadTask = session.downloadTask(with: Self.modelURL)
         }
+        downloadTask.taskDescription = "speech"
         task = downloadTask
         progressObservation = downloadTask.progress.observe(
             \.fractionCompleted,
@@ -107,6 +124,28 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
                 // Bring the count back up to the real goal (resume restarts it).
                 let fraction = min(1, Double(progress.completedUnitCount) / Double(Self.expectedSize))
                 self.state = .downloading(fraction)
+            }
+        }
+        downloadTask.resume()
+    }
+
+    func startNote() {
+        refresh()
+        switch noteState {
+        case .ready, .downloading: return
+        case .missing, .failed: break
+        }
+        noteState = .downloading(0)
+        let downloadTask = session.downloadTask(with: Self.noteURL)
+        downloadTask.taskDescription = "note"
+        progressObservation = downloadTask.progress.observe(
+            \.fractionCompleted,
+            options: [.new]
+        ) { [weak self] progress, _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let fraction = min(1, Double(progress.completedUnitCount) / Double(Self.noteExpectedSize))
+                self.noteState = .downloading(fraction)
             }
         }
         downloadTask.resume()
@@ -136,12 +175,21 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
                 at: directory,
                 withIntermediateDirectories: true
             )
-            try FileManager.default.moveItem(at: location, to: Self.modelFile)
+            let isNote = downloadTask.taskDescription == "note"
+            let destination = isNote ? Self.noteFile : Self.modelFile
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.moveItem(at: location, to: destination)
             Task { @MainActor in
-                self.state = .ready
+                if isNote {
+                    self.noteState = .ready
+                } else {
+                    self.state = .ready
+                    NotificationCenter.default.post(name: .notaModelDownloadFinished, object: nil)
+                }
                 self.task = nil
                 self.progressObservation = nil
-                NotificationCenter.default.post(name: .notaModelDownloadFinished, object: nil)
             }
         } catch {
             Task { @MainActor in

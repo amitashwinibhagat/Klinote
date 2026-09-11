@@ -54,8 +54,13 @@ targets:
           set -euo pipefail
           cd "$SRCROOT/../.."
           cargo build --release -p scribe-ffi
+          cargo build --release -p scribe-llm
           # Link the static library, never the dylib: cargo emits both, and the
           # linker prefers the dylib, which would leave the app bundle pointing
           # at an absolute path in target/ and unable to run anywhere else.
           mkdir -p target/nota-link
           cp target/release/libscribe_core_ffi.a target/nota-link/
+    copyFiles:
+      - destination: executables
+        files:
+          - path: ../../target/release/scribe-llm

@@ -1,0 +1,46 @@
+{
+  "description": "Small local instruct GGUFs under ~1 GB for SOAP drafting. Same Phlox extract→refine job.",
+  "max_bytes": 1100000000,
+  "models": [
+    {
+      "id": "minicpm5-1b-q4",
+      "name": "MiniCPM5-1B Q4_K_M",
+      "file": "MiniCPM5-1B-Q4_K_M.gguf",
+      "url": "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf",
+      "bytes": 688065920,
+      "why": "1B-class on-device SOTA (OpenBMB, 2026-05). Default for Nota."
+    },
+    {
+      "id": "llama32-1b-q4",
+      "name": "Llama 3.2 1B Instruct Q4_K_M",
+      "file": "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+      "url": "https://huggingface.co/unsloth/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+      "bytes": 807694368,
+      "why": "Widely deployed 1B instruct; strong baseline."
+    },
+    {
+      "id": "gemma3-1b-q4",
+      "name": "Gemma 3 1B IT Q4_K_M",
+      "file": "gemma-3-1b-it-Q4_K_M.gguf",
+      "url": "https://huggingface.co/ggml-org/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
+      "bytes": 806058240,
+      "why": "Google 1B instruct; llama.cpp official quant."
+    },
+    {
+      "id": "qwen25-1.5b-q4",
+      "name": "Qwen2.5-1.5B Instruct Q4_K_M",
+      "file": "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+      "url": "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+      "bytes": 986048768,
+      "why": "Most parameters still under 1 GB; typically best JSON follower in this band."
+    },
+    {
+      "id": "qwen3-0.6b-q8",
+      "name": "Qwen3-0.6B Q8_0",
+      "file": "Qwen3-0.6B-Q8_0.gguf",
+      "url": "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
+      "bytes": 639447744,
+      "why": "Newest Qwen tiny at full Q8; tests whether 0.6B is enough for JSON SOAP."
+    }
+  ]
+}

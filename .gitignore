@@ -17,6 +17,9 @@ apps/Nota/DerivedData/
 *.db-wal
 /data/
 /fixtures/private/
+/fixtures/note-bench/last-report.json
+/fixtures/note-bench/last-fail.txt
+scripts/__pycache__/
 
 # macOS
 .DS_Store

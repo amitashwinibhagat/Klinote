@@ -144,11 +144,26 @@ private struct RecordingSettings: View {
                 LabeledContent("Open Nota", value: "⌘⇧N")
                 LabeledContent("File a note", value: "⌘↩")
             }
-            Section("Note drafting") {
-                LabeledContent("On-device language model", value: NoteDrafter.isAvailable ? "Ready" : (NoteDrafter.unavailableReason ?? "Unavailable"))
-                Text("After transcription, Apple’s on-device model drafts the note from the transcript. Sentences must cite what was said. If the model is off, Nota falls back to rule-based routing. Nothing leaves this Mac.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Section("Note engine") {
+                LabeledContent("Status", value: downloader.noteState.word.replacingOccurrences(of: "Speech engine", with: "Note engine"))
+                switch downloader.noteState {
+                case .missing:
+                    Button("Download MiniCPM 5 1B (656 MB, once)") {
+                        downloader.startNote()
+                    }
+                    Text("OpenBMB MiniCPM5-1B, Q4. Built for on-device use. Drafts SOAP from the transcript on this Mac. No Apple Intelligence required.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .downloading(let fraction):
+                    ProgressView(value: fraction)
+                case .ready:
+                    Text("Ready. Notes are drafted by MiniCPM 5 on this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .failed(let message):
+                    Text(message).font(.caption).foregroundStyle(.orange)
+                    Button("Retry download") { downloader.startNote() }
+                }
             }
             Section("Audio") {
                 Text("Audio is captured and discarded. Nota does not keep a recording unless you ask it to, and never sends audio anywhere.")
