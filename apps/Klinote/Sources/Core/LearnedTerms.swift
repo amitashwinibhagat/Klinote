@@ -74,20 +74,7 @@ enum LearnedTerms {
     }
 
     private static func rewrite(_ text: String, using map: [String: String]) -> (String, Int) {
-        var result = text
-        var hits = 0
-        for (heard, replacement) in map {
-            guard result.range(of: heard, options: .caseInsensitive) != nil else { continue }
-            var current = result
-            var count = 0
-            while let range = current.range(of: heard, options: .caseInsensitive) {
-                current.replaceSubrange(range, with: replacement)
-                count += 1
-                if count > 20 { break }
-            }
-            result = current
-            hits += count
-        }
-        return (result, hits)
+        LearnedTermRewriting.rewrite(text, using: map)
     }
+
 }

@@ -153,6 +153,18 @@ enum KlinoteFont {
     }
 }
 
+extension NoteState {
+    /// Presentation, so it lives with the palette rather than with the model.
+    var tone: Color {
+        switch self {
+        case .draft: KlinoteColor.secondary
+        case .edited: KlinoteColor.ink
+        case .approved: KlinoteColor.secondary
+        case .failed: KlinoteColor.caution
+        }
+    }
+}
+
 enum KlinoteMetrics {
     // MARK: Layout scale — 4 · 8 · 12 · 16 · 24 · 32 · 48
 

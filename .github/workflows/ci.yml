@@ -52,3 +52,18 @@ jobs:
       # off the scale, one width for the sheet family.
       - name: Design tokens
         run: ./scripts/check-design-tokens.sh
+
+      # The shell's decision logic, headless. Sources/Domain has no FFI and no
+      # UI, so the bundle needs no test host — and a test host would launch the
+      # app, open the encrypted store and read the Keychain, which is not
+      # something a test run should do.
+      - name: Swift tests
+        run: |
+          cd apps/Klinote
+          xcodegen generate
+          xcodebuild test \
+            -project Klinote.xcodeproj \
+            -scheme Klinote \
+            -destination 'platform=macOS' \
+            -derivedDataPath /tmp/klinote-tests \
+            CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=YES

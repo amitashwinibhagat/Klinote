@@ -59,54 +59,6 @@ enum RecordingState: Equatable {
     }
 }
 
-enum NoteState: String {
-    case draft, edited, approved, failed
-
-    var word: String { rawValue.capitalized }
-
-    var tone: Color {
-        switch self {
-        case .draft: KlinoteColor.secondary
-        case .edited: KlinoteColor.ink
-        case .approved: KlinoteColor.secondary
-        case .failed: KlinoteColor.caution
-        }
-    }
-}
-
-struct Encounter: Identifiable {
-    let id: String
-    var patientRef: String
-    var discipline: String
-    var templateId: String
-    var startedAt: Date
-    var state: NoteState
-    var note: ClinicalNote?
-    var transcript: Transcript?
-    /// Which clinician was at the desk when this was saved.
-    var clinicianRef: String? = nil
-    /// True when the note was produced from the bundled sample rather than a
-    /// real recording. The interface must say so, in the document itself.
-    var isSyntheticDemo: Bool
-    /// True when this is a letter or patient copy derived from another
-    /// encounter's transcript rather than a recording of its own.
-    var isDerived: Bool = false
-
-    var durationMs: UInt64? {
-        guard let transcript else { return nil }
-        return transcript.segments.map(\.endMs).max()
-    }
-
-    /// What the menu bar shows: time and template, never an opaque code.
-    var menuTitle: String {
-        let time = AppModel.menuTimeFormatter.string(from: startedAt)
-        if isSyntheticDemo {
-            return "Sample · \(templateId) · \(state.word)"
-        }
-        return "\(time) · \(templateId) · \(state.word)"
-    }
-}
-
 @MainActor
 final class AppModel: ObservableObject {
     static let shared = AppModel()
@@ -421,13 +373,6 @@ final class AppModel: ObservableObject {
         templates.filter { !$0.isDocument }
     }
 
-    /// Built once. The menu is rebuilt on every recording tick.
-    static let menuTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
-
     func reloadTemplates() {
         if let loaded = try? KlinoteCore.templates() {
             templates = loaded
@@ -472,68 +417,14 @@ final class AppModel: ObservableObject {
     /// A flat list is fine at five consults and useless at fifty, which is one
     /// clinic week. Grouping also answers "what did I do on Tuesday?" without
     /// a filter UI.
-    func encounterGroups(matching query: String) -> [(day: String, encounters: [Encounter])] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let filtered = encounters.filter { encounter in
-            guard !trimmed.isEmpty else { return true }
-            if encounter.patientRef.lowercased().contains(trimmed) { return true }
-            if displayName(for: encounter).lowercased().contains(trimmed) { return true }
-            if encounter.templateId.lowercased().contains(trimmed) { return true }
-            if encounter.state.word.lowercased().contains(trimmed) { return true }
-            let note = encounter.note?.sections.map(\.body).joined(separator: " ") ?? ""
-            if note.lowercased().contains(trimmed) { return true }
-            let words = encounter.transcript?.segments.map(\.text).joined(separator: " ") ?? ""
-            return words.lowercased().contains(trimmed)
-        }
-
-        let mine = clinicianName.trimmingCharacters(in: .whitespacesAndNewlines)
-        // On a shared practice Mac my list should be mine. Notes saved before
-        // anyone said who they were are shown to everyone, because hiding a
-        // note is worse than showing one that is not mine.
-        let scoped = (mine.isEmpty || showAllClinicians)
-            ? filtered
-            : filtered.filter { $0.clinicianRef == nil || $0.clinicianRef == mine }
-
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        var order: [Date] = []
-        var byDay: [Date: [Encounter]] = [:]
-        for encounter in scoped.sorted(by: { $0.startedAt > $1.startedAt }) {
-            let day = calendar.startOfDay(for: encounter.startedAt)
-            if byDay[day] == nil {
-                byDay[day] = []
-                order.append(day)
-            }
-            byDay[day]?.append(encounter)
-        }
-        return order.map { day in
-            (day: Self.dayLabel(day, today: today), encounters: byDay[day] ?? [])
-        }
-    }
-
-    /// Built once. This was constructed per date group, on every sidebar
-    /// render, and the sidebar re-renders on every keystroke in its search
-    /// field.
-    private static let dayThisYear: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE d MMMM"
-        return formatter
-    }()
-
-    private static let dayOtherYear: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d MMMM yyyy"
-        return formatter
-    }()
-
-    private static func dayLabel(_ day: Date, today: Date) -> String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(day) { return "Today" }
-        if calendar.isDateInYesterday(day) { return "Yesterday" }
-        let formatter = calendar.isDate(day, equalTo: today, toGranularity: .year)
-            ? dayThisYear
-            : dayOtherYear
-        return formatter.string(from: day)
+    func encounterGroups(matching query: String) -> [EncounterGrouping.Group] {
+        EncounterGrouping.groups(
+            from: encounters,
+            matching: query,
+            today: Date(),
+            clinician: clinicianName,
+            showAllClinicians: showAllClinicians
+        )
     }
 
     /// A friendly label for the sidebar: "Clinical note", "Referral Letter", …

@@ -13,6 +13,30 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     ALWAYS_SEARCH_USER_PATHS: NO
     ENABLE_USER_SCRIPT_SANDBOXING: NO
+    # Apple Silicon only, stated rather than assumed.
+    #
+    # The Rust engine is compiled by cargo for the host, so a build that also
+    # targets x86_64 fails to link libscribe_core_ffi.a. This is an Apple
+    # Silicon product — Metal, on-device models — and a genuinely universal
+    # build would need a second cargo target, which is not something to fake
+    # by leaving the arch list open.
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: YES
+
+schemes:
+  Klinote:
+    build:
+      targets:
+        Klinote: all
+        KlinoteTests: [test]
+    run:
+      config: Release
+    test:
+      config: Debug
+      targets:
+        - KlinoteTests
+    archive:
+      config: Release
 
 targets:
   Klinote:
@@ -69,3 +93,23 @@ targets:
           set -euo pipefail
           cp "$SRCROOT/../../target/release/scribe-llm" "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/scribe-llm"
           chmod +x "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/scribe-llm"
+
+  # Tests compile Sources/Domain directly instead of importing the app.
+  #
+  # @testable import of an application needs a test host, which means the app
+  # launches during the test run — and launching it opens the encrypted store
+  # and reads the Keychain. Tests that can raise a password prompt are not
+  # tests. Domain has no FFI and no UI, so the bundle runs headless.
+  KlinoteTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Tests
+      - path: Sources/Domain
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: one.klinote.mac.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
