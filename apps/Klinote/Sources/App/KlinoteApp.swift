@@ -82,12 +82,28 @@ struct KlinoteApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Clicking the app again, or `open -a Klinote`, should produce the
+    /// window rather than nothing.
+    func applicationShouldHandleReopen(
+        _ application: NSApplication,
+        hasVisibleWindows: Bool
+    ) -> Bool {
+        if !hasVisibleWindows {
+            ReviewWindowController.shared.show()
+        }
+        return true
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
         Task { @MainActor in
             AppModel.shared.bootstrap()
-            AppModel.shared.revealLetterIfFirstLaunch()
+            // One runloop turn, so the window is created after launch has
+            // settled. Activating too early in launch is ignored, which leaves
+            // the window behind whatever was already frontmost.
+            try? await Task.sleep(for: .milliseconds(50))
+            AppModel.shared.openWindowIfNeeded()
         }
 
         // ⌥⌘R — start or stop recording.

@@ -51,6 +51,14 @@ struct SetupSheet: View {
 
             Rule()
 
+            if model.storeError != nil {
+                Text("Klinote could not open its encrypted store. If macOS asked for your keychain password and you chose Deny, your existing consults cannot be read. Quit and reopen Klinote, then choose Allow.")
+                    .font(KlinoteFont.ui(12))
+                    .foregroundStyle(KlinoteColor.caution)
+                    .fixedSize(horizontal: false, vertical: true)
+                Rule()
+            }
+
             Toggle(isOn: $acknowledged) {
                 Text("I will tell patients when I record, and I will follow the rules that apply where I practise.")
                     .font(KlinoteFont.ui())

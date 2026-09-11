@@ -137,6 +137,11 @@ final class AppModel: ObservableObject {
     /// the download as a choice rather than a wall.
     @AppStorage("klinote.didCompleteSetup") var didCompleteSetup = false
 
+    /// Show the letter every time Klinote starts. On by default: launching an
+    /// app should produce a window. Turn it off if you keep Klinote running in
+    /// the menu bar all day.
+    @AppStorage("klinote.openWindowAtLaunch") var openWindowAtLaunch = true
+
     /// Who is at the desk. A practice Mac may be shared, and a note that says
     /// "reviewed by you" is not a signature.
     @AppStorage("klinote.clinicianName") var clinicianName = ""
@@ -193,13 +198,65 @@ final class AppModel: ObservableObject {
     /// Months of history to keep. 0 means keep everything.
     @AppStorage("klinote.retentionMonths") var retentionMonths = 0
 
+    /// Launch order matters here, and getting it wrong looked like a crash.
+    ///
+    /// Opening the encrypted store reads a key from the Keychain, and macOS
+    /// will show a modal prompt for that when the app's signature does not
+    /// match the item's ACL — which is every ad-hoc signed development build.
+    /// That prompt blocks whoever asks for it. Asking on the main actor, before
+    /// the window exists, meant no window ever appeared: just a menu-bar icon
+    /// and a password dialog behind Terminal.
+    ///
+    /// So: window first, store second, and the store off the main actor.
     func bootstrap() {
         if let loaded = try? KlinoteCore.templates() {
             templates = loaded
         }
-        purgeExpiredNotes()
-        loadPersistedSessions()
-        reloadTasks()
+        openWindowIfNeeded()
+        Task { await loadStoredData() }
+    }
+
+    /// Why the store could not be opened. Silence here would look like lost
+    /// history rather than a denied key. (nil means all is well.)
+    @Published var storeError: String?
+
+    private struct StoredLoad {
+        var sessions: [StoredSession] = []
+        var tasks: [ConsultTask] = []
+        var purged = 0
+        var error: String?
+    }
+
+    private func loadStoredData() async {
+        let months = retentionMonths
+        let outcome = await Task.detached(priority: .userInitiated) { () -> StoredLoad in
+            var out = StoredLoad()
+            do {
+                if months > 0,
+                   let cutoff = Calendar.current.date(
+                       byAdding: .month,
+                       value: -months,
+                       to: Date()
+                   )
+                {
+                    out.purged = try KlinoteCore.purge(before: cutoff)
+                }
+                out.sessions = try KlinoteCore.loadSessions()
+                out.tasks = try KlinoteCore.tasks(encounterId: nil)
+            } catch {
+                out.error = error.localizedDescription
+            }
+            return out
+        }.value
+
+        storeError = outcome.error
+        applySessions(outcome.sessions)
+        tasks = outcome.tasks
+        if outcome.purged > 0 {
+            copyBanner = outcome.purged == 1
+                ? "Deleted 1 note past the retention period."
+                : "Deleted \(outcome.purged) notes past the retention period."
+        }
         if encounters.isEmpty {
             prepareDemoNote()
         }
@@ -207,15 +264,24 @@ final class AppModel: ObservableObject {
     }
 
     /// Opens the letter on first launch so the aha is not hidden behind the menu bar.
-    func revealLetterIfFirstLaunch() {
-        let key = "klinote.didRevealLetter"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
-        ReviewWindowController.shared.show()
+    /// Open the letter when Klinote starts.
+    ///
+    /// Two reasons it must, and neither is a preference:
+    /// * setup is not finished, and the setup sheet lives on this window;
+    /// * someone double-clicked the app, and an app that opens to nothing but
+    ///   a menu-bar icon looks broken.
+    ///
+    /// The old behaviour gated this on a one-shot flag written before the
+    /// window was even created. Preferences live outside the app bundle, so
+    /// reinstalling never cleared it, and there was no way back to the
+    /// first-run state short of deleting the plist by hand.
+    func openWindowIfNeeded() {
+        if !didCompleteSetup || openWindowAtLaunch {
+            ReviewWindowController.shared.show()
+        }
     }
 
-    private func loadPersistedSessions() {
-        guard let sessions = try? KlinoteCore.loadSessions() else { return }
+    private func applySessions(_ sessions: [StoredSession]) {
         let mapped: [Encounter] = sessions.compactMap { session in
             guard let note = session.note, let transcript = session.transcript else { return nil }
             let started = Self.parseTime(session.startedAt) ?? Date()

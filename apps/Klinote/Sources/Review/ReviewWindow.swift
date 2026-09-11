@@ -24,8 +24,9 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
 
     func show() {
         if let window {
-            ActivationPolicy.enter()
+            ActivationPolicy.becomeRegular()
             window.makeKeyAndOrderFront(nil)
+            ActivationPolicy.activate()
             return
         }
 
@@ -44,8 +45,13 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         window.delegate = self
         self.window = window
 
-        ActivationPolicy.enter()
+        // Policy first, then the window, then activate. Activating before the
+        // window is on screen is dropped by the window server, which leaves a
+        // visible window with no menu bar and the focus still in whatever app
+        // the clinician came from.
+        ActivationPolicy.becomeRegular()
         window.makeKeyAndOrderFront(nil)
+        ActivationPolicy.activate()
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -79,7 +85,22 @@ struct ReviewWindow: View {
                 )
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let error = model.lastError {
+            if let storeError = model.storeError {
+                // A denied Keychain key would otherwise look like lost history.
+                HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
+                    Text("Klinote could not open its encrypted store: \(storeError)")
+                        .font(KlinoteFont.ui(12))
+                        .foregroundStyle(KlinoteColor.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button("Dismiss") { model.storeError = nil }
+                        .controlSize(.small)
+                }
+                .padding(.horizontal, KlinoteMetrics.space16)
+                .padding(.vertical, KlinoteMetrics.space8)
+                .background(KlinoteColor.caution.opacity(0.14))
+                .overlay(alignment: .bottom) { Hairline() }
+            } else if let error = model.lastError {
                 HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
                     Text(error)
                         .font(KlinoteFont.ui(12))

@@ -96,10 +96,48 @@ final class HotKeyCenter {
 enum ActivationPolicy {
     private static var depth = 0
 
-    static func enter() {
+    /// A menu-bar app is .accessory. With a window open it has to be a regular
+    /// app, or the window has no menu bar and cannot take focus.
+    static func becomeRegular() {
         depth += 1
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Bring the app forward. Call *after* the window is ordered front:
+    /// activating earlier is dropped, and the window appears unfocused.
+    ///
+    /// The request is asynchronous and can be ignored while the activation
+    /// policy is still changing from .accessory to .regular, so keep asking
+    /// for a moment. Stop as soon as it takes, and stop anyway rather than
+    /// fight the user for focus.
+    static func activate() {
+        bringForward()
+        retry(attempts: 6)
+    }
+
+    private static func bringForward() {
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        NSRunningApplication.current.activate(options: [.activateAllWindows])
+    }
+
+    private static func retry(attempts: Int) {
+        guard attempts > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            guard NSApp.windows.contains(where: { $0.isVisible }),
+                  !NSRunningApplication.current.isActive
+            else { return }
+            bringForward()
+            retry(attempts: attempts - 1)
+        }
+    }
+
+    static func enter() {
+        becomeRegular()
+        activate()
     }
 
     static func leave() {

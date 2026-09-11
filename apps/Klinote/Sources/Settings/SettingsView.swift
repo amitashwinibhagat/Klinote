@@ -60,6 +60,13 @@ private struct GeneralSettings: View {
                 }
             }
 
+            Section("Starting up") {
+                Toggle("Open the letter when Klinote starts", isOn: $model.openWindowAtLaunch)
+                Text("Klinote is a menu-bar app. With this off it starts silently and waits for ⌥⌘R or the menu-bar icon.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Who is at the desk") {
                 TextField("Your name", text: $model.clinicianName)
                 TextField("Registration or professional number", text: $model.clinicianRegistration)
