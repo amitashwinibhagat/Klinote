@@ -45,13 +45,13 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
     static let expectedSize: Int64 = 487_614_184
 
     static let noteURL = URL(
-        string: "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/resolve/main/MiniCPM5-1B-Q4_K_M.gguf"
+        string: "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q3_K_S.gguf"
     )!
-    /// MiniCPM5-1B Q4_K_M (~656 MiB). Under 1 GB, on-device SOTA in the 1B class.
-    static let noteExpectedSize: Int64 = 688_065_920
+    /// Qwen3-4B Instruct 2507 Q3_K_S (~1.89 GB). SOAP bench baseline.
+    static let noteExpectedSize: Int64 = 1_886_997_600
 
     nonisolated static var noteFile: URL {
-        modelsDirectory.appendingPathComponent("MiniCPM5-1B-Q4_K_M.gguf")
+        modelsDirectory.appendingPathComponent("Qwen3-4B-Instruct-2507-Q3_K_S.gguf")
     }
 
     @Published var state: ModelState = .missing

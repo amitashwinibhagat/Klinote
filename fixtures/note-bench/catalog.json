@@ -116,7 +116,34 @@
       "file": "Qwen3-4B-Instruct-2507-Q3_K_S.gguf",
       "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q3_K_S.gguf",
       "bytes": 1886997600,
-      "why": "Qwen3 4B in 1.89 GB. Direct analogue to Gemma 3 4B IQ3."
+      "why": "SOAP bench baseline. 4B in 1.89 GB. Full S/O/A/P including safety-net."
+    },
+    {
+      "id": "qwen3-4b-q2k",
+      "band": "1-2gb",
+      "name": "Qwen3-4B Instruct 2507 Q2_K",
+      "file": "Qwen3-4B-Instruct-2507-Q2_K.gguf",
+      "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q2_K.gguf",
+      "bytes": 1669500000,
+      "why": "Same 4B, smaller quant. Can we keep SOAP quality under 1.7 GB?"
+    },
+    {
+      "id": "lfm25-2.6b-q4",
+      "band": "1-2gb",
+      "name": "LFM2.5-2.6B Q4_K_M",
+      "file": "LFM2.5-2.6B-Q4_K_M.gguf",
+      "url": "https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF/resolve/main/LFM2.5-2.6B-Q4_K_M.gguf",
+      "bytes": 1674455040,
+      "why": "Liquid 2.6B Q4 at 1.67 GB. 1.2B almost followed JSON."
+    },
+    {
+      "id": "granite-2b-q4",
+      "band": "1-2gb",
+      "name": "Granite 3.3 2B Instruct Q4_K_M",
+      "file": "ibm-granite_granite-3.3-2b-instruct-Q4_K_M.gguf",
+      "url": "https://huggingface.co/bartowski/ibm-granite_granite-3.3-2b-instruct-GGUF/resolve/main/ibm-granite_granite-3.3-2b-instruct-Q4_K_M.gguf",
+      "bytes": 1545303616,
+      "why": "IBM Granite 2B, 1.55 GB. Smaller than baseline."
     }
   ]
 }

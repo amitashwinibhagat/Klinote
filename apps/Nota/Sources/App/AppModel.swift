@@ -318,7 +318,7 @@ final class AppModel: ObservableObject {
         case .ready:
             break
         case .missing:
-            lastError = "Download the note engine first (Settings → Recording). MiniCPM 5 1B, 656 MB, once, stays on this Mac."
+            lastError = "Download the note engine first (Settings → Recording). Qwen3 4B, 1.9 GB, once, stays on this Mac."
             return
         case .downloading:
             lastError = "The note engine is still downloading. Record when Settings says it is ready."
