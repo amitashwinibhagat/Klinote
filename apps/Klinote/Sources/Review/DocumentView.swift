@@ -31,7 +31,12 @@ struct DocumentView: View {
                         }
                         SignatureBlock(model: model, note: note)
                     }
-                    .frame(width: KlinoteMetrics.documentMeasure, alignment: .leading)
+                    .frame(
+                        minWidth: KlinoteMetrics.documentMeasureMin,
+                        idealWidth: KlinoteMetrics.documentMeasure,
+                        maxWidth: KlinoteMetrics.documentMeasure,
+                        alignment: .leading
+                    )
                     .padding(KlinoteMetrics.space32)
                     .background(KlinoteColor.document)
                     .clipShape(RoundedRectangle(cornerRadius: KlinoteMetrics.radiusDocument, style: .continuous))
@@ -41,7 +46,11 @@ struct DocumentView: View {
                     )
                     .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
                     .padding(KlinoteMetrics.space32)
-                    .frame(maxWidth: .infinity)
+                    // Explicitly centred. Left-aligned in a pane-filling frame
+                    // left roughly four times as much dead desk on the right as
+                    // on the left, which reads as an accident in a product
+                    // whose argument is that it was made carefully.
+                    .frame(maxWidth: .infinity, alignment: .center)
                     .environment(\.openURL, OpenURLAction { _ in .handled })
                     .id(transcript.encounterId)
                     .animation(.easeOut(duration: KlinoteMetrics.motionAssemble), value: transcript.encounterId)
@@ -166,6 +175,8 @@ struct Field: View {
                 .font(KlinoteFont.data())
                 .foregroundStyle(KlinoteColor.primary)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
     }
 }
 
@@ -201,12 +212,13 @@ struct ProvisionanceLine: View {
                 Text("Sample text — not a real consult.")
                     .font(KlinoteFont.label())
                     .foregroundStyle(KlinoteColor.caution)
-                Text("Click a sentence to see the words that produced it.")
-                    .font(KlinoteFont.label())
-                    .foregroundStyle(KlinoteColor.secondary)
             }
+            // The "click a sentence" hint moved to the evidence margin, which
+            // is what it is about. It was the sixth stacked line in the
+            // letterhead, competing with the title for the first glance.
         }
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(isSynthetic ? "\(engineLine) Sample text, not a real consult." : engineLine)
     }
 }
 

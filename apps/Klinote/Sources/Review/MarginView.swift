@@ -25,10 +25,12 @@ struct MarginView: View {
             if let transcript = model.selectedEncounter?.transcript {
                 Picker("", selection: $showingWholeConsult) {
                     Text("Evidence").tag(false)
-                    Text("Whole consult").tag(true)
+                    Text("Full").tag(true)
                 }
                 .pickerStyle(.segmented)
+                .controlSize(.small)
                 .labelsHidden()
+                .accessibilityLabel("Show evidence for the selected sentence, or the whole consultation")
                 .padding(.horizontal, KlinoteMetrics.space16)
                 .padding(.bottom, KlinoteMetrics.space8)
 
@@ -73,6 +75,7 @@ struct MarginView: View {
                                 Hairline()
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .onChange(of: model.selectedSentenceID) { _, _ in
                         guard let target = primaryEvidenceID else { return }
@@ -109,13 +112,18 @@ struct MarginView: View {
                     .font(KlinoteFont.caption())
                     .foregroundStyle(KlinoteColor.secondary)
             } else if let sentenceNumber = selectedSentenceNumber {
-                Text("Words that produced sentence \(sentenceNumber)")
+                // Short, and allowed to wrap. This line is how a clinician
+                // knows which sentence the margin is answering for, so it must
+                // never be the thing that truncates.
+                Text("Behind sentence \(sentenceNumber)")
                     .font(KlinoteFont.caption(.medium))
                     .foregroundStyle(KlinoteColor.primary)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("Select a sentence to see the words that produced it.")
+                Text("Click any sentence to see the words that produced it.")
                     .font(KlinoteFont.caption())
                     .foregroundStyle(KlinoteColor.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, KlinoteMetrics.space16)
@@ -200,12 +208,15 @@ struct UtteranceRow: View {
                     Text("source")
                         .font(KlinoteFont.micro())
                         .foregroundStyle(KlinoteColor.ink)
+                        .accessibilityHidden(true)
                 }
             }
             Text(segment.text)
                 .font(KlinoteFont.utterance(isEvidence ? .medium : .regular))
                 .foregroundStyle(isEvidence ? KlinoteColor.primary : KlinoteColor.secondary)
+                .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, KlinoteMetrics.space16)
         .padding(.vertical, KlinoteMetrics.space8)
@@ -218,7 +229,11 @@ struct UtteranceRow: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(role) at \(Self.timestamp(segment.startMs)): \(segment.text)")
+        .accessibilityLabel(
+            isPrimary
+                ? "Source of the selected sentence. \(role) at \(Self.timestamp(segment.startMs)): \(segment.text)"
+                : "\(role) at \(Self.timestamp(segment.startMs)): \(segment.text)"
+        )
     }
 
     static func timestamp(_ ms: UInt64) -> String {

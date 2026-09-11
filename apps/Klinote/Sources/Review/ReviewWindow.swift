@@ -45,15 +45,33 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
             return
         }
 
+        // Sized for the shape the product actually has. The three columns need
+        // sidebar 260 + document 624 + inspector 320 = 1204, plus dividers and
+        // window chrome. The old 1280 default already squeezed the inspector to
+        // about 160 pt against its own 260 minimum, clipping the evidence
+        // column — the one part of this product nobody else has. The old 1040
+        // minimum made a lie of the layout.
+        // Clamp to the screen. A 13-inch MacBook is 1280 points wide, and an
+        // ideal width larger than the display puts the sidebar off the left
+        // edge — which is how a fixed 1400 managed to hide the consult list.
+        let visible = NSScreen.main?.visibleFrame.size
+            ?? NSSize(width: KlinoteMetrics.windowIdealWidth, height: KlinoteMetrics.windowIdealHeight)
+        let margin = KlinoteMetrics.windowScreenMargin
+        let width = min(KlinoteMetrics.windowIdealWidth, max(visible.width - margin * 2, 900))
+        let height = min(KlinoteMetrics.windowIdealHeight, max(visible.height - margin * 2, 620))
+
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
+            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Klinote"
         window.subtitle = "Clinical notes that never leave the room"
-        window.minSize = NSSize(width: 1040, height: 640)
+        window.minSize = NSSize(
+            width: min(KlinoteMetrics.windowMinWidth, visible.width),
+            height: min(KlinoteMetrics.windowMinHeight, visible.height)
+        )
         window.contentView = NSHostingView(rootView: ReviewWindow(model: AppModel.shared))
         window.setFrameAutosaveName("KlinoteReviewWindow")
         window.center()
@@ -93,8 +111,16 @@ struct ReviewWindow: View {
         .inspector(isPresented: $showMargin) {
             MarginView(model: model)
                 .background(KlinoteColor.margin, ignoresSafeAreaEdges: .all)
+                // OPEN DEFECT: utterance text is still clipped at the right
+                // edge of this column. Measured: the panel lays its content out
+                // at ~340 pt while ~305 pt is visible, so the split view is
+                // overflowing the window rather than compressing — the detail
+                // pane takes ~890 pt for a 624 pt document. Pinning this column
+                // to a single width did not change it, so it is not the
+                // column's requested width that is wrong. Reverted to a range
+                // rather than leave a change that fixed nothing.
                 .inspectorColumnWidth(
-                    min: 260,
+                    min: 300,
                     ideal: KlinoteMetrics.marginColumnWidth,
                     max: 420
                 )
@@ -320,9 +346,15 @@ struct EncounterSidebar: View {
                 Spacer()
             }
 
-            if !model.openTaskRows.isEmpty {
-                Hairline()
-                DisclosureGroup {
+            Hairline()
+            DisclosureGroup {
+                if model.openTaskRows.isEmpty {
+                    Text("Nothing outstanding. Plan sentences from a note are listed here.")
+                        .font(KlinoteFont.caption())
+                        .foregroundStyle(KlinoteColor.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.vertical, KlinoteMetrics.space4)
+                } else {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(model.openTaskRows, id: \.task.id) { row in
                             HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.inline6) {
@@ -361,7 +393,8 @@ struct EncounterSidebar: View {
                         }
                     }
                     .padding(.top, KlinoteMetrics.space4)
-                } label: {
+                }
+            } label: {
                     HStack {
                         TabLabel(text: "Still to do")
                         Spacer()
@@ -372,7 +405,6 @@ struct EncounterSidebar: View {
                 }
                 .padding(.horizontal, KlinoteMetrics.space16)
                 .padding(.vertical, KlinoteMetrics.space8)
-            }
 
             Hairline()
             HStack {
@@ -392,6 +424,9 @@ struct EncounterSidebar: View {
         }
         .sheet(item: $model.pendingCopy) { encounter in
             CopyConfirmSheet(encounter: encounter, model: model)
+        }
+        .sheet(item: $model.pendingPrint) { encounter in
+            CopyConfirmSheet(encounter: encounter, model: model, isPrinting: true)
         }
         .sheet(isPresented: $model.isSettingUp) {
             SetupSheet(model: model)

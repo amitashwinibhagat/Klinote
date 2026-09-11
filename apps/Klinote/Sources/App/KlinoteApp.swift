@@ -42,7 +42,7 @@ struct KlinoteApp: App {
             // clinician is in the record system. These menu items are for
             // discovery, so they deliberately bind no shortcut of their own.
             CommandGroup(replacing: .printItem) {
-                Button("Print…") { model.printSelectedNote() }
+                Button("Print…") { model.requestPrintFromSelection() }
                     .keyboardShortcut("p")
                     .disabled(model.selectedEncounter?.note == nil)
             }
@@ -57,7 +57,7 @@ struct KlinoteApp: App {
                 Divider()
                 Button("Copy note") { model.copySelectedNote() }
                     .disabled(model.selectedEncounter?.note == nil)
-                Button("Print…") { model.printSelectedNote() }
+                Button("Print…") { model.requestPrintFromSelection() }
                     .disabled(model.selectedEncounter?.note == nil)
                 Button("Mark as reviewed") { model.fileSelectedNote() }
                     .disabled(model.selectedEncounter?.state == .approved)

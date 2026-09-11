@@ -163,6 +163,8 @@ final class AppModel: ObservableObject {
     /// Set when a copy is requested for a consult that is not on screen. The
     /// clinician confirms before the clipboard changes.
     @Published var pendingCopy: Encounter?
+    /// Set when print is requested for a consult that is not on screen.
+    @Published var pendingPrint: Encounter?
 
     /// A recording captured before the speech model finished downloading,
     /// held until the download completes so it is transcribed for real.
@@ -417,6 +419,29 @@ final class AppModel: ObservableObject {
         if let loaded = try? KlinoteCore.templates() {
             templates = loaded
         }
+    }
+
+    /// Print, with the same wrong-consult guard as copy. Printing the wrong
+    /// note puts it on paper, where it cannot be recalled.
+    func requestPrint(of encounterID: String) {
+        guard let encounter = encounters.first(where: { $0.id == encounterID }),
+              encounter.note != nil
+        else { return }
+        let onScreen = selection == encounterID && ReviewWindowController.shared.isShowing
+        if onScreen {
+            printSelectedNote()
+        } else {
+            selection = encounterID
+            selectedSentenceID = nil
+            selectFirstEvidence()
+            ReviewWindowController.shared.show()
+            pendingPrint = encounter
+        }
+    }
+
+    func requestPrintFromSelection() {
+        guard let id = selection else { return }
+        requestPrint(of: id)
     }
 
     /// Print exactly what Copy note would have put on the clipboard.

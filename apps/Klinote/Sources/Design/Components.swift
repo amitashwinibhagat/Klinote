@@ -114,6 +114,8 @@ struct SectionHeader: View {
                 }
                 Spacer(minLength: 0)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
             if state == .missingRequired {
                 DashedRule()
             } else {

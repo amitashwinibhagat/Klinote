@@ -16,6 +16,8 @@ struct CopyConfirmSheet: View {
     let encounter: Encounter
     @ObservedObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    /// The same sheet guards printing, because paper cannot be recalled.
+    var isPrinting = false
 
     private var firstLine: String {
         let line = encounter.note?.sections
@@ -28,10 +30,12 @@ struct CopyConfirmSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space16) {
-            Text("Copy this consult?")
+            Text(isPrinting ? "Print this consult?" : "Copy this consult?")
                 .font(KlinoteFont.panelHeading())
                 .foregroundStyle(KlinoteColor.primary)
-            Text("This is not the consult the window was showing. Check it is the right one before you paste.")
+            Text(isPrinting
+                 ? "This is not the consult the window was showing. Check it is the right one before it reaches paper."
+                 : "This is not the consult the window was showing. Check it is the right one before you paste.")
                 .font(KlinoteFont.caption())
                 .foregroundStyle(KlinoteColor.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -58,8 +62,12 @@ struct CopyConfirmSheet: View {
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Copy this one") {
-                    model.copySelectedNote()
+                Button(isPrinting ? "Print this one" : "Copy this one") {
+                    if isPrinting {
+                        model.printSelectedNote()
+                    } else {
+                        model.copySelectedNote()
+                    }
                     dismiss()
                 }
                 .buttonStyle(KlinotePrimaryButtonStyle())

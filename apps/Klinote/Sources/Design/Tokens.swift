@@ -205,10 +205,23 @@ enum KlinoteMetrics {
     /// rounded; one component now derives it.
     static let wordmarkTracking: CGFloat = -0.03
 
-    static let marginColumnWidth: CGFloat = 320
+    static let marginColumnWidth: CGFloat = 340
     static let sidebarWidth: CGFloat = 260
     /// 68 characters at 14 pt New York, in points.
     static let documentMeasure: CGFloat = 560
+    /// The narrowest readable measure. A 13-inch MacBook is 1280 points wide,
+    /// and sidebar + full measure + margin does not fit there, so the letter
+    /// gives up width before the evidence column does. A slightly shorter
+    /// measure is a smaller loss than a clipped audit trail.
+    static let documentMeasureMin: CGFloat = 452
+
+    // MARK: Window
+    static let windowMinWidth: CGFloat = 1060
+    static let windowMinHeight: CGFloat = 660
+    static let windowIdealWidth: CGFloat = 1440
+    static let windowIdealHeight: CGFloat = 940
+    /// Keep the frame clear of the screen edges when centring.
+    static let windowScreenMargin: CGFloat = 24
 
     static let motionState: Double = 0.16
     static let motionLayout: Double = 0.22
