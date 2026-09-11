@@ -113,7 +113,13 @@ struct ReviewWindow: View {
                 }
                 .help("Show or hide the evidence margin")
             }
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    model.startRecording()
+                } label: {
+                    Label("Record", systemImage: "record.circle")
+                }
+                .help("Record this consult (⌥⌘R)")
                 Button {
                     model.copySelectedNote()
                 } label: {
@@ -121,6 +127,10 @@ struct ReviewWindow: View {
                 }
                 .disabled(model.selectedEncounter?.note == nil)
                 .help("Copy the note to paste into the record (⌘⇧C)")
+                SettingsLink {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .help("Settings")
             }
         }
         .environment(\.klinoteReduceMotion, NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
@@ -134,6 +144,9 @@ struct ReviewWindow: View {
 /// Ruled spines. Columns never move; only the state styling changes.
 struct EncounterSidebar: View {
     @ObservedObject var model: AppModel
+    @State private var renameID: String?
+    @State private var renameDraft = ""
+    @State private var pendingDelete: Encounter?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -143,10 +156,10 @@ struct EncounterSidebar: View {
                 Button {
                     model.startRecording()
                 } label: {
-                    Image(systemName: "record.circle")
+                    Image(systemName: "plus")
                 }
                 .buttonStyle(.borderless)
-                .help("Record a consultation (⌥⌘R)")
+                .help("Record this consult (⌥⌘R)")
             }
             .padding(.horizontal, KlinoteMetrics.space16)
             .padding(.vertical, KlinoteMetrics.space12)
@@ -167,7 +180,16 @@ struct EncounterSidebar: View {
                         ForEach(model.encounters) { encounter in
                             EncounterSpine(
                                 encounter: encounter,
-                                isSelected: encounter.id == model.selection
+                                isSelected: encounter.id == model.selection,
+                                onRename: {
+                                    renameDraft = encounter.patientRef
+                                    renameID = encounter.id
+                                },
+                                onCopy: {
+                                    model.selection = encounter.id
+                                    model.copySelectedNote()
+                                },
+                                onDelete: { pendingDelete = encounter }
                             )
                             .onTapGesture {
                                 model.selection = encounter.id
@@ -178,14 +200,59 @@ struct EncounterSidebar: View {
                     }
                 }
             }
+
+            Hairline()
+            HStack {
+                SettingsLink {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(KlinoteColor.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, KlinoteMetrics.space16)
+            .padding(.vertical, KlinoteMetrics.space12)
         }
         .background(KlinoteColor.desk)
+        .alert("Rename consult", isPresented: Binding(
+            get: { renameID != nil },
+            set: { if !$0 { renameID = nil } }
+        )) {
+            TextField("Code", text: $renameDraft)
+            Button("Save") {
+                if let id = renameID { model.renameEncounter(id, to: renameDraft) }
+                renameID = nil
+            }
+            Button("Cancel", role: .cancel) { renameID = nil }
+        } message: {
+            Text("This is the consult code on this Mac, not a name in the record.")
+        }
+        .confirmationDialog(
+            "Delete this consult?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let id = pendingDelete?.id { model.deleteEncounter(id) }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("Removed from this Mac. Not removed from your record system.")
+        }
     }
 }
 
 struct EncounterSpine: View {
     let encounter: Encounter
     let isSelected: Bool
+    var onRename: () -> Void = {}
+    var onCopy: () -> Void = {}
+    var onDelete: () -> Void = {}
+    @State private var hovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -197,12 +264,29 @@ struct EncounterSpine: View {
                 Text(encounter.state.word)
                     .font(KlinoteFont.label())
                     .foregroundStyle(encounter.state.tone)
+                Menu {
+                    Button("Rename…", action: onRename)
+                    Button("Copy note", action: onCopy)
+                    Divider()
+                    Button("Delete", role: .destructive, action: onDelete)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(KlinoteColor.secondary)
+                        .frame(width: 20, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .opacity(isSelected || hovering ? 1 : 0)
+                .help("Consult actions")
             }
             HStack(spacing: KlinoteMetrics.space8) {
-                Text(encounter.templateId)
-                    .font(KlinoteFont.label())
+                Text(encounter.patientRef)
+                    .font(KlinoteFont.data(11))
                     .foregroundStyle(KlinoteColor.secondary)
-                Text(encounter.discipline.replacingOccurrences(of: "_", with: " "))
+                    .lineLimit(1)
+                Text(encounter.templateId)
                     .font(KlinoteFont.label())
                     .foregroundStyle(KlinoteColor.tertiary)
             }
@@ -217,6 +301,13 @@ struct EncounterSpine: View {
                 .frame(width: 2)
         }
         .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .contextMenu {
+            Button("Rename…", action: onRename)
+            Button("Copy note", action: onCopy)
+            Divider()
+            Button("Delete", role: .destructive, action: onDelete)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }

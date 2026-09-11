@@ -400,6 +400,30 @@ pub unsafe extern "C" fn scribe_store_list(
     into_c_string(&payload.to_string())
 }
 
+/// Hard-delete one encounter. Output: `{"ok":true}`.
+///
+/// # Safety
+/// Pointers must be null or valid NUL-terminated UTF-8.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_store_delete(
+    db_path: *const c_char,
+    key: *const c_char,
+    encounter_id: *const c_char,
+) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let path = unsafe { cstr_to_string(db_path) }?;
+        let key = unsafe { optional_cstr(key) }?;
+        let id = unsafe { cstr_to_string(encounter_id) }?;
+        let store = scribe_store::Store::open_with_key(&path, key.as_deref())
+            .map_err(|err| err.to_string())?;
+        store.delete_encounter(&id).map_err(|err| err.to_string())?;
+        Ok(json!({ "ok": true }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
 /// Free a string returned by this library. Passing null is a no-op.
 ///
 /// # Safety

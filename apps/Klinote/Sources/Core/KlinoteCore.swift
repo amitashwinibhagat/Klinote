@@ -329,6 +329,13 @@ enum KlinoteCore {
         guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not save") }
     }
 
+    static func deleteSession(id: String) throws {
+        let envelope: EngineEnvelope<Bool> = try envelope(
+            from: scribe_store_delete(storePath(), try StoreKey.hex(), id)
+        )
+        guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not delete") }
+    }
+
     static func loadSessions() throws -> [StoredSession] {
         let payload: StoreListEnvelope = try envelope(
             from: scribe_store_list(storePath(), try StoreKey.hex())

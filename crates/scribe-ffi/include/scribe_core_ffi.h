@@ -96,6 +96,9 @@ char *scribe_store_save(const char *db_path, const char *key, const char *reques
  */
 char *scribe_store_list(const char *db_path, const char *key);
 
+/* Hard-delete one encounter and its transcript/note. Audit keeps the id only. */
+char *scribe_store_delete(const char *db_path, const char *key, const char *encounter_id);
+
 /* Free any string returned by this library. NULL is a no-op. */
 void scribe_string_free(char *pointer);
 

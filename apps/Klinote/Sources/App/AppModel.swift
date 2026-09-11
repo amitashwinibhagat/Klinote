@@ -205,6 +205,26 @@ final class AppModel: ObservableObject {
         return formatter.date(from: value)
     }
 
+    func renameEncounter(_ id: String, to patientRef: String) {
+        let trimmed = patientRef.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let index = encounters.firstIndex(where: { $0.id == id }) else { return }
+        encounters[index].patientRef = trimmed
+        persist(encounters[index])
+    }
+
+    func deleteEncounter(_ id: String) {
+        if !encounters.contains(where: { $0.id == id && $0.isSyntheticDemo }) {
+            try? KlinoteCore.deleteSession(id: id)
+        }
+        encounters.removeAll { $0.id == id }
+        if selection == id {
+            selection = encounters.first?.id
+            selectedSentenceID = nil
+            selectFirstEvidence()
+        }
+    }
+
     func persist(_ encounter: Encounter) {
         guard let note = encounter.note, let transcript = encounter.transcript else { return }
         try? KlinoteCore.saveSession(

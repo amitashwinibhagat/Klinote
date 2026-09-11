@@ -277,6 +277,19 @@ impl Store {
             .map_err(storage_error)
     }
 
+    /// Hard delete. Cascades transcripts and notes. Audit records the id, not the content.
+    pub fn delete_encounter(&self, id: &str) -> Result<()> {
+        let removed = self
+            .conn
+            .execute("DELETE FROM encounters WHERE id = ?1", params![id])
+            .map_err(storage_error)?;
+        if removed == 0 {
+            return Err(ScribeError::Storage(format!("no encounter {id}")));
+        }
+        self.audit("shell", "encounter.deleted", Some(id), None)?;
+        Ok(())
+    }
+
     /// Latest transcript and note for every encounter, newest first.
     pub fn list_sessions(&self) -> Result<Vec<StoredSession>> {
         let mut statement = self
@@ -432,6 +445,15 @@ mod tests {
         assert_eq!(loaded.id, pipeline.id);
         assert_eq!(loaded.encounter_id, encounter.id);
         assert_eq!(loaded.review_state, ReviewState::Draft);
+    }
+
+    #[test]
+    fn deletes_an_encounter() {
+        let store = Store::open_in_memory().unwrap();
+        let encounter = encounter();
+        store.save_encounter(&encounter).unwrap();
+        store.delete_encounter(&encounter.id.to_string()).unwrap();
+        assert_eq!(store.encounter_count().unwrap(), 0);
     }
 
     #[test]
