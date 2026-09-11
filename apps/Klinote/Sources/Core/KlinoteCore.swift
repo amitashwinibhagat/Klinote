@@ -32,12 +32,6 @@ struct TemplatesEnvelope: Decodable {
     let templates: [TemplateSummary]?
 }
 
-struct MarkdownEnvelope: Decodable {
-    let ok: Bool
-    let error: String?
-    let markdown: String?
-}
-
 struct NoteTextEnvelope: Decodable {
     let ok: Bool
     let error: String?
@@ -287,20 +281,6 @@ enum KlinoteCore {
             throw KlinoteCoreError.malformedResponse
         }
         return (note, transcript)
-    }
-
-    /// Renders the note as Markdown using the engine's own renderer, so the
-    /// copied text is identical to what the CLI produces.
-    static func markdown(for note: ClinicalNote) throws -> String {
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        let data = try encoder.encode(note)
-        guard let json = String(data: data, encoding: .utf8) else {
-            throw KlinoteCoreError.malformedResponse
-        }
-        let payload: MarkdownEnvelope = try envelope(from: scribe_note_to_markdown(json))
-        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
-        return payload.markdown ?? ""
     }
 
     /// Plain text for the record system: section titles and bodies only. No

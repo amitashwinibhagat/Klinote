@@ -573,7 +573,11 @@ pub unsafe extern "C" fn scribe_task_list(
         let encounter = unsafe { optional_cstr(encounter_id) }?;
         let store = scribe_store::Store::open_with_key(&path, key.as_deref())
             .map_err(|err| err.to_string())?;
+        // None: every open task. An empty string: every task, open or done,
+        // so the shell can rebuild its whole picture from one read. An id:
+        // that consult's tasks.
         let tasks = match encounter.as_deref() {
+            Some("") => store.all_tasks(),
             Some(id) => store.tasks_for(id),
             None => store.open_tasks(),
         }

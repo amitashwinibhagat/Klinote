@@ -99,11 +99,7 @@ struct Encounter: Identifiable {
 
     /// What the menu bar shows: time and template, never an opaque code.
     var menuTitle: String {
-        let time: String = {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            return formatter.string(from: startedAt)
-        }()
+        let time = AppModel.menuTimeFormatter.string(from: startedAt)
         if isSyntheticDemo {
             return "Sample · \(templateId) · \(state.word)"
         }
@@ -116,7 +112,14 @@ final class AppModel: ObservableObject {
     static let shared = AppModel()
 
     @Published var encounters: [Encounter] = []
-    @Published var selection: String?
+    /// Changing the consult changes which tasks the letter can show ticks for,
+    /// so the index is rebuilt here rather than queried per sentence.
+    @Published var selection: String? {
+        didSet {
+            guard oldValue != selection else { return }
+            rebuildTaskIndex()
+        }
+    }
     @Published var recordingState: RecordingState = .idle
     @Published var elapsed: TimeInterval = 0
     @Published var traceLevel: Double = 0
@@ -156,10 +159,12 @@ final class AppModel: ObservableObject {
     /// name is set, because my list should be mine.
     @AppStorage("klinote.showAllClinicians") var showAllClinicians = false
 
-    /// Open tasks across every consult — what the day still owes.
-    @Published var tasks: [ConsultTask] = []
-    /// Bumped when a task changes, so views observing the model re-read ticks.
-    @Published var taskRevision = 0
+    /// Every task, open or done, as of the last store read.
+    @Published private(set) var allTasks: [ConsultTask] = []
+    /// Open tasks paired with their consult, derived, never re-read.
+    @Published private(set) var openTaskRows: [(task: ConsultTask, encounter: Encounter)] = []
+    /// The selected consult's tasks, keyed by the sentence they came from.
+    @Published private(set) var taskIndex: [String: ConsultTask] = [:]
     /// Set when a copy is requested for a consult that is not on screen. The
     /// clinician confirms before the clipboard changes.
     @Published var pendingCopy: Encounter?
@@ -259,7 +264,8 @@ final class AppModel: ObservableObject {
 
         storeError = outcome.error
         applySessions(outcome.sessions)
-        tasks = outcome.tasks
+        allTasks = outcome.tasks
+        rebuildTaskViews()
         if outcome.purged > 0 {
             copyBanner = outcome.purged == 1
                 ? "Deleted 1 note past the retention period."
@@ -415,6 +421,13 @@ final class AppModel: ObservableObject {
         templates.filter { !$0.isDocument }
     }
 
+    /// Built once. The menu is rebuilt on every recording tick.
+    static let menuTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
     func reloadTemplates() {
         if let loaded = try? KlinoteCore.templates() {
             templates = loaded
@@ -498,14 +511,28 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Built once. This was constructed per date group, on every sidebar
+    /// render, and the sidebar re-renders on every keystroke in its search
+    /// field.
+    private static let dayThisYear: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE d MMMM"
+        return formatter
+    }()
+
+    private static let dayOtherYear: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMMM yyyy"
+        return formatter
+    }()
+
     private static func dayLabel(_ day: Date, today: Date) -> String {
         let calendar = Calendar.current
         if calendar.isDateInToday(day) { return "Today" }
         if calendar.isDateInYesterday(day) { return "Yesterday" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = calendar.isDate(day, equalTo: today, toGranularity: .year)
-            ? "EEEE d MMMM"
-            : "d MMMM yyyy"
+        let formatter = calendar.isDate(day, equalTo: today, toGranularity: .year)
+            ? dayThisYear
+            : dayOtherYear
         return formatter.string(from: day)
     }
 
@@ -591,6 +618,9 @@ final class AppModel: ObservableObject {
             transcript: transcript,
             clinician: clinicianName
         )
+        // Keeps the derived lists in step with the consult list without
+        // another store read: this is all in memory.
+        rebuildTaskViews()
     }
 
     // MARK: - Tasks
@@ -618,43 +648,56 @@ final class AppModel: ObservableObject {
         reloadTasks()
     }
 
+    /// One store read. Everything below is derived in memory from this.
+    ///
+    /// The shell used to open the encrypted store once per sentence per
+    /// render — each open a Keychain lookup, an SQLCipher key derivation and
+    /// (until this change) the whole schema. Measured at 63 ms a call, that
+    /// was roughly 800 ms of blocked main thread every time a clinician
+    /// clicked a sentence in a thirteen-sentence note. The store is not free,
+    /// so it is read once and the answers are kept.
     func reloadTasks() {
-        tasks = (try? KlinoteCore.tasks(encounterId: nil)) ?? []
+        let fetched = (try? KlinoteCore.tasks(encounterId: "")) ?? []
+        allTasks = fetched
+        rebuildTaskViews()
     }
 
-    /// Tasks for one consult, ticked or not. Reads through on every task
-    /// change, so the letter's checkboxes stay honest.
-    func tasks(for encounterID: String) -> [ConsultTask] {
-        _ = taskRevision
-        return (try? KlinoteCore.tasks(encounterId: encounterID)) ?? []
+    private func rebuildTaskViews() {
+        let byId = Dictionary(uniqueKeysWithValues: encounters.map { ($0.id, $0) })
+        openTaskRows = allTasks.compactMap { task in
+            guard !task.done, let encounter = byId[task.encounterId] else { return nil }
+            return (task, encounter)
+        }
+        rebuildTaskIndex()
+    }
+
+    private func rebuildTaskIndex() {
+        guard let id = selection else {
+            taskIndex = [:]
+            return
+        }
+        taskIndex = allTasks
+            .filter { $0.encounterId == id }
+            .reduce(into: [:]) { index, task in index[task.text] = task }
     }
 
     /// The task a given sentence became, if its section is work to do.
+    ///
+    /// A dictionary lookup. This is called from a view body, once per
+    /// sentence, so it must never touch the store.
     func task(for encounterID: String, sentence: String) -> ConsultTask? {
-        tasks(for: encounterID).first { $0.text == sentence }
-    }
-
-    /// Open tasks for consults that are on screen, newest consult first.
-    var openTaskRows: [(task: ConsultTask, encounter: Encounter)] {
-        _ = taskRevision
-        return tasks.compactMap { task in
-            guard let encounter = encounters.first(where: { $0.id == task.encounterId }) else {
-                return nil
-            }
-            return (task, encounter)
-        }
+        guard encounterID == selection else { return nil }
+        return taskIndex[sentence]
     }
 
     func setTask(_ task: ConsultTask, done: Bool) {
         try? KlinoteCore.setTaskDone(id: task.id, done: done)
         reloadTasks()
-        taskRevision += 1
     }
 
     func deleteTask(_ task: ConsultTask) {
         try? KlinoteCore.deleteTask(id: task.id)
         reloadTasks()
-        taskRevision += 1
     }
 
     func selectFirstEvidence() {
@@ -1146,14 +1189,6 @@ final class AppModel: ObservableObject {
         }
         persist(encounter)
         promptPasteIfReady()
-    }
-
-    func markEdited() {
-        guard var encounter = selectedEncounter, encounter.state == .draft else { return }
-        encounter.state = .edited
-        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
-            encounters[index] = encounter
-        }
     }
 
     // MARK: - Derived

@@ -550,9 +550,15 @@ struct EncounterSpine: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
-    static func time(_ date: Date) -> String {
+    /// One formatter for every row in the list. This was constructed inside
+    /// the function, so it was allocated once per encounter per render.
+    private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+        return formatter
+    }()
+
+    static func time(_ date: Date) -> String {
+        timeFormatter.string(from: date)
     }
 }

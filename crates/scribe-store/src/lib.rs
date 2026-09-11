@@ -69,6 +69,19 @@ impl Store {
     }
 
     fn migrate(&self) -> Result<()> {
+        // Once per database, not once per open.
+        //
+        // This ran the whole schema on every open: five CREATE TABLE IF NOT
+        // EXISTS, four CREATE INDEX, and a `PRAGMA journal_mode = WAL`, which
+        // is a write. Since every query in the app opened its own connection,
+        // every read paid for a write and a lock.
+        let version: i64 = self
+            .conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .map_err(storage_error)?;
+        if version >= SCHEMA_VERSION {
+            return Ok(());
+        }
         self.conn
             .execute_batch(
                 r#"
@@ -134,6 +147,9 @@ impl Store {
                 CREATE INDEX IF NOT EXISTS idx_tasks_open ON tasks(done_at);
                 "#,
             )
+            .map_err(storage_error)?;
+        self.conn
+            .pragma_update(None, "user_version", SCHEMA_VERSION)
             .map_err(storage_error)
     }
 
@@ -348,6 +364,32 @@ impl Store {
             .map_err(storage_error)
     }
 
+    /// Every task, open or done. One read rebuilds the shell's whole picture:
+    /// the still-to-do list, and the ticks on each sentence.
+    pub fn all_tasks(&self) -> Result<Vec<Task>> {
+        let mut statement = self
+            .conn
+            .prepare(
+                "SELECT id, encounter_id, text, source_key, created_at, done_at
+                 FROM tasks ORDER BY created_at ASC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(Task {
+                    id: row.get(0)?,
+                    encounter_id: row.get(1)?,
+                    text: row.get(2)?,
+                    source_key: row.get(3)?,
+                    created_at: row.get(4)?,
+                    done: row.get::<_, Option<String>>(5)?.is_some(),
+                })
+            })
+            .map_err(storage_error)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(storage_error)
+    }
+
     /// Every task for one consult, open or done, so the letter can show ticks.
     pub fn tasks_for(&self, encounter_id: &str) -> Result<Vec<Task>> {
         let mut statement = self
@@ -535,6 +577,11 @@ impl Store {
             .transpose()
     }
 }
+
+/// One thing a consult asked the clinician to do.
+/// Bumped when the schema changes. Guarded by `PRAGMA user_version`, so the
+/// DDL runs once per database rather than once per connection.
+const SCHEMA_VERSION: i64 = 1;
 
 /// One thing a consult asked the clinician to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
