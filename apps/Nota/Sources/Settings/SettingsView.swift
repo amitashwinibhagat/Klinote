@@ -144,6 +144,12 @@ private struct RecordingSettings: View {
                 LabeledContent("Open Nota", value: "⌘⇧N")
                 LabeledContent("File a note", value: "⌘↩")
             }
+            Section("Note drafting") {
+                LabeledContent("On-device language model", value: NoteDrafter.isAvailable ? "Ready" : (NoteDrafter.unavailableReason ?? "Unavailable"))
+                Text("After transcription, Apple’s on-device model drafts the note from the transcript. Sentences must cite what was said. If the model is off, Nota falls back to rule-based routing. Nothing leaves this Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Section("Audio") {
                 Text("Audio is captured and discarded. Nota does not keep a recording unless you ask it to, and never sends audio anywhere.")
                     .font(.caption)

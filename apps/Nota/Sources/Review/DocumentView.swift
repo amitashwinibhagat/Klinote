@@ -135,7 +135,9 @@ struct ProvisionanceLine: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Drafted on this Mac · nothing left the device")
+            Text(note.engine.hasPrefix("apple-foundation-models")
+                 ? "Drafted on this Mac with the on-device language model · nothing left the device"
+                 : "Drafted on this Mac · nothing left the device")
                 .font(NotaFont.label())
                 .foregroundStyle(NotaColor.tertiary)
             if isSynthetic {

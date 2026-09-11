@@ -263,6 +263,22 @@ final class AppModel: ObservableObject {
             selection = encounter.id
             persist(encounter)
             selectFirstEvidence()
+            let encounterId = encounter.id
+            let transcript = result.transcript
+            let templateId = self.templateId
+            Task {
+                guard let template = self.templates.first(where: { $0.id == templateId }) ?? self.templates.first else { return }
+                guard let drafted = await NoteDrafter.draft(
+                    transcript: transcript,
+                    template: template,
+                    encounterId: encounterId
+                ) else { return }
+                if let index = self.encounters.firstIndex(where: { $0.id == encounterId }) {
+                    self.encounters[index].note = drafted
+                    self.persist(self.encounters[index])
+                    self.selectFirstEvidence()
+                }
+            }
         } catch {
             lastError = error.localizedDescription
         }
@@ -381,6 +397,20 @@ final class AppModel: ObservableObject {
                     patientRef: patientRef
                 )
                 try? FileManager.default.removeItem(at: url)
+                let template = await MainActor.run {
+                    self.templates.first(where: { $0.id == templateId }) ?? self.templates.first
+                }
+                let note: ClinicalNote
+                if let template,
+                   let drafted = await NoteDrafter.draft(
+                    transcript: result.transcript,
+                    template: template,
+                    encounterId: result.note.encounterId
+                   ) {
+                    note = drafted
+                } else {
+                    note = result.note
+                }
                 await MainActor.run {
                     let encounter = Encounter(
                         id: result.note.encounterId,
@@ -389,7 +419,7 @@ final class AppModel: ObservableObject {
                         templateId: templateId,
                         startedAt: startedAt,
                         state: .draft,
-                        note: result.note,
+                        note: note,
                         transcript: result.transcript,
                         isSyntheticDemo: false
                     )
@@ -457,9 +487,18 @@ final class AppModel: ObservableObject {
         isSwapping = true
         transcript.swapClinicianAndPatient()
         let templateId = encounter.templateId
+        let template = templates.first(where: { $0.id == templateId }) ?? templates.first
         Task.detached {
             do {
-                let note = try NotaCore.note(fromTranscript: transcript, templateId: templateId)
+                var note = try NotaCore.note(fromTranscript: transcript, templateId: templateId)
+                if let template,
+                   let drafted = await NoteDrafter.draft(
+                    transcript: transcript,
+                    template: template,
+                    encounterId: note.encounterId
+                   ) {
+                    note = drafted
+                }
                 await MainActor.run {
                     encounter.note = note
                     encounter.transcript = transcript
