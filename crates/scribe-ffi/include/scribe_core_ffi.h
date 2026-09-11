@@ -82,6 +82,20 @@ char *scribe_note_from_text(const char *request_json);
  */
 char *scribe_note_from_audio(const char *request_json);
 
+/*
+ * Persist a note and transcript to a local SQLite file.
+ * Input path: filesystem path to the database (created if missing).
+ * Input JSON: {patient_ref, discipline, template_id, started_at, note, transcript}
+ * Output: {"ok":true} | {"ok":false,"error":"..."}
+ */
+char *scribe_store_save(const char *db_path, const char *request_json);
+
+/*
+ * List persisted sessions, newest first.
+ * Output: {"ok":true,"sessions":[{patient_ref,discipline,template_id,started_at,note,transcript}]}
+ */
+char *scribe_store_list(const char *db_path);
+
 /* Free any string returned by this library. NULL is a no-op. */
 void scribe_string_free(char *pointer);
 

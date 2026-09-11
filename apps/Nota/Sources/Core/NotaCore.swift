@@ -38,6 +38,21 @@ struct MarkdownEnvelope: Decodable {
     let markdown: String?
 }
 
+struct StoreListEnvelope: Decodable {
+    let ok: Bool
+    let error: String?
+    let sessions: [StoredSession]?
+}
+
+struct StoredSession: Decodable {
+    let patientRef: String
+    let discipline: String
+    let templateId: String
+    let startedAt: String
+    let note: ClinicalNote?
+    let transcript: Transcript?
+}
+
 struct ClinicalNote: Codable, Identifiable, Hashable {
     let id: String
     let encounterId: String
@@ -267,6 +282,50 @@ enum NotaCore {
         guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
         guard let note = payload.note else { throw NotaCoreError.malformedResponse }
         return note
+    }
+
+    static func storePath() -> String {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = base.appendingPathComponent("Nota", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("nota.sqlite").path
+    }
+
+    static func saveSession(
+        patientRef: String,
+        discipline: String,
+        templateId: String,
+        startedAt: Date,
+        note: ClinicalNote,
+        transcript: Transcript
+    ) throws {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        var payload: [String: Any] = [
+            "patient_ref": patientRef,
+            "discipline": discipline,
+            "template_id": templateId,
+            "started_at": formatter.string(from: startedAt),
+            "actor": "shell",
+        ]
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let noteData = try encoder.encode(note)
+        let transcriptData = try encoder.encode(transcript)
+        payload["note"] = try JSONSerialization.jsonObject(with: noteData)
+        payload["transcript"] = try JSONSerialization.jsonObject(with: transcriptData)
+        let requestData = try JSONSerialization.data(withJSONObject: payload)
+        guard let requestJSON = String(data: requestData, encoding: .utf8) else {
+            throw NotaCoreError.malformedResponse
+        }
+        let envelope: EngineEnvelope<Bool> = try envelope(from: scribe_store_save(storePath(), requestJSON))
+        guard envelope.ok else { throw NotaCoreError.engine(envelope.error ?? "could not save") }
+    }
+
+    static func loadSessions() throws -> [StoredSession] {
+        let payload: StoreListEnvelope = try envelope(from: scribe_store_list(storePath()))
+        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "could not load") }
+        return payload.sessions ?? []
     }
 
     // MARK: - Plumbing

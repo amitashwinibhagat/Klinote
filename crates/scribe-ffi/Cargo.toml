@@ -16,8 +16,10 @@ scribe-note.workspace = true
 scribe-pipeline.workspace = true
 scribe-asr-whisper = { path = "../scribe-asr-whisper" }
 scribe-audio.workspace = true
+scribe-store.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]
 hound = "3"

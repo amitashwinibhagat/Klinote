@@ -17,7 +17,7 @@ use std::path::Path;
 
 use chrono::Utc;
 use rusqlite::{Connection, OptionalExtension, params};
-use scribe_core::{ClinicalNote, Encounter, EncounterId, NoteId, Result, ScribeError, Transcript};
+use scribe_core::{ClinicalNote, Discipline, Encounter, EncounterId, NoteId, Result, ScribeError, Transcript};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuditEntry {
@@ -262,6 +262,91 @@ impl Store {
             .query_row("SELECT COUNT(*) FROM encounters", [], |row| row.get(0))
             .map_err(storage_error)
     }
+
+    /// Latest transcript and note for every encounter, newest first.
+    pub fn list_sessions(&self) -> Result<Vec<StoredSession>> {
+        let mut statement = self
+            .conn
+            .prepare(
+                "SELECT id, patient_ref, clinician_ref, discipline, template_id,
+                        started_at, ended_at, language, site_ref
+                 FROM encounters ORDER BY started_at DESC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                ))
+            })
+            .map_err(storage_error)?;
+
+        let mut sessions = Vec::new();
+        for row in rows {
+            let (id, patient_ref, clinician_ref, discipline, template_id, started_at, ended_at, language, site_ref) =
+                row.map_err(storage_error)?;
+            let encounter_id: EncounterId = id.parse().map_err(|err| {
+                ScribeError::Storage(format!("encounter id: {err}"))
+            })?;
+            let started = chrono::DateTime::parse_from_rfc3339(&started_at)
+                .map_err(|err| ScribeError::Storage(format!("started_at: {err}")))?
+                .with_timezone(&Utc);
+            let ended = ended_at
+                .map(|value| {
+                    chrono::DateTime::parse_from_rfc3339(&value)
+                        .map(|dt| dt.with_timezone(&Utc))
+                        .map_err(|err| ScribeError::Storage(format!("ended_at: {err}")))
+                })
+                .transpose()?;
+            let mut encounter = Encounter::new(&patient_ref, Discipline::from_key(&discipline));
+            encounter.id = encounter_id;
+            encounter.clinician_ref = clinician_ref;
+            encounter.template_id = scribe_core::TemplateId::new(template_id);
+            encounter.started_at = started;
+            encounter.ended_at = ended;
+            encounter.language = language;
+            encounter.site_ref = site_ref;
+
+            let transcript = self.latest_transcript(encounter_id)?;
+            let note = self.notes_for_encounter(encounter_id)?.into_iter().next();
+            sessions.push(StoredSession {
+                encounter,
+                transcript,
+                note,
+            });
+        }
+        Ok(sessions)
+    }
+
+    fn latest_transcript(&self, id: EncounterId) -> Result<Option<Transcript>> {
+        let json: Option<String> = self
+            .conn
+            .query_row(
+                "SELECT json FROM transcripts WHERE encounter_id = ?1 ORDER BY id DESC LIMIT 1",
+                params![id.to_string()],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage_error)?;
+        json.map(|json| serde_json::from_str(&json).map_err(store_json_error))
+            .transpose()
+    }
+}
+
+/// One encounter plus its latest transcript and note, for the shell list.
+#[derive(Debug, Clone)]
+pub struct StoredSession {
+    pub encounter: Encounter,
+    pub transcript: Option<Transcript>,
+    pub note: Option<ClinicalNote>,
 }
 
 fn storage_error(err: rusqlite::Error) -> ScribeError {
@@ -300,6 +385,10 @@ mod tests {
         store.save_encounter(&encounter).unwrap();
         store.save_transcript(&transcript(&encounter)).unwrap();
         assert_eq!(store.encounter_count().unwrap(), 1);
+        let sessions = store.list_sessions().unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].encounter.patient_ref, "patient-ref-opaque");
+        assert!(sessions[0].transcript.is_some());
     }
 
     #[test]

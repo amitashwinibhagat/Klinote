@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task { @MainActor in
             AppModel.shared.bootstrap()
+            AppModel.shared.revealLetterIfFirstLaunch()
         }
 
         // ⌥⌘R — start or stop recording.

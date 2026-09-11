@@ -112,6 +112,7 @@ final class AppModel: ObservableObject {
     @Published var lastError: String?
     @Published var isFiling = false
     @Published var isCopying = false
+    @Published var copyBanner: String?
     @Published var isSwapping = false
     @Published var templates: [TemplateSummary] = []
     /// Until encryption at rest exists, recording real patients is forbidden.
@@ -154,7 +155,75 @@ final class AppModel: ObservableObject {
         if let loaded = try? NotaCore.templates() {
             templates = loaded
         }
-        prepareDemoNote()
+        loadPersistedSessions()
+        if encounters.isEmpty {
+            prepareDemoNote()
+        }
+        selectFirstEvidence()
+    }
+
+    /// Opens the letter on first launch so the aha is not hidden behind the menu bar.
+    func revealLetterIfFirstLaunch() {
+        let key = "nota.didRevealLetter"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        ReviewWindowController.shared.show()
+    }
+
+    private func loadPersistedSessions() {
+        guard let sessions = try? NotaCore.loadSessions() else { return }
+        let mapped: [Encounter] = sessions.compactMap { session in
+            guard let note = session.note, let transcript = session.transcript else { return nil }
+            let started = Self.parseTime(session.startedAt) ?? Date()
+            let synthetic = session.patientRef.hasPrefix("demo-")
+            let state: NoteState
+            switch note.reviewState {
+            case "approved": state = .approved
+            case "edited": state = .edited
+            default: state = .draft
+            }
+            return Encounter(
+                id: note.encounterId,
+                patientRef: session.patientRef,
+                discipline: session.discipline,
+                templateId: session.templateId,
+                startedAt: started,
+                state: state,
+                note: note,
+                transcript: transcript,
+                isSyntheticDemo: synthetic
+            )
+        }
+        let reals = mapped.filter { !$0.isSyntheticDemo }
+        encounters = reals.isEmpty ? mapped : reals
+        selection = encounters.first?.id
+    }
+
+    private static func parseTime(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: value) { return date }
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value)
+    }
+
+    func persist(_ encounter: Encounter) {
+        guard let note = encounter.note, let transcript = encounter.transcript else { return }
+        try? NotaCore.saveSession(
+            patientRef: encounter.patientRef,
+            discipline: encounter.discipline,
+            templateId: encounter.templateId,
+            startedAt: encounter.startedAt,
+            note: note,
+            transcript: transcript
+        )
+    }
+
+    func selectFirstEvidence() {
+        guard let note = selectedEncounter?.note else { return }
+        if let first = note.sections.flatMap(\.sentences).first {
+            selectedSentenceID = first.id
+        }
     }
 
     /// Generates the bundled sample note so the window has real, honest content
@@ -192,6 +261,8 @@ final class AppModel: ObservableObject {
             }
             encounters = [encounter]
             selection = encounter.id
+            persist(encounter)
+            selectFirstEvidence()
         } catch {
             lastError = error.localizedDescription
         }
@@ -329,6 +400,8 @@ final class AppModel: ObservableObject {
                     self.lastError = nil
                     self.recordingState = .idle
                     self.elapsed = 0
+                    self.persist(encounter)
+                    self.selectFirstEvidence()
                     RecordingStripController.shared.hide()
                     ReviewWindowController.shared.show()
                 }
@@ -352,6 +425,7 @@ final class AppModel: ObservableObject {
         if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
             encounters[index] = encounter
         }
+        persist(encounter)
         isFiling = false
     }
 
@@ -363,9 +437,13 @@ final class AppModel: ObservableObject {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(markdown, forType: .string)
             isCopying = true
+            copyBanner = "Copied — paste into the record"
             Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_600_000_000)
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
                 self.isCopying = false
+                if self.copyBanner?.hasPrefix("Copied") == true {
+                    self.copyBanner = nil
+                }
             }
         } catch {
             lastError = "Couldn't copy the note."
@@ -389,7 +467,8 @@ final class AppModel: ObservableObject {
                     if let index = self.encounters.firstIndex(where: { $0.id == encounter.id }) {
                         self.encounters[index] = encounter
                     }
-                    self.selectedSentenceID = nil
+                    self.persist(encounter)
+                    self.selectFirstEvidence()
                     self.isSwapping = false
                 }
             } catch {

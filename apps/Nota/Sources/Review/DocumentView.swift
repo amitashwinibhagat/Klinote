@@ -43,11 +43,12 @@ struct DocumentView: View {
                     .id(transcript.encounterId)
                     .animation(.easeOut(duration: NotaMetrics.motionAssemble), value: transcript.encounterId)
                 }
-                .background(Color.clear)
+                .background(NotaColor.desk)
             } else if let error = model.lastError {
                 EmptyState(title: "The engine could not draft this note", message: error)
                     .padding(NotaMetrics.space48)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(NotaColor.desk)
             } else {
                 EmptyState(
                     title: "No note selected",
@@ -55,6 +56,7 @@ struct DocumentView: View {
                 )
                 .padding(NotaMetrics.space48)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(NotaColor.desk)
             }
         }
     }
@@ -79,10 +81,9 @@ struct Letterhead: View {
             }
 
             HStack(spacing: NotaMetrics.space24) {
-                Field(label: "Encounter", value: String(encounter.id.prefix(8)))
                 Field(label: "Recorded", value: EncounterSpine.time(encounter.startedAt))
                 Field(label: "Duration", value: durationLabel)
-                Field(label: "Draft", value: encounter.state.word)
+                Field(label: "Status", value: readinessLabel)
             }
 
             ProvisionanceLine(note: note, isSynthetic: encounter.isSyntheticDemo)
@@ -100,6 +101,16 @@ struct Letterhead: View {
     private var durationLabel: String {
         guard let ms = encounter.durationMs else { return "—" }
         return RecordingStripView.clock(Double(ms) / 1000)
+    }
+
+    private var readinessLabel: String {
+        if !note.unassigned.isEmpty {
+            return "\(note.unassigned.count) unfiled"
+        }
+        if !note.missingRequired.isEmpty {
+            return "Missing required"
+        }
+        return "Ready to copy"
     }
 }
 
@@ -317,7 +328,7 @@ struct SignatureBlock: View {
                         } label: {
                             Text(model.isFiling ? "Saving…" : "Mark as reviewed")
                         }
-                        .buttonStyle(NotaGlassPrimaryButtonStyle())
+                        .buttonStyle(NotaPrimaryButtonStyle())
                         .keyboardShortcut(.return, modifiers: .command)
                         .disabled(model.isFiling || isReviewed)
                         .help("Mark this draft as reviewed on this Mac (⌘↩)")

@@ -30,15 +30,11 @@ extension View {
         )
     }
 
-    /// Sidebar / inspector / window chrome: no opaque fill, so macOS 26/27
-    /// Liquid Glass in the split view can show through.
+    /// Columns and the desk around the letter are opaque. Glass belongs on
+    /// the floating strip, not on a reading surface.
     @ViewBuilder
     func notaChromeSurface() -> some View {
-        if #available(macOS 26.0, *) {
-            self
-        } else {
-            self.background(NotaColor.desk)
-        }
+        self.background(NotaColor.desk)
     }
 }
 

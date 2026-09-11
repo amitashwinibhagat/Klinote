@@ -32,9 +32,6 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         window.title = "Nota"
         window.subtitle = "Clinical notes that never leave the room"
         window.minSize = NSSize(width: 1040, height: 640)
-        window.titlebarAppearsTransparent = true
-        window.isOpaque = false
-        window.backgroundColor = .clear
         window.contentView = NSHostingView(rootView: ReviewWindow(model: AppModel.shared))
         window.setFrameAutosaveName("NotaReviewWindow")
         window.center()
@@ -57,6 +54,7 @@ struct ReviewWindow: View {
     var body: some View {
         NavigationSplitView {
             EncounterSidebar(model: model)
+                .background(NotaColor.desk, ignoresSafeAreaEdges: .all)
                 .navigationSplitViewColumnWidth(
                     min: 220,
                     ideal: NotaMetrics.sidebarWidth,
@@ -67,6 +65,7 @@ struct ReviewWindow: View {
         }
         .inspector(isPresented: $showMargin) {
             MarginView(model: model)
+                .background(NotaColor.margin, ignoresSafeAreaEdges: .all)
                 .inspectorColumnWidth(
                     min: 260,
                     ideal: NotaMetrics.marginColumnWidth,
@@ -86,7 +85,21 @@ struct ReviewWindow: View {
                 }
                 .padding(.horizontal, NotaMetrics.space16)
                 .padding(.vertical, NotaMetrics.space8)
-                .notaGlass(cornerRadius: 0, tint: NotaColor.caution.opacity(0.35), interactive: false)
+                .background(NotaColor.caution.opacity(0.14))
+                .overlay(alignment: .bottom) { Hairline() }
+            } else if let banner = model.copyBanner {
+                HStack(alignment: .firstTextBaseline, spacing: NotaMetrics.space12) {
+                    Text(banner)
+                        .font(NotaFont.ui(12, weight: .medium))
+                        .foregroundStyle(NotaColor.ink)
+                    Spacer(minLength: 0)
+                    Button("Dismiss") { model.copyBanner = nil }
+                        .controlSize(.small)
+                }
+                .padding(.horizontal, NotaMetrics.space16)
+                .padding(.vertical, NotaMetrics.space8)
+                .background(NotaColor.ink.opacity(0.08))
+                .overlay(alignment: .bottom) { Hairline() }
             }
         }
         .toolbar {
@@ -111,6 +124,7 @@ struct ReviewWindow: View {
             }
         }
         .environment(\.notaReduceMotion, NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        .background(NotaColor.desk)
         .frame(minWidth: 1040, minHeight: 640)
     }
 }
@@ -165,7 +179,7 @@ struct EncounterSidebar: View {
                 }
             }
         }
-        .notaChromeSurface()
+        .background(NotaColor.desk)
     }
 }
 

@@ -693,12 +693,14 @@ dependencies = [
 name = "scribe-ffi"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "hound",
  "scribe-asr-whisper",
  "scribe-audio",
  "scribe-core",
  "scribe-note",
  "scribe-pipeline",
+ "scribe-store",
  "serde",
  "serde_json",
 ]

@@ -96,11 +96,10 @@ prose; letter-spaced small caps larger than 12 pt.
 - **Elevation:** exactly one shadow in the product — a 1 px `rule.hairline`
   border plus a very soft 8 pt shadow on the document plane. Modules never
   float.
-- **Materials:** macOS 26/27 **Liquid Glass** is the chrome — toolbar, sidebar,
-  inspector, recording strip, and primary controls. The **letter stays paper**
-  (`ground.document`, opaque). No hand-rolled blur; only `glassEffect` /
-  system materials, with Reduce Transparency falling back to opaque desk.
-  `#available(macOS 26)` only; every surface is complete without glass.
+- **Materials:** the letter, sidebar and evidence column are **opaque paper
+  and desk**. Liquid Glass is reserved for the floating recording strip (a
+  panel over the desktop). Clear split-view columns are unreadable. Reduce
+  Transparency makes the strip opaque desk. `#available(macOS 26)` only.
 
 ## Components
 

@@ -289,6 +289,109 @@ pub unsafe extern "C" fn scribe_note_from_audio(request_json: *const c_char) -> 
     into_c_string(&payload.to_string())
 }
 
+#[derive(Debug, Deserialize)]
+struct StoreSaveRequest {
+    patient_ref: String,
+    #[serde(default)]
+    discipline: Option<String>,
+    #[serde(default)]
+    template_id: Option<String>,
+    #[serde(default)]
+    started_at: Option<String>,
+    note: ClinicalNote,
+    transcript: Transcript,
+    #[serde(default)]
+    actor: Option<String>,
+}
+
+/// Persist a note and transcript. Input: db path + JSON payload.
+/// Output: `{"ok":true}` | `{"ok":false,"error":"..."}`.
+///
+/// # Safety
+/// Pointers must be null or valid NUL-terminated UTF-8.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_store_save(
+    db_path: *const c_char,
+    request_json: *const c_char,
+) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let path = unsafe { cstr_to_string(db_path) }?;
+        let raw = unsafe { cstr_to_string(request_json) }?;
+        let request: StoreSaveRequest =
+            serde_json::from_str(&raw).map_err(|err| format!("invalid request json: {err}"))?;
+
+        let discipline = request
+            .discipline
+            .as_deref()
+            .map(Discipline::from_key)
+            .unwrap_or(Discipline::GeneralPractice);
+        let mut encounter = Encounter::new(&request.patient_ref, discipline);
+        encounter.id = request.note.encounter_id;
+        if let Some(template_id) = request.template_id {
+            encounter.template_id = scribe_core::TemplateId::new(template_id);
+        }
+        if let Some(started) = request.started_at.as_deref() {
+            if let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(started) {
+                encounter.started_at = parsed.with_timezone(&chrono::Utc);
+            }
+        }
+
+        let store = scribe_store::Store::open(&path).map_err(|err| err.to_string())?;
+        store
+            .save_encounter(&encounter)
+            .map_err(|err| err.to_string())?;
+        store
+            .save_transcript(&request.transcript)
+            .map_err(|err| err.to_string())?;
+        store
+            .save_note(&request.note)
+            .map_err(|err| err.to_string())?;
+        store
+            .audit(
+                request.actor.as_deref().unwrap_or("shell"),
+                "note.saved",
+                Some(&request.note.id.to_string()),
+                None,
+            )
+            .map_err(|err| err.to_string())?;
+        Ok(json!({ "ok": true }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
+/// List persisted sessions, newest first.
+/// Output: `{"ok":true,"sessions":[...]}`.
+///
+/// # Safety
+/// `db_path` must be null or valid NUL-terminated UTF-8.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_store_list(db_path: *const c_char) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let path = unsafe { cstr_to_string(db_path) }?;
+        let store = scribe_store::Store::open(&path).map_err(|err| err.to_string())?;
+        let sessions = store.list_sessions().map_err(|err| err.to_string())?;
+        let items: Vec<Value> = sessions
+            .into_iter()
+            .map(|session| {
+                json!({
+                    "patient_ref": session.encounter.patient_ref,
+                    "discipline": session.encounter.discipline.as_str(),
+                    "template_id": session.encounter.template_id.as_str(),
+                    "started_at": session.encounter.started_at.to_rfc3339(),
+                    "note": session.note,
+                    "transcript": session.transcript,
+                })
+            })
+            .collect();
+        Ok(json!({ "ok": true, "sessions": items }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
 /// Free a string returned by this library. Passing null is a no-op.
 ///
 /// # Safety
