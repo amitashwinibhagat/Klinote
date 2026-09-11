@@ -144,6 +144,24 @@
       "url": "https://huggingface.co/bartowski/ibm-granite_granite-3.3-2b-instruct-GGUF/resolve/main/ibm-granite_granite-3.3-2b-instruct-Q4_K_M.gguf",
       "bytes": 1545303616,
       "why": "IBM Granite 2B, 1.55 GB. Smaller than baseline."
+    },
+    {
+      "id": "qwen35-4b-q3ks",
+      "band": "1-2gb",
+      "name": "Qwen3.5-4B Q3_K_S",
+      "file": "Qwen3.5-4B-Q3_K_S.gguf",
+      "url": "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q3_K_S.gguf",
+      "bytes": 2105791648,
+      "why": "Next-gen Qwen 4B (2.11 GB). Only model that could dethrone Instruct-2507."
+    },
+    {
+      "id": "granite42-3b-q3km",
+      "band": "1-2gb",
+      "name": "Granite 4.2 3B Q3_K_M",
+      "file": "granite-4.2-3b-Q3_K_M.gguf",
+      "url": "https://huggingface.co/ibm-granite/granite-4.2-3b-GGUF/resolve/main/granite-4.2-3b-Q3_K_M.gguf",
+      "bytes": 1835968032,
+      "why": "IBM Granite 4.2 3B, 1.84 GB. Newer than 3.3 2B that failed JSON."
     }
   ]
 }
