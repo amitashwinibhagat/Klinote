@@ -30,6 +30,7 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
             defer: false
         )
         window.title = "Nota"
+        window.subtitle = "Clinical notes that never leave the room"
         window.minSize = NSSize(width: 1040, height: 640)
         window.contentView = NSHostingView(rootView: ReviewWindow(model: AppModel.shared))
         window.setFrameAutosaveName("NotaReviewWindow")
@@ -69,6 +70,23 @@ struct ReviewWindow: View {
                     max: 420
                 )
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let error = model.lastError {
+                HStack(alignment: .firstTextBaseline, spacing: NotaMetrics.space12) {
+                    Text(error)
+                        .font(NotaFont.ui(12))
+                        .foregroundStyle(NotaColor.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                    Button("Dismiss") { model.lastError = nil }
+                        .controlSize(.small)
+                }
+                .padding(.horizontal, NotaMetrics.space16)
+                .padding(.vertical, NotaMetrics.space8)
+                .background(NotaColor.caution.opacity(0.14))
+                .overlay(alignment: .bottom) { Hairline() }
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
@@ -79,6 +97,15 @@ struct ReviewWindow: View {
                     Label("Evidence", systemImage: "sidebar.right")
                 }
                 .help("Show or hide the evidence margin")
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    model.copySelectedNote()
+                } label: {
+                    Label(model.isCopying ? "Copied" : "Copy note", systemImage: model.isCopying ? "checkmark" : "doc.on.doc")
+                }
+                .disabled(model.selectedEncounter?.note == nil)
+                .help("Copy the note to paste into the record (⌘⇧C)")
             }
         }
         .environment(\.notaReduceMotion, NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
@@ -147,8 +174,8 @@ struct EncounterSpine: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(encounter.patientRef)
-                    .font(NotaFont.ui(13, weight: .medium))
+                Text(encounter.isSyntheticDemo ? "Sample" : Self.time(encounter.startedAt))
+                    .font(NotaFont.data(12))
                     .foregroundStyle(NotaColor.primary)
                 Spacer(minLength: NotaMetrics.space8)
                 Text(encounter.state.word)
@@ -156,17 +183,12 @@ struct EncounterSpine: View {
                     .foregroundStyle(encounter.state.tone)
             }
             HStack(spacing: NotaMetrics.space8) {
-                Text(Self.time(encounter.startedAt))
-                    .font(NotaFont.data(10))
+                Text(encounter.templateId)
+                    .font(NotaFont.label())
                     .foregroundStyle(NotaColor.secondary)
                 Text(encounter.discipline.replacingOccurrences(of: "_", with: " "))
                     .font(NotaFont.label())
                     .foregroundStyle(NotaColor.tertiary)
-                if encounter.isSyntheticDemo {
-                    Text("sample")
-                        .font(NotaFont.label())
-                        .foregroundStyle(NotaColor.caution)
-                }
             }
         }
         .padding(.horizontal, NotaMetrics.space16)

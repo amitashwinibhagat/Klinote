@@ -105,6 +105,7 @@ final class AppModel: ObservableObject {
     @Published var recordingState: RecordingState = .idle
     @Published var elapsed: TimeInterval = 0
     @Published var traceLevel: Double = 0
+    @Published var traceSamples: [Double] = Array(repeating: 0, count: 64)
     @Published var selectedSentenceID: String?
     @Published var discipline = "general_practice"
     @Published var templateId = "soap"
@@ -357,12 +358,15 @@ final class AppModel: ObservableObject {
     /// Puts the engine Markdown on the clipboard so it can be pasted into the record.
     func copySelectedNote() {
         guard let note = selectedEncounter?.note else { return }
-        isCopying = true
-        defer { isCopying = false }
         do {
             let markdown = try NotaCore.markdown(for: note)
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(markdown, forType: .string)
+            isCopying = true
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_600_000_000)
+                self.isCopying = false
+            }
         } catch {
             lastError = "Couldn't copy the note."
         }
@@ -451,6 +455,7 @@ final class AppModel: ObservableObject {
                     self.elapsed = Date().timeIntervalSince(startedAt)
                 }
                 self.traceLevel = Recorder.shared.inputLevel
+                self.traceSamples = Recorder.shared.trace
             }
         }
     }

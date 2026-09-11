@@ -41,6 +41,7 @@ struct DocumentView: View {
                     .frame(maxWidth: .infinity)
                     .environment(\.openURL, OpenURLAction { _ in .handled })
                     .id(transcript.encounterId)
+                    .animation(.easeOut(duration: NotaMetrics.motionAssemble), value: transcript.encounterId)
                 }
                 .background(NotaColor.desk)
             } else if let error = model.lastError {
@@ -125,13 +126,16 @@ struct ProvisionanceLine: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Drafted on this Mac · engine \(note.engine) · nothing left the device")
+            Text("Drafted on this Mac · nothing left the device")
                 .font(NotaFont.label())
                 .foregroundStyle(NotaColor.tertiary)
             if isSynthetic {
                 Text("Synthetic sample text — not a real transcription.")
                     .font(NotaFont.label())
                     .foregroundStyle(NotaColor.caution)
+                Text("Click a sentence to see the words behind it.")
+                    .font(NotaFont.label())
+                    .foregroundStyle(NotaColor.secondary)
             }
         }
         .accessibilityElement(children: .combine)
@@ -184,6 +188,7 @@ struct SentenceRow: View {
     let number: Int
     let isSelected: Bool
     let onSelect: () -> Void
+    @State private var hovering = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: NotaMetrics.space8) {
@@ -200,14 +205,21 @@ struct SentenceRow: View {
         }
         .padding(.vertical, 2)
         .padding(.horizontal, 6)
-        .background(isSelected ? NotaColor.accent.opacity(0.14) : Color.clear)
+        .background(
+            isSelected
+                ? NotaColor.accent.opacity(0.14)
+                : hovering ? NotaColor.accent.opacity(0.06) : Color.clear
+        )
         .overlay(alignment: .leading) {
             Rectangle()
-                .fill(isSelected ? NotaColor.ink : Color.clear)
+                .fill(isSelected ? NotaColor.ink : hovering ? NotaColor.ink.opacity(0.35) : Color.clear)
                 .frame(width: 2)
         }
         .contentShape(Rectangle())
+        .onHover { hovering = $0 }
         .onTapGesture(perform: onSelect)
+        .animation(.easeOut(duration: NotaMetrics.motionState), value: isSelected)
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "Sentence \(number)\(sentence.ambiguous ? ", source unclear" : "")"

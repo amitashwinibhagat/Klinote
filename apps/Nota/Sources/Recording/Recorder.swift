@@ -17,6 +17,8 @@ final class Recorder: ObservableObject {
     @Published var isRecording = false
     @Published var isPaused = false
     @Published var inputLevel: Double = 0
+    /// Oldest-first RMS samples for the strip's trace. Silence sits at zero.
+    @Published var trace: [Double] = Array(repeating: 0, count: 64)
 
     private let engine = AVAudioEngine()
     private var file: AVAudioFile?
@@ -73,8 +75,14 @@ final class Recorder: ObservableObject {
                 sum += channel[i] * channel[i]
             }
             let rms = (sum / Float(max(count, 1))).squareRoot()
+            let sample = Double(min(1, rms * 4))
             Task { @MainActor in
-                self?.inputLevel = Double(min(1, rms * 4))
+                guard let self else { return }
+                self.inputLevel = sample
+                var next = self.trace
+                if next.count >= 64 { next.removeFirst() }
+                next.append(sample)
+                self.trace = next
             }
         }
         tapInstalled = true

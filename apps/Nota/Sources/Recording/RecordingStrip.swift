@@ -108,6 +108,8 @@ struct RecordingStripView: View {
             TraceView(
                 level: model.traceLevel,
                 isActive: isLive,
+                samples: model.traceSamples,
+                isPaused: model.recordingState.isPaused,
                 reduceMotion: systemReduceMotion
             )
             .frame(height: 26)

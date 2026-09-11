@@ -178,13 +178,15 @@ struct RecordingLamp: View {
 struct TraceView: View {
     let level: Double
     let isActive: Bool
+    var samples: [Double] = []
+    var isPaused: Bool = false
     var reduceMotion: Bool = false
 
     var body: some View {
         Canvas { context, size in
             drawGraticule(in: &context, size: size)
 
-            guard isActive else { return }
+            guard isActive || isPaused else { return }
 
             if reduceMotion {
                 drawLevelMeter(in: &context, size: size)
@@ -192,6 +194,7 @@ struct TraceView: View {
                 drawTrace(in: &context, size: size)
             }
         }
+        .opacity(isPaused ? 0.45 : 1)
         .accessibilityHidden(true)
         .drawingGroup()
     }
@@ -217,15 +220,17 @@ struct TraceView: View {
     private func drawTrace(in context: inout GraphicsContext, size: CGSize) {
         var path = Path()
         let mid = size.height / 2
-        let amplitude = max(1, size.height * 0.34 * min(1, level))
-        path.move(to: CGPoint(x: 0, y: mid))
-        var x: CGFloat = 0
-        var phase: Double = 0
-        while x <= size.width {
-            let y = mid + CGFloat(sin(phase) * amplitude)
-            path.addLine(to: CGPoint(x: x, y: y))
-            x += 2
-            phase += 0.35
+        let amplitude = max(1, size.height * 0.42)
+        let source = samples.isEmpty ? [level] : samples
+        let last = CGFloat(max(source.count - 1, 1))
+        for (index, sample) in source.enumerated() {
+            let x = CGFloat(index) / last * size.width
+            let y = mid - CGFloat(sample) * amplitude
+            if index == 0 {
+                path.move(to: CGPoint(x: x, y: y))
+            } else {
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
         }
         context.stroke(path, with: .color(NotaColor.record), lineWidth: 1.5)
     }
