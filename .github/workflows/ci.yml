@@ -41,3 +41,8 @@ jobs:
             exit 1
           fi
           echo "dependency graph is network-free"
+
+      # The product claim is that nothing recorded leaves the Mac. Enforced,
+      # not asserted: one file may touch the network, and only to download.
+      - name: Network surface
+        run: ./scripts/check-network-surface.sh

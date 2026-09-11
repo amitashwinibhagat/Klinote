@@ -198,6 +198,8 @@ struct EncounterSidebar: View {
                             EncounterSpine(
                                 encounter: encounter,
                                 isSelected: encounter.id == model.selection,
+                                displayName: model.displayName(for: encounter),
+                                documents: model.documentTemplates,
                                 onRename: {
                                     renameDraft = encounter.patientRef
                                     renameID = encounter.id
@@ -205,6 +207,9 @@ struct EncounterSidebar: View {
                                 onCopy: {
                                     model.selection = encounter.id
                                     model.copySelectedNote()
+                                },
+                                onMakeDocument: { templateId in
+                                    model.makeDocument(from: encounter.id, templateId: templateId)
                                 },
                                 onDelete: { pendingDelete = encounter }
                             )
@@ -269,8 +274,11 @@ struct EncounterSidebar: View {
 struct EncounterSpine: View {
     let encounter: Encounter
     let isSelected: Bool
+    var displayName: String = ""
+    var documents: [TemplateSummary] = []
     var onRename: () -> Void = {}
     var onCopy: () -> Void = {}
+    var onMakeDocument: (String) -> Void = { _ in }
     var onDelete: () -> Void = {}
     @State private var hovering = false
 
@@ -285,8 +293,16 @@ struct EncounterSpine: View {
                     .font(KlinoteFont.label())
                     .foregroundStyle(encounter.state.tone)
                 Menu {
+                    if !documents.isEmpty {
+                        Menu("Make a document") {
+                            ForEach(documents) { template in
+                                Button(template.name) { onMakeDocument(template.id) }
+                            }
+                        }
+                        Divider()
+                    }
                     Button("Rename…", action: onRename)
-                    Button("Copy note", action: onCopy)
+                    Button("Copy", action: onCopy)
                     Divider()
                     Button("Delete", role: .destructive, action: onDelete)
                 } label: {
@@ -306,9 +322,10 @@ struct EncounterSpine: View {
                     .font(KlinoteFont.data(11))
                     .foregroundStyle(KlinoteColor.secondary)
                     .lineLimit(1)
-                Text(encounter.templateId)
+                Text(displayName.isEmpty ? encounter.templateId : displayName)
                     .font(KlinoteFont.label())
                     .foregroundStyle(KlinoteColor.tertiary)
+                    .lineLimit(1)
             }
         }
         .padding(.horizontal, KlinoteMetrics.space16)
@@ -323,8 +340,16 @@ struct EncounterSpine: View {
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .contextMenu {
+            if !documents.isEmpty {
+                Menu("Make a document") {
+                    ForEach(documents) { template in
+                        Button(template.name) { onMakeDocument(template.id) }
+                    }
+                }
+                Divider()
+            }
             Button("Rename…", action: onRename)
-            Button("Copy note", action: onCopy)
+            Button("Copy", action: onCopy)
             Divider()
             Button("Delete", role: .destructive, action: onDelete)
         }

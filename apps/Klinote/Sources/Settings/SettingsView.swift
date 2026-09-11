@@ -43,15 +43,21 @@ private struct GeneralSettings: View {
                 }
                 .pickerStyle(.menu)
 
-                Picker("Template", selection: $model.templateId) {
-                    ForEach(model.templates) { template in
+                Picker("Note template", selection: $model.templateId) {
+                    ForEach(model.noteTemplates) { template in
                         Text(template.name).tag(template.id)
                     }
-                    if model.templates.isEmpty {
+                    if model.noteTemplates.isEmpty {
                         Text("SOAP Note").tag("soap")
                     }
                 }
                 .pickerStyle(.menu)
+
+                if !model.documentTemplates.isEmpty {
+                    Text("Referral letters and the patient's copy are made from a consult, on the encounter's menu.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Review window") {
@@ -205,11 +211,15 @@ private struct PrivacySettings: View {
                 .disabled(model.retentionMonths == 0)
             }
 
+            PrivacyReceipt()
+
             Section("Where it lives") {
-                Text("Notes stay on this Mac, encrypted. There is no account, no sync, and no server. The only download is listening and Quire, once each. Audio and notes are never uploaded.")
+                Text("Notes stay on this Mac, encrypted. There is no account, no sync, and no server. Audio and notes are never uploaded.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            LearnedVocabulary()
 
             Section("Names") {
                 Text("Klinote stores a code for the encounter, never a name, record number, or date of birth.")
@@ -218,6 +228,72 @@ private struct PrivacySettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// The claim, with the only number we can honestly compute. This is a receipt,
+/// not a badge: it says what arrives, where the data is, and how the claim is
+/// checked on every build.
+private struct PrivacyReceipt: View {
+    @ObservedObject private var downloader = ModelDownloader.shared
+
+    private var received: String {
+        ByteCountFormatter.string(fromByteCount: downloader.bytesReceived, countStyle: .file)
+    }
+
+    var body: some View {
+        Section("Receipt") {
+            LabeledContent("Sent from this Mac", value: "Nothing")
+            LabeledContent("Received", value: "\(received) (models only)")
+            LabeledContent("Model downloads", value: "\(downloader.downloadsCompleted)")
+            Text("Klinote has no server, no account and no telemetry. The app can only issue downloads — never uploads — and that is checked on every build by scripts/check-network-surface.sh. The Rust engine contains no networking code at all.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// What this practice has taught it. Visible and forgettable, because a
+/// correction the clinician cannot see is a correction they cannot trust.
+private struct LearnedVocabulary: View {
+    @State private var terms: [String: String] = LearnedTerms.load()
+    @State private var newHeard = ""
+    @State private var newReplacement = ""
+
+    var body: some View {
+        Section("Your vocabulary") {
+            if terms.isEmpty {
+                Text("Accept a name suggestion in a note and it is remembered here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(terms.sorted(by: { $0.key < $1.key }), id: \.key) { heard, replacement in
+                    HStack {
+                        Text("\(heard) → \(replacement)")
+                            .font(.system(size: 11, design: .monospaced))
+                        Spacer()
+                        Button("Forget") {
+                            LearnedTerms.forget(heard)
+                            terms = LearnedTerms.load()
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField("heard", text: $newHeard)
+                Text("→")
+                TextField("use instead", text: $newReplacement)
+                Button("Add") {
+                    LearnedTerms.learn(heard: newHeard, replacement: newReplacement)
+                    newHeard = ""
+                    newReplacement = ""
+                    terms = LearnedTerms.load()
+                }
+                .disabled(newHeard.isEmpty || newReplacement.isEmpty)
+            }
+        }
     }
 }
 

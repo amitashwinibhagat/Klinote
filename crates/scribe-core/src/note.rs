@@ -117,6 +117,10 @@ pub struct ClinicalNote {
     /// True when a machine produced this without human editing.
     #[serde(default)]
     pub machine_generated: bool,
+    /// How this document is laid out on the clipboard. Travels with the note
+    /// so a stored referral letter still renders as a letter.
+    #[serde(default)]
+    pub render: crate::template::RenderKind,
 }
 
 impl ClinicalNote {
@@ -177,23 +181,50 @@ impl ClinicalNote {
     /// Clipboard text for the record system: section titles and bodies only.
     ///
     /// No Markdown, no engine metadata, no unfiled statements, no footer. What
-    /// a clinician pastes into an EHR text field, and nothing else.
+    /// a clinician pastes into an EHR text field, and nothing else. A letter
+    /// gets letter framing instead of bare headings.
     pub fn to_record_text(&self) -> String {
+        match self.render {
+            crate::template::RenderKind::Sections => self.sections_text(),
+            crate::template::RenderKind::Letter => self.letter_text(),
+        }
+    }
+
+    fn sections_text(&self) -> String {
         let mut out = String::new();
-        for section in &self.sections {
-            let body = section.body.trim();
-            if body.is_empty() {
-                continue;
-            }
+        for (title, body) in self.filled_sections() {
             if !out.is_empty() {
                 out.push('\n');
             }
-            out.push_str(section.title.trim());
+            out.push_str(title);
             out.push('\n');
             out.push_str(body);
             out.push('\n');
         }
         out.trim_end().to_owned()
+    }
+
+    fn letter_text(&self) -> String {
+        let mut out = String::from("Dear Colleague,\n\n");
+        for (title, body) in self.filled_sections() {
+            out.push_str(title);
+            out.push('\n');
+            out.push_str(body);
+            out.push_str("\n\n");
+        }
+        out.push_str("Yours sincerely,");
+        out
+    }
+
+    fn filled_sections(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.sections.iter().filter_map(|section| {
+            let body = section.body.trim();
+            if body.is_empty() {
+                None
+            } else {
+                Some((section.title.trim(), body))
+            }
+        })
     }
 
     /// Clinician-facing markdown. This is what the concierge loop emails out.
@@ -296,6 +327,7 @@ mod tests {
             review_state: ReviewState::Draft,
             missing_required: Vec::new(),
             machine_generated: true,
+            render: Default::default(),
         }
     }
 

@@ -15,7 +15,9 @@ use std::path::Path;
 
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
-use scribe_core::{ClinicalNote, Discipline, Encounter, EncounterId, NoteId, Result, ScribeError, Transcript};
+use scribe_core::{
+    ClinicalNote, Discipline, Encounter, EncounterId, NoteId, Result, ScribeError, Transcript,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuditEntry {
@@ -49,9 +51,7 @@ impl Store {
         let conn = Connection::open(path).map_err(storage_error)?;
         if let Some(key) = key {
             if key.is_empty() {
-                return Err(ScribeError::Storage(
-                    "store key must not be empty".into(),
-                ));
+                return Err(ScribeError::Storage("store key must not be empty".into()));
             }
             conn.pragma_update(None, "key", key)
                 .map_err(storage_error)?;
@@ -328,7 +328,11 @@ impl Store {
                 "shell",
                 "encounter.purged",
                 None,
-                Some(&format!("count={} before={}", ids.len(), cutoff.to_rfc3339())),
+                Some(&format!(
+                    "count={} before={}",
+                    ids.len(),
+                    cutoff.to_rfc3339()
+                )),
             )?;
         }
         Ok(ids.len())
@@ -362,11 +366,20 @@ impl Store {
 
         let mut sessions = Vec::new();
         for row in rows {
-            let (id, patient_ref, clinician_ref, discipline, template_id, started_at, ended_at, language, site_ref) =
-                row.map_err(storage_error)?;
-            let encounter_id: EncounterId = id.parse().map_err(|err| {
-                ScribeError::Storage(format!("encounter id: {err}"))
-            })?;
+            let (
+                id,
+                patient_ref,
+                clinician_ref,
+                discipline,
+                template_id,
+                started_at,
+                ended_at,
+                language,
+                site_ref,
+            ) = row.map_err(storage_error)?;
+            let encounter_id: EncounterId = id
+                .parse()
+                .map_err(|err| ScribeError::Storage(format!("encounter id: {err}")))?;
             let started = chrono::DateTime::parse_from_rfc3339(&started_at)
                 .map_err(|err| ScribeError::Storage(format!("started_at: {err}")))?
                 .with_timezone(&Utc);
@@ -521,8 +534,7 @@ mod tests {
         let path = std::env::temp_dir().join(format!("scribe-enc-{}.sqlite", std::process::id()));
         let _ = std::fs::remove_file(&path);
         {
-            let store =
-                Store::open_with_key(&path, Some("test-key-not-for-production")).unwrap();
+            let store = Store::open_with_key(&path, Some("test-key-not-for-production")).unwrap();
             store.audit("test", "probe", None, None).unwrap();
         }
         let header = std::fs::read(&path).unwrap();
@@ -571,6 +583,7 @@ mod tests {
             review_state: ReviewState::Draft,
             missing_required: Vec::new(),
             machine_generated: true,
+            render: Default::default(),
         }
     }
 }

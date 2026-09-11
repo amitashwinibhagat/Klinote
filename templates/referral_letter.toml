@@ -1,0 +1,76 @@
+# Referral letter — general practice
+# Derived from the same consult transcript as the note. Not a second recording.
+id = "referral_letter"
+name = "Referral Letter"
+discipline = "general_practice"
+version = "1"
+family = "document"
+render = "letter"
+description = "A letter to a colleague asking for a specialist opinion or investigation."
+voice = "Write as a concise professional letter to a specialist colleague. Third person for the patient. No abbreviations the recipient would have to expand. No greeting, no sign-off — those are added by the letter layout."
+
+[[sections]]
+key = "reason"
+title = "Reason for referral"
+required = true
+guidance = "One or two sentences: who this patient is and what is being asked for."
+cues = [
+  "refer", "referral", "referring", "request", "asking", "opinion",
+  "please see", "please assess", "specialist"
+]
+
+[[sections]]
+key = "history"
+title = "History"
+required = true
+guidance = "Presenting complaint, onset, course, relevant past history and medication."
+cues = [
+  "reports", "reported", "complain", "complaining", "history", "onset", "since",
+  "started", "began", "worse", "better", "pain", "sore", "ache", "hurts", "fever",
+  "tired", "fatigue", "medication", "allergies", "smoker", "alcohol", "past medical",
+  "used to", "years", "days", "weeks", "child", "childhood"
+]
+
+[[sections]]
+key = "examination"
+title = "Examination"
+required = false
+guidance = "Relevant examination findings and observations."
+cues = [
+  "on examination", "examination", "temperature", "pulse", "blood pressure", "bp",
+  "auscultation", "chest clear", "abdomen", "tender", "palpation", "inspection",
+  "throat", "erythema", "lymph", "nodes", "range of motion", "gait", "reflexes",
+  "normal", "no murmurs", "weight", "bmi"
+]
+
+[[sections]]
+key = "investigations"
+title = "Investigations to date"
+required = false
+guidance = "Anything already done, and its result if known."
+cues = [
+  "blood test", "bloods", "x-ray", "xray", "scan", "ecg", "urine", "swab",
+  "result", "results", "came back", "normal", "arranged", "ordered"
+]
+
+[[sections]]
+key = "medication"
+title = "Current medication and allergies"
+required = false
+guidance = "Regular medicines with doses, and any allergies."
+cues = [
+  "medication", "medicines", "taking", "takes", "tablet", "prescribed",
+  "allergic", "allergy", "intolerant", "cetirizine", "omeprazole", "ramipril",
+  "metformin", "inhaler"
+]
+
+[[sections]]
+key = "request"
+title = "What I am asking for"
+required = true
+guidance = "The specific question or action wanted from the recipient."
+cues = [
+  "please", "request", "asking", "refer", "opinion", "advice", "assess", "arrange",
+  "investigate", "review", "see", "urgent", "routine", "would like", "x-ray",
+  "scan", "bloods", "swab", "investigation", "order"
+]

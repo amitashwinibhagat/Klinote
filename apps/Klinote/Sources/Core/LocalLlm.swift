@@ -51,6 +51,8 @@ enum LocalLlm {
             "template": [
                 "id": template.id,
                 "name": template.name,
+                "voice": template.voice ?? "",
+                "render": template.render ?? "sections",
                 "sections": sections,
             ],
         ]

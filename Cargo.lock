@@ -820,6 +820,7 @@ name = "scribe-llm"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "encoding_rs",
  "llama-cpp-2",
  "scribe-core",
  "serde",

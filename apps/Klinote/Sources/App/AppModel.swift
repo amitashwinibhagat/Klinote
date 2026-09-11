@@ -76,6 +76,9 @@ struct Encounter: Identifiable {
     /// True when the note was produced from the bundled sample rather than a
     /// real recording. The interface must say so, in the document itself.
     var isSyntheticDemo: Bool
+    /// True when this is a letter or patient copy derived from another
+    /// encounter's transcript rather than a recording of its own.
+    var isDerived: Bool = false
 
     var durationMs: UInt64? {
         guard let transcript else { return nil }
@@ -238,9 +241,10 @@ final class AppModel: ObservableObject {
         }
         isPasting = false
         let patientRef = "pasted-\(UUID().uuidString.prefix(6))"
+        let (text, learned) = LearnedTerms.apply(to: trimmed)
         do {
             let result = try KlinoteCore.note(
-                fromText: trimmed,
+                fromText: text,
                 templateId: templateId,
                 discipline: discipline,
                 patientRef: patientRef
@@ -260,10 +264,77 @@ final class AppModel: ObservableObject {
             selection = encounter.id
             persist(encounter)
             selectFirstEvidence()
-            promptPasteIfReady()
+            if learned > 0 {
+                copyBanner = learned == 1
+                    ? "1 learned correction applied."
+                    : "\(learned) learned corrections applied."
+            } else {
+                promptPasteIfReady()
+            }
             ReviewWindowController.shared.show()
         } catch {
             lastError = "Could not read that transcript. Check it has CLINICIAN: and PATIENT: lines."
+        }
+    }
+
+    /// The other things this consult already owes. Same transcript, different
+    /// template — the letter is derived, never a second recording.
+    var documentTemplates: [TemplateSummary] {
+        templates.filter(\.isDocument)
+    }
+
+    var noteTemplates: [TemplateSummary] {
+        templates.filter { !$0.isDocument }
+    }
+
+    /// A friendly label for the sidebar: "Clinical note", "Referral Letter", …
+    func displayName(for encounter: Encounter) -> String {
+        if let template = templates.first(where: { $0.id == encounter.templateId }) {
+            return template.isDocument ? template.name : "Clinical note"
+        }
+        return encounter.templateId
+    }
+
+    func makeDocument(from encounterID: String, templateId: String) {
+        guard let source = encounters.first(where: { $0.id == encounterID }),
+              let transcript = source.transcript,
+              let template = templates.first(where: { $0.id == templateId })
+        else { return }
+        do {
+            let rules = try KlinoteCore.note(fromTranscript: transcript, templateId: templateId)
+            var document = Encounter(
+                id: rules.encounterId,
+                patientRef: source.patientRef,
+                discipline: source.discipline,
+                templateId: templateId,
+                startedAt: source.startedAt,
+                state: .draft,
+                note: rules,
+                transcript: transcript,
+                isSyntheticDemo: source.isSyntheticDemo
+            )
+            document.isDerived = true
+            encounters.insert(document, at: 0)
+            selection = document.id
+            persist(document)
+            selectFirstEvidence()
+            let fallback = rules
+            Task.detached {
+                let drafted = await Self.preferLocalDraft(
+                    transcript: transcript,
+                    template: template,
+                    fallback: fallback
+                )
+                await MainActor.run {
+                    if let index = self.encounters.firstIndex(where: { $0.id == document.id }) {
+                        self.encounters[index].note = drafted
+                        self.persist(self.encounters[index])
+                        self.selectFirstEvidence()
+                    }
+                }
+            }
+        } catch {
+            lastError = "Could not write that document from this consult."
         }
     }
 
@@ -480,10 +551,16 @@ final class AppModel: ObservableObject {
                 let template = await MainActor.run {
                     self.templates.first(where: { $0.id == templateId }) ?? self.templates.first
                 }
+                // This practice's own vocabulary, learned from corrections the
+                // clinician accepted. Applied before drafting, and announced.
+                let (transcript, learned) = LearnedTerms.apply(to: result.transcript)
+                let fallback = learned > 0
+                    ? (try? KlinoteCore.note(fromTranscript: transcript, templateId: templateId)) ?? result.note
+                    : result.note
                 let note = await Self.preferLocalDraft(
-                    transcript: result.transcript,
+                    transcript: transcript,
                     template: template,
-                    fallback: result.note
+                    fallback: fallback
                 )
                 await MainActor.run {
                     let encounter = Encounter(
@@ -494,7 +571,7 @@ final class AppModel: ObservableObject {
                         startedAt: startedAt,
                         state: .draft,
                         note: note,
-                        transcript: result.transcript,
+                        transcript: transcript,
                         isSyntheticDemo: false
                     )
                     self.encounters.removeAll { $0.isSyntheticDemo }
@@ -508,7 +585,13 @@ final class AppModel: ObservableObject {
                     self.selectFirstEvidence()
                     RecordingStripController.shared.hide()
                     ReviewWindowController.shared.show()
-                    self.promptPasteIfReady()
+                    if learned > 0 {
+                        self.copyBanner = learned == 1
+                            ? "1 learned correction applied."
+                            : "\(learned) learned corrections applied."
+                    } else {
+                        self.promptPasteIfReady()
+                    }
                 }
             } catch {
                 try? FileManager.default.removeItem(at: url)
@@ -656,6 +739,8 @@ final class AppModel: ObservableObject {
             encounters[index] = encounter
         }
         persist(encounter)
+        // Accepting a suggestion teaches this practice's vocabulary.
+        LearnedTerms.learn(heard: heard, replacement: suggest)
         promptPasteIfReady()
     }
 

@@ -197,7 +197,11 @@ fn spoken_number(tokens: &[String], start: usize) -> Option<(String, usize)> {
         }
     }
 
-    if seen { Some((value.to_string(), index)) } else { None }
+    if seen {
+        Some((value.to_string(), index))
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -207,7 +211,10 @@ mod tests {
     #[test]
     fn matching_numbers_are_supported() {
         assert_eq!(
-            judge("Temp 37.4, pulse 88.", "your temperature is 37.4, pulse 88 and regular"),
+            judge(
+                "Temp 37.4, pulse 88.",
+                "your temperature is 37.4, pulse 88 and regular"
+            ),
             Support::Supported
         );
     }
@@ -215,11 +222,17 @@ mod tests {
     #[test]
     fn word_and_digit_forms_agree() {
         assert_eq!(
-            judge("Sore throat x4d.", "I've had a sore throat for about four days"),
+            judge(
+                "Sore throat x4d.",
+                "I've had a sore throat for about four days"
+            ),
             Support::Supported
         );
         assert_eq!(
-            judge("Paracetamol 1g qds.", "paracetamol 1g four times a day as needed"),
+            judge(
+                "Paracetamol 1g qds.",
+                "paracetamol 1g four times a day as needed"
+            ),
             Support::Supported
         );
     }
@@ -228,7 +241,10 @@ mod tests {
     fn spoken_numbers_match_digits() {
         // What whisper actually produced from the GP tape: numbers as words.
         let heard = "your temperature is thirty seven point four, pulse eighty eight and regular";
-        assert_eq!(judge("Temp 37.4°C, HR 88 bpm, regular.", heard), Support::Supported);
+        assert_eq!(
+            judge("Temp 37.4°C, HR 88 bpm, regular.", heard),
+            Support::Supported
+        );
         assert_eq!(
             judge(
                 "Paracetamol 1g q4h. Ibuprofen 400mg tds.",

@@ -20,6 +20,30 @@ pub struct SectionSpec {
     pub cues: Vec<String>,
 }
 
+/// How a generated document is laid out when it is put on the clipboard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RenderKind {
+    /// A clinical note: section titles and bodies.
+    #[default]
+    Sections,
+    /// A letter to a colleague.
+    Letter,
+}
+
+/// What the clinician is producing from the consult.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TemplateFamily {
+    /// The note itself.
+    #[default]
+    Note,
+    /// Another document the consult already owes: a referral letter, a
+    /// patient's copy. Derived from the same transcript, never a second
+    /// recording.
+    Document,
+}
+
 /// A note template: the contract between a discipline and the generated note.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Template {
@@ -30,6 +54,14 @@ pub struct Template {
     pub version: String,
     #[serde(default)]
     pub description: String,
+    /// Register instruction for the language model, e.g. "plain language for
+    /// the patient". Empty means clinical shorthand.
+    #[serde(default)]
+    pub voice: String,
+    #[serde(default)]
+    pub family: TemplateFamily,
+    #[serde(default)]
+    pub render: RenderKind,
     pub sections: Vec<SectionSpec>,
 }
 
@@ -98,6 +130,9 @@ mod tests {
             discipline: "general_practice".to_owned(),
             version: "1".to_owned(),
             description: String::new(),
+            voice: String::new(),
+            family: TemplateFamily::Note,
+            render: RenderKind::Sections,
             sections,
         }
     }

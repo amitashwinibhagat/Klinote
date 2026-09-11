@@ -49,6 +49,9 @@ pub extern "C" fn scribe_list_templates() -> *mut c_char {
                     "discipline": template.discipline,
                     "version": template.version,
                     "description": template.description,
+                    "voice": template.voice,
+                    "family": template.family,
+                    "render": template.render,
                     "sections": template.sections.iter().map(|section| json!({
                         "key": section.key,
                         "title": section.title,

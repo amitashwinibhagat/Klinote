@@ -28,67 +28,279 @@ doxycycline metronidazole apixaban warfarin clopidogrel pantoprazole.";
 /// Generics and names GPs actually say. Exact hits are silent; near-misses suggest.
 const FORMULARY: &[&str] = &[
     // analgesia / NSAID
-    "paracetamol", "acetaminophen", "panadol", "ibuprofen", "nurofen", "aspirin",
-    "naproxen", "diclofenac", "celecoxib", "meloxicam", "codeine", "co-codamol",
-    "tramadol", "morphine", "oxycodone", "tapentadol", "gabapentin", "pregabalin",
+    "paracetamol",
+    "acetaminophen",
+    "panadol",
+    "ibuprofen",
+    "nurofen",
+    "aspirin",
+    "naproxen",
+    "diclofenac",
+    "celecoxib",
+    "meloxicam",
+    "codeine",
+    "co-codamol",
+    "tramadol",
+    "morphine",
+    "oxycodone",
+    "tapentadol",
+    "gabapentin",
+    "pregabalin",
     // allergy / asthma
-    "cetirizine", "loratadine", "fexofenadine", "desloratadine", "chlorphenamine",
-    "promethazine", "salbutamol", "ventolin", "salmeterol", "fluticasone", "budesonide",
-    "montelukast", "tiotropium", "ipratropium", "prednisolone", "prednisone",
-    "hydrocortisone", "beclometasone", "beclomethasone",
+    "cetirizine",
+    "loratadine",
+    "fexofenadine",
+    "desloratadine",
+    "chlorphenamine",
+    "promethazine",
+    "salbutamol",
+    "ventolin",
+    "salmeterol",
+    "fluticasone",
+    "budesonide",
+    "montelukast",
+    "tiotropium",
+    "ipratropium",
+    "prednisolone",
+    "prednisone",
+    "hydrocortisone",
+    "beclometasone",
+    "beclomethasone",
     // infection
-    "amoxicillin", "amoxil", "co-amoxiclav", "augmentin", "flucloxacillin",
-    "penicillin", "phenoxymethylpenicillin", "doxycycline", "azithromycin",
-    "clarithromycin", "erythromycin", "metronidazole", "trimethoprim",
-    "nitrofurantoin", "ciprofloxacin", "levofloxacin", "cephalexin", "cefalexin",
-    "cefuroxime", "fluconazole", "nystatin", "aciclovir", "acyclovir", "valaciclovir",
-    "oseltamivir", "vancomycin", "gentamicin",
+    "amoxicillin",
+    "amoxil",
+    "co-amoxiclav",
+    "augmentin",
+    "flucloxacillin",
+    "penicillin",
+    "phenoxymethylpenicillin",
+    "doxycycline",
+    "azithromycin",
+    "clarithromycin",
+    "erythromycin",
+    "metronidazole",
+    "trimethoprim",
+    "nitrofurantoin",
+    "ciprofloxacin",
+    "levofloxacin",
+    "cephalexin",
+    "cefalexin",
+    "cefuroxime",
+    "fluconazole",
+    "nystatin",
+    "aciclovir",
+    "acyclovir",
+    "valaciclovir",
+    "oseltamivir",
+    "vancomycin",
+    "gentamicin",
     // cardio / lipids / antiplatelet / anticoagulant
-    "ramipril", "lisinopril", "enalapril", "perindopril", "losartan", "candesartan",
-    "irbesartan", "valsartan", "amlodipine", "nifedipine", "bisoprolol", "atenolol",
-    "propranolol", "carvedilol", "diltiazem", "verapamil", "indapamide", "furosemide",
-    "bendroflumethiazide", "spironolactone", "atorvastatin", "simvastatin",
-    "rosuvastatin", "pravastatin", "ezetimibe", "clopidogrel", "ticagrelor",
-    "aspirin", "warfarin", "apixaban", "rivaroxaban", "dabigatran", "edoxaban",
-    "digoxin", "amiodarone", "gtn", // gtn is 3 letters — skipped by length; keep isosorbide
+    "ramipril",
+    "lisinopril",
+    "enalapril",
+    "perindopril",
+    "losartan",
+    "candesartan",
+    "irbesartan",
+    "valsartan",
+    "amlodipine",
+    "nifedipine",
+    "bisoprolol",
+    "atenolol",
+    "propranolol",
+    "carvedilol",
+    "diltiazem",
+    "verapamil",
+    "indapamide",
+    "furosemide",
+    "bendroflumethiazide",
+    "spironolactone",
+    "atorvastatin",
+    "simvastatin",
+    "rosuvastatin",
+    "pravastatin",
+    "ezetimibe",
+    "clopidogrel",
+    "ticagrelor",
+    "aspirin",
+    "warfarin",
+    "apixaban",
+    "rivaroxaban",
+    "dabigatran",
+    "edoxaban",
+    "digoxin",
+    "amiodarone",
+    "gtn", // gtn is 3 letters — skipped by length; keep isosorbide
     "isosorbide",
     // diabetes / endocrine
-    "metformin", "gliclazide", "glimepiride", "sitagliptin", "empagliflozin",
-    "dapagliflozin", "liraglutide", "semaglutide", "insulin", "levothyroxine",
-    "carbimazole", "alendronate", "alendronic", "colecalciferol", "cholecalciferol",
+    "metformin",
+    "gliclazide",
+    "glimepiride",
+    "sitagliptin",
+    "empagliflozin",
+    "dapagliflozin",
+    "liraglutide",
+    "semaglutide",
+    "insulin",
+    "levothyroxine",
+    "carbimazole",
+    "alendronate",
+    "alendronic",
+    "colecalciferol",
+    "cholecalciferol",
     // GI
-    "omeprazole", "lansoprazole", "pantoprazole", "esomeprazole", "ranitidine",
-    "famotidine", "domperidone", "metoclopramide", "ondansetron", "loperamide",
-    "lactulose", "macrogol", "mesalazine", "sulfasalazine", "azathioprine",
+    "omeprazole",
+    "lansoprazole",
+    "pantoprazole",
+    "esomeprazole",
+    "ranitidine",
+    "famotidine",
+    "domperidone",
+    "metoclopramide",
+    "ondansetron",
+    "loperamide",
+    "lactulose",
+    "macrogol",
+    "mesalazine",
+    "sulfasalazine",
+    "azathioprine",
     // mental health / neuro
-    "sertraline", "fluoxetine", "citalopram", "escitalopram", "paroxetine",
-    "venlafaxine", "duloxetine", "mirtazapine", "amitriptyline", "nortriptyline",
-    "diazepam", "lorazepam", "temazepam", "zopiclone", "zolpidem", "quetiapine",
-    "olanzapine", "risperidone", "aripiprazole", "lithium", "valproate",
-    "lamotrigine", "levetiracetam", "carbamazepine", "phenytoin", "donepezil",
-    "memantine", "sumatriptan", "prochlorperazine",
+    "sertraline",
+    "fluoxetine",
+    "citalopram",
+    "escitalopram",
+    "paroxetine",
+    "venlafaxine",
+    "duloxetine",
+    "mirtazapine",
+    "amitriptyline",
+    "nortriptyline",
+    "diazepam",
+    "lorazepam",
+    "temazepam",
+    "zopiclone",
+    "zolpidem",
+    "quetiapine",
+    "olanzapine",
+    "risperidone",
+    "aripiprazole",
+    "lithium",
+    "valproate",
+    "lamotrigine",
+    "levetiracetam",
+    "carbamazepine",
+    "phenytoin",
+    "donepezil",
+    "memantine",
+    "sumatriptan",
+    "prochlorperazine",
     // other GP staples
-    "allopurinol", "colchicine", "methotrexate", "hydroxychloroquine",
-    "tamsulosin", "finasteride", "sildenafil", "tadalafil", "mirabegron",
-    "oxybutynin", "solifenacin", "tranexamic", "norethisterone", "levonorgestrel",
-    "ethinylestradiol", "medroxyprogesterone", "clopidogrel", "ferrous",
-    "folic", "thiamine", "b12", "cyanocobalamin", "aspirin",
-    "adrenaline", "epinephrine", "naloxone", "glucagon", "hyoscine",
-    "cyclizine", "betahistine", "cinnarizine", "meclizine",
+    "allopurinol",
+    "colchicine",
+    "methotrexate",
+    "hydroxychloroquine",
+    "tamsulosin",
+    "finasteride",
+    "sildenafil",
+    "tadalafil",
+    "mirabegron",
+    "oxybutynin",
+    "solifenacin",
+    "tranexamic",
+    "norethisterone",
+    "levonorgestrel",
+    "ethinylestradiol",
+    "medroxyprogesterone",
+    "clopidogrel",
+    "ferrous",
+    "folic",
+    "thiamine",
+    "b12",
+    "cyanocobalamin",
+    "aspirin",
+    "adrenaline",
+    "epinephrine",
+    "naloxone",
+    "glucagon",
+    "hyoscine",
+    "cyclizine",
+    "betahistine",
+    "cinnarizine",
+    "meclizine",
 ];
 
 const STOP: &[&str] = &[
-    "temperature", "examination", "situation", "parking", "morning", "patient",
-    "doctor", "clinician", "allergy", "allergies", "infection", "history",
-    "impression", "swallow", "throat", "chest", "pulse", "fever", "cough",
-    "fluids", "tablet", "tablets", "capsule", "capsules", "daily", "nothing",
-    "anything", "something", "everything", "regular", "enlarged", "marked",
-    "tonsils", "exudate", "auscultation", "palpable", "cervical", "nodes",
-    "breathing", "saliva", "weekend", "outside", "nightmare", "started",
-    "feeling", "noticed", "recurrent", "infections", "medication", "allergic",
-    "improve", "improving", "worsening", "arrange", "review", "follow",
-    "safety", "urgent", "please", "plenty", "severe", "needed", "times",
-    "today", "about", "four", "days", "week", "years", "child", "childhood",
+    "temperature",
+    "examination",
+    "situation",
+    "parking",
+    "morning",
+    "patient",
+    "doctor",
+    "clinician",
+    "allergy",
+    "allergies",
+    "infection",
+    "history",
+    "impression",
+    "swallow",
+    "throat",
+    "chest",
+    "pulse",
+    "fever",
+    "cough",
+    "fluids",
+    "tablet",
+    "tablets",
+    "capsule",
+    "capsules",
+    "daily",
+    "nothing",
+    "anything",
+    "something",
+    "everything",
+    "regular",
+    "enlarged",
+    "marked",
+    "tonsils",
+    "exudate",
+    "auscultation",
+    "palpable",
+    "cervical",
+    "nodes",
+    "breathing",
+    "saliva",
+    "weekend",
+    "outside",
+    "nightmare",
+    "started",
+    "feeling",
+    "noticed",
+    "recurrent",
+    "infections",
+    "medication",
+    "allergic",
+    "improve",
+    "improving",
+    "worsening",
+    "arrange",
+    "review",
+    "follow",
+    "safety",
+    "urgent",
+    "please",
+    "plenty",
+    "severe",
+    "needed",
+    "times",
+    "today",
+    "about",
+    "four",
+    "days",
+    "week",
+    "years",
+    "child",
+    "childhood",
 ];
 
 /// Scan transcript tokens. Exact formulary hits are left alone.
@@ -106,7 +318,9 @@ pub fn suggest(transcript: &Transcript) -> Vec<NameCheck> {
                 continue;
             }
             if let Some(drug) = best_match(&token) {
-                if !out.iter().any(|c: &NameCheck| c.heard == token && c.suggest == drug)
+                if !out
+                    .iter()
+                    .any(|c: &NameCheck| c.heard == token && c.suggest == drug)
                 {
                     out.push(NameCheck {
                         heard: token,
@@ -124,7 +338,10 @@ pub fn suggest(transcript: &Transcript) -> Vec<NameCheck> {
 /// grounding check so drug matching is identical in both places.
 pub(crate) fn tokens_of(text: &str) -> Vec<String> {
     text.split(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '.')
-        .map(|t| t.trim_matches(|c| c == '-' || c == '.').to_ascii_lowercase())
+        .map(|t| {
+            t.trim_matches(|c| c == '-' || c == '.')
+                .to_ascii_lowercase()
+        })
         .filter(|t| !t.is_empty())
         .collect()
 }
@@ -157,11 +374,7 @@ fn best_match(token: &str) -> Option<String> {
     }
     let (drug, lev, score) = best?;
     let ok = lev <= 2 || (score <= 2 && lev <= 4 && token.chars().count() >= 8);
-    if ok {
-        Some((*drug).to_owned())
-    } else {
-        None
-    }
+    if ok { Some((*drug).to_owned()) } else { None }
 }
 
 fn skeleton(word: &str) -> String {
@@ -202,7 +415,9 @@ mod tests {
     fn atyrazine_suggests_cetirizine() {
         let checks = suggest(&transcript("I take atyrazine for hay fever"));
         assert!(
-            checks.iter().any(|c| c.heard == "atyrazine" && c.suggest == "cetirizine"),
+            checks
+                .iter()
+                .any(|c| c.heard == "atyrazine" && c.suggest == "cetirizine"),
             "{checks:?}"
         );
     }
@@ -221,13 +436,17 @@ mod tests {
 
     #[test]
     fn saterazine_and_ventalin_suggest() {
-        let checks = suggest(&transcript("saterazine for hay fever and ventalin as needed"));
+        let checks = suggest(&transcript(
+            "saterazine for hay fever and ventalin as needed",
+        ));
         assert!(
             checks.iter().any(|c| c.suggest == "cetirizine"),
             "cetirizine from saterazine: {checks:?}"
         );
         assert!(
-            checks.iter().any(|c| c.suggest == "ventolin" || c.suggest == "salbutamol"),
+            checks
+                .iter()
+                .any(|c| c.suggest == "ventolin" || c.suggest == "salbutamol"),
             "inhaler from ventalin: {checks:?}"
         );
     }

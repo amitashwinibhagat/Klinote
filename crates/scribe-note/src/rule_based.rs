@@ -112,6 +112,7 @@ impl NoteGenerator for RuleBasedGenerator {
             review_state: ReviewState::Draft,
             missing_required,
             machine_generated: true,
+            render: template.render,
         })
     }
 }

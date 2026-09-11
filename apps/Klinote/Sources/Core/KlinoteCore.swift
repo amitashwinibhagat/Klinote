@@ -157,16 +157,25 @@ struct TranscriptSegment: Codable, Identifiable {
     let confidence: Double?
 }
 
-struct TemplateSummary: Decodable, Identifiable {
+struct TemplateSummary: Decodable, Identifiable, Hashable {
     let id: String
     let name: String
     let discipline: String
     let version: String
     let description: String
+    let voice: String?
+    /// "note" or "document". Documents are the other things the consult owes:
+    /// a referral letter, the patient's copy.
+    let family: String?
+    /// "sections" or "letter".
+    let render: String?
     let sections: [TemplateSectionSummary]
+
+    var isDocument: Bool { family == "document" }
+    var isLetter: Bool { render == "letter" }
 }
 
-struct TemplateSectionSummary: Decodable, Identifiable {
+struct TemplateSectionSummary: Decodable, Identifiable, Hashable {
     let key: String
     let title: String
     let guidance: String

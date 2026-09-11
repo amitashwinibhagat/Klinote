@@ -1,0 +1,54 @@
+# Patient summary — the copy the patient takes home
+# Derived from the same consult transcript as the note.
+id = "patient_summary"
+name = "Patient Summary"
+discipline = "general_practice"
+version = "1"
+family = "document"
+render = "sections"
+description = "A plain-language summary the clinician can hand to the patient."
+voice = "Write to the patient, in the second person ('you'). Plain everyday language at roughly a reading age of 11. No abbreviations, no shorthand, no medical jargon, no code-like doses — write 'four times a day', not 'qds'. Short sentences. Never add a diagnosis, medicine, or instruction that was not in the consultation."
+
+[[sections]]
+key = "what_you_told_me"
+title = "What you told me"
+required = true
+guidance = "The patient's own account, in their words where possible."
+cues = [
+  "I have", "I've", "I feel", "feels", "feeling", "pain", "sore", "hurts",
+  "since", "started", "began", "days", "weeks", "worse", "better", "tired",
+  "worried", "concerned", "noticed", "history", "used to"
+]
+
+[[sections]]
+key = "what_i_found"
+title = "What I found"
+required = false
+guidance = "Examination findings and results, explained simply."
+cues = [
+  "on examination", "examination", "temperature", "pulse", "blood pressure",
+  "throat", "erythema", "tonsils", "chest clear", "auscultation", "lymph",
+  "nodes", "normal", "no murmurs", "weight"
+]
+
+[[sections]]
+key = "what_we_agreed"
+title = "What we agreed"
+required = true
+guidance = "Treatment, medicines with plain-language dosing, and self-care."
+cues = [
+  "plan", "prescribe", "prescribed", "start on", "dose", "mg", "four times",
+  "three times", "twice", "as needed", "rest", "fluids", "paracetamol",
+  "ibuprofen", "advice", "recommend", "pharmacy", "self-care"
+]
+
+[[sections]]
+key = "when_to_get_help"
+title = "When to get help"
+required = true
+guidance = "Safety netting and follow-up, in plain language."
+cues = [
+  "safety net", "red flags", "urgent", "same day", "seek", "999", "111",
+  "difficulty breathing", "difficulty swallowing", "high fever", "come back",
+  "return if", "review in", "follow up", "one week", "if you", "getting worse"
+]

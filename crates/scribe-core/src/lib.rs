@@ -26,7 +26,7 @@ pub use error::{Result, ScribeError};
 pub use formulary::{NameCheck, suggest as suggest_names};
 pub use ids::{EncounterId, NoteId, SegmentId, SpeakerId, TemplateId};
 pub use note::{ClinicalNote, NoteSection, NoteSentence, ReviewState, Support, UnassignedItem};
-pub use template::{SectionSpec, Template};
+pub use template::{RenderKind, SectionSpec, Template, TemplateFamily};
 pub use transcript::{Segment, Speaker, SpeakerRole, Transcript, Utterance, parse_transcript_text};
 
 /// Version of the domain model / FFI contract. Bump on breaking changes.

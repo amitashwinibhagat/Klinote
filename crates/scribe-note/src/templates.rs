@@ -31,6 +31,15 @@ const BUILTIN: &[(&str, &str)] = &[
         "veterinary",
         include_str!("../../../templates/veterinary.toml"),
     ),
+    // Documents the same consult already owes. Derived, never re-recorded.
+    (
+        "referral_letter",
+        include_str!("../../../templates/referral_letter.toml"),
+    ),
+    (
+        "patient_summary",
+        include_str!("../../../templates/patient_summary.toml"),
+    ),
 ];
 
 impl TemplateLibrary {

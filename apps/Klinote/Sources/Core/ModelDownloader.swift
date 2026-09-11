@@ -66,6 +66,11 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
 
     @Published var state: ModelState = .missing
     @Published var noteState: ModelState = .missing
+    /// Bytes received from the two model downloads. The only number this
+    /// product can honestly show, because arriving bytes are the only traffic
+    /// there is — see `scripts/check-network-surface.sh`.
+    @Published var bytesReceived: Int64 = 0
+    @Published var downloadsCompleted: Int = 0
 
     private var session: URLSession!
     private var task: URLSessionDownloadTask?
@@ -190,6 +195,18 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
     nonisolated func urlSession(
         _ session: URLSession,
         downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        Task { @MainActor in
+            self.bytesReceived = max(self.bytesReceived, totalBytesWritten)
+        }
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
         do {
@@ -211,6 +228,7 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
                     self.state = .ready
                     NotificationCenter.default.post(name: .klinoteModelDownloadFinished, object: nil)
                 }
+                self.downloadsCompleted += 1
                 self.task = nil
                 self.progressObservation = nil
             }
