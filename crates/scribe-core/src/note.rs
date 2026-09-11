@@ -35,6 +35,17 @@ pub enum Support {
     Unverified,
 }
 
+/// Whether a sentence is fit for the reader it is addressed to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Wording {
+    #[default]
+    Plain,
+    /// Shorthand a patient should not have to decode, and that is ambiguous
+    /// enough that expanding it could change an instruction.
+    Jargon,
+}
+
 /// One sentence of a note, with the transcript segments it came from.
 ///
 /// Sentence-level evidence is what makes the note checkable rather than
@@ -52,6 +63,9 @@ pub struct NoteSentence {
     /// Set by [`ClinicalNote::verify_support`].
     #[serde(default)]
     pub support: Support,
+    /// Set by [`ClinicalNote::simplify_for_patient`].
+    #[serde(default)]
+    pub wording: Wording,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,6 +179,57 @@ impl ClinicalNote {
                     .collect::<Vec<_>>()
                     .join(" ");
                 sentence.support = crate::support::judge(&sentence.text, &cited);
+            }
+        }
+    }
+
+    /// Make a patient-facing document readable.
+    ///
+    /// Definitional shorthand is expanded (`tds` → "three times a day"), which
+    /// cannot change a clinical fact. Ambiguous shorthand is flagged for the
+    /// clinician instead, because rewriting `od` could turn "right eye" into
+    /// "once daily".
+    pub fn simplify_for_patient(&mut self) {
+        for section in &mut self.sections {
+            for sentence in &mut section.sentences {
+                let (expanded, _) = crate::register::expand(&sentence.text);
+                sentence.text = expanded;
+                sentence.wording = if crate::register::jargon_in(&sentence.text).is_empty() {
+                    Wording::Plain
+                } else {
+                    Wording::Jargon
+                };
+            }
+            section.body = section
+                .sentences
+                .iter()
+                .map(|sentence| sentence.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+        }
+        // Expansion can introduce a number ("every 4 hours"), so re-check.
+        self.recheck_wording_only();
+    }
+
+    /// Sentences written in shorthand the patient would have to decode.
+    pub fn jargon_count(&self) -> usize {
+        self.sections
+            .iter()
+            .flat_map(|section| section.sentences.iter())
+            .filter(|sentence| sentence.wording == Wording::Jargon)
+            .count()
+    }
+
+    /// Re-run only the wording judgement, so a caller that has just edited the
+    /// text does not need to re-run the whole grounding check.
+    fn recheck_wording_only(&mut self) {
+        for section in &mut self.sections {
+            for sentence in &mut section.sentences {
+                if sentence.wording == Wording::Jargon
+                    && crate::register::jargon_in(&sentence.text).is_empty()
+                {
+                    sentence.wording = Wording::Plain;
+                }
             }
         }
     }

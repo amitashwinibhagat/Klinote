@@ -65,6 +65,17 @@ cues = [
 ]
 
 [[sections]]
+key = "management"
+title = "Management so far"
+required = false
+guidance = "What has already been done or advised, including safety-netting, before this referral."
+cues = [
+  "plan", "prescribe", "prescribed", "start on", "dose", "rest", "fluids",
+  "as needed", "advice", "self-care", "safety net", "review in", "come back",
+  "return if", "swab", "arrange", "recommend", "red flags"
+]
+
+[[sections]]
 key = "request"
 title = "What I am asking for"
 required = true

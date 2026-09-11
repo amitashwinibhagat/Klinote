@@ -177,6 +177,11 @@ impl ScribePipeline {
         })?;
         // Grounding check on every path, rule-based included.
         note.verify_support(transcript);
+        // A document the patient reads gets plain language, by expansion where
+        // that is lossless and by flagging where it is not.
+        if template.audience == scribe_core::Audience::Patient {
+            note.simplify_for_patient();
+        }
         Ok(note)
     }
 

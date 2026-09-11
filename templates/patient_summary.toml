@@ -6,6 +6,7 @@ discipline = "general_practice"
 version = "1"
 family = "document"
 render = "sections"
+audience = "patient"
 description = "A plain-language summary the clinician can hand to the patient."
 voice = "Write to the patient, in the second person ('you'). Plain everyday language at roughly a reading age of 11. No abbreviations, no shorthand, no medical jargon, no code-like doses — write 'four times a day', not 'qds'. Short sentences. Never add a diagnosis, medicine, or instruction that was not in the consultation."
 

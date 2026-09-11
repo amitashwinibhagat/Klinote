@@ -17,6 +17,7 @@ pub mod error;
 pub mod formulary;
 pub mod ids;
 pub mod note;
+pub mod register;
 pub mod support;
 pub mod template;
 pub mod transcript;
@@ -25,8 +26,10 @@ pub use encounter::{Discipline, Encounter};
 pub use error::{Result, ScribeError};
 pub use formulary::{NameCheck, suggest as suggest_names};
 pub use ids::{EncounterId, NoteId, SegmentId, SpeakerId, TemplateId};
-pub use note::{ClinicalNote, NoteSection, NoteSentence, ReviewState, Support, UnassignedItem};
-pub use template::{RenderKind, SectionSpec, Template, TemplateFamily};
+pub use note::{
+    ClinicalNote, NoteSection, NoteSentence, ReviewState, Support, UnassignedItem, Wording,
+};
+pub use template::{Audience, RenderKind, SectionSpec, Template, TemplateFamily};
 pub use transcript::{Segment, Speaker, SpeakerRole, Transcript, Utterance, parse_transcript_text};
 
 /// Version of the domain model / FFI contract. Bump on breaking changes.

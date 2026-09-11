@@ -219,7 +219,8 @@ enum NoteDrafter {
                         text: text,
                         evidence: evidence,
                         ambiguous: evidence.count != 1,
-                        support: "supported"
+                        support: "supported",
+                        wording: "plain"
                     )
                 )
             }

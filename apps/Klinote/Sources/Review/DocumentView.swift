@@ -98,7 +98,11 @@ struct Letterhead: View {
                 Field(label: "Status", value: readinessLabel)
             }
 
-            ProvisionanceLine(note: note, isSynthetic: encounter.isSyntheticDemo)
+            ProvisionanceLine(
+                model: model,
+                note: note,
+                isSynthetic: encounter.isSyntheticDemo
+            )
 
             if canSwap {
                 Button {
@@ -128,16 +132,21 @@ struct Letterhead: View {
         return RecordingStripView.clock(Double(ms) / 1000)
     }
 
+    /// Conversational leftovers must not mask readiness: a consult with seven
+    /// "how are you today?" lines in unfiled is still ready to copy.
     private var readinessLabel: String {
         let names = encounter.transcript?.nameChecks?.count ?? 0
         if names > 0 {
             return names == 1 ? "1 name to check" : "\(names) names to check"
         }
-        if !note.unassigned.isEmpty {
-            return "\(note.unassigned.count) unfiled"
-        }
         if !note.missingRequired.isEmpty {
             return "Missing required"
+        }
+        if model.jargonCount(for: note) > 0 {
+            return "Check wording"
+        }
+        if !note.unassigned.isEmpty {
+            return "Ready · \(note.unassigned.count) not filed"
         }
         return "Ready to copy"
     }
@@ -159,14 +168,32 @@ struct Field: View {
 
 /// Always visible. If the text is synthetic, the document says so.
 struct ProvisionanceLine: View {
+    @ObservedObject var model: AppModel
     let note: ClinicalNote
     let isSynthetic: Bool
 
+    private var isDocument: Bool {
+        model.documentTemplates.contains { $0.id == note.templateId }
+    }
+
+    /// A letter written by the built-in rules is a rough draft, and saying so
+    /// is more useful than letting the clinician discover it.
+    private var engineLine: String {
+        if note.engine.hasPrefix("rule-based") && isDocument {
+            return "Rough draft from the built-in rules. The language model writes this document better."
+        }
+        return "Written on this Mac. Nothing left the device."
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Written on this Mac. Nothing left the device.")
+            Text(engineLine)
                 .font(KlinoteFont.label())
-                .foregroundStyle(KlinoteColor.tertiary)
+                .foregroundStyle(
+                    note.engine.hasPrefix("rule-based") && isDocument
+                        ? KlinoteColor.caution
+                        : KlinoteColor.tertiary
+                )
             if isSynthetic {
                 Text("Sample text — not a real consult.")
                     .font(KlinoteFont.label())
@@ -241,7 +268,19 @@ struct SentenceRow: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            if sentence.isUnverified {
+            if sentence.isJargon {
+                Text("check wording")
+                    .font(KlinoteFont.label(9, weight: .semibold))
+                    .foregroundStyle(KlinoteColor.caution)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: KlinoteMetrics.radiusChip, style: .continuous)
+                            .strokeBorder(KlinoteColor.caution.opacity(0.5), lineWidth: 1)
+                    )
+                    .help("Clinical shorthand the patient would have to decode. Expanding it here could change an instruction.")
+                    .fixedSize()
+            } else if sentence.isUnverified {
                 Text("check source")
                     .font(KlinoteFont.label(9, weight: .semibold))
                     .foregroundStyle(KlinoteColor.caution)

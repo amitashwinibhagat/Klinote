@@ -28,7 +28,7 @@ impl NoteGenerator for RuleBasedGenerator {
     fn generate(&self, request: &GenerationRequest<'_>) -> Result<ClinicalNote> {
         let template = request.template;
 
-        let mut routed: BTreeMap<&str, Vec<(String, SegmentId)>> = BTreeMap::new();
+        let mut routed: BTreeMap<&str, Vec<Scored>> = BTreeMap::new();
         let mut unassigned: Vec<UnassignedItem> = Vec::new();
 
         for section in &template.sections {
@@ -43,12 +43,28 @@ impl NoteGenerator for RuleBasedGenerator {
                     continue;
                 }
 
+                // A question is an interview artefact, not a finding. "Any
+                // fever or cough?" documents nothing; the answer does. Filing
+                // questions padded the history of every letter.
+                if sentence.trim_end().ends_with('?') {
+                    unassigned.push(UnassignedItem {
+                        text: sentence,
+                        speaker_role: role.as_str().to_owned(),
+                        evidence: vec![segment.id],
+                    });
+                    continue;
+                }
+
                 match route(&sentence, role, template) {
-                    Some(key) => {
+                    Some((key, ambiguous)) => {
                         if let Some(bucket) = routed.get_mut(key) {
                             // Keep the source segment with the sentence so the
                             // note can cite it sentence by sentence.
-                            bucket.push((sentence, segment.id));
+                            bucket.push(Scored {
+                                text: sentence,
+                                segment_id: segment.id,
+                                ambiguous,
+                            });
                         }
                     }
                     None => unassigned.push(UnassignedItem {
@@ -69,11 +85,12 @@ impl NoteGenerator for RuleBasedGenerator {
 
             let sentences: Vec<NoteSentence> = entries
                 .iter()
-                .map(|(text, segment_id)| NoteSentence {
-                    text: text.clone(),
-                    evidence: vec![*segment_id],
-                    ambiguous: false,
+                .map(|entry| NoteSentence {
+                    text: entry.text.clone(),
+                    evidence: vec![entry.segment_id],
+                    ambiguous: entry.ambiguous,
                     support: Support::Supported,
+                    wording: Default::default(),
                 })
                 .collect();
 
@@ -83,7 +100,7 @@ impl NoteGenerator for RuleBasedGenerator {
                 .collect::<Vec<_>>()
                 .join(" ");
 
-            let mut ids: Vec<SegmentId> = entries.iter().map(|(_, id)| *id).collect();
+            let mut ids: Vec<SegmentId> = entries.iter().map(|entry| entry.segment_id).collect();
             ids.dedup();
 
             let complete = !body.trim().is_empty();
@@ -123,11 +140,22 @@ const PATIENT_PREFERRED: &[&str] = &["subjective", "history", "presenting", "chi
 
 /// Pick a section for a sentence. Returns `None` when nothing matches
 /// confidently — the caller files it as unassigned rather than guessing.
-fn route<'a>(sentence: &str, role: SpeakerRole, template: &'a Template) -> Option<&'a str> {
-    let mut best: Option<(&str, u32)> = None;
+/// A sentence placed in a section, with whether the placement was contested.
+///
+/// `ambiguous` is not decoration: two sections scoring the same means the
+/// router does not know either, and a clinician should look at that line
+/// rather than trust it.
+struct Scored {
+    text: String,
+    segment_id: SegmentId,
+    ambiguous: bool,
+}
+
+fn route<'a>(sentence: &str, role: SpeakerRole, template: &'a Template) -> Option<(&'a str, bool)> {
+    let mut scored: Vec<(&str, u32)> = Vec::new();
 
     for spec in &template.sections {
-        let mut score = score_section(sentence, spec);
+        let mut score = score_section(sentence, spec, template);
         if score == 0 {
             continue;
         }
@@ -136,13 +164,17 @@ fn route<'a>(sentence: &str, role: SpeakerRole, template: &'a Template) -> Optio
         {
             score += 3;
         }
-        if best.is_none_or(|(_, best_score)| score > best_score) {
-            best = Some((spec.key.as_str(), score));
-        }
+        scored.push((spec.key.as_str(), score));
     }
 
-    if let Some((key, _)) = best {
-        return Some(key);
+    // Sort is stable, so equal scores keep template order — deterministic.
+    scored.sort_by_key(|(_, score)| std::cmp::Reverse(*score));
+
+    if let Some((key, best)) = scored.first().copied() {
+        let second = scored.get(1).map(|(_, score)| *score).unwrap_or(0);
+        // A near-tie is a coin toss dressed as a decision. Say so.
+        let ambiguous = second > 0 && best.saturating_sub(second) <= 1;
+        return Some((key, ambiguous));
     }
 
     // A patient statement with no cue match still belongs in the history if
@@ -152,13 +184,34 @@ fn route<'a>(sentence: &str, role: SpeakerRole, template: &'a Template) -> Optio
             .sections
             .iter()
             .find(|s| PATIENT_PREFERRED.contains(&s.key.as_str()))
-            .map(|s| s.key.as_str());
+            .map(|s| (s.key.as_str(), false));
     }
 
     None
 }
 
-fn score_section(sentence: &str, spec: &SectionSpec) -> u32 {
+/// How many sections share this cue. A cue that appears everywhere ("mg",
+/// "plan") separates nothing, so it stops counting.
+fn cue_rarity(cue: &str, template: &Template) -> u32 {
+    let needle = normalize_for_match(cue);
+    let mut sharing = 0;
+    for spec in &template.sections {
+        if spec
+            .cues
+            .iter()
+            .any(|candidate| normalize_for_match(candidate) == needle)
+        {
+            sharing += 1;
+        }
+    }
+    match sharing {
+        1 => 2,
+        2 => 1,
+        _ => 0,
+    }
+}
+
+fn score_section(sentence: &str, spec: &SectionSpec, template: &Template) -> u32 {
     let haystack = normalize_for_match(sentence);
     if haystack.is_empty() {
         return 0;
@@ -171,17 +224,23 @@ fn score_section(sentence: &str, spec: &SectionSpec) -> u32 {
         if needle.is_empty() {
             continue;
         }
+        // A cue every section has cannot separate them. Weight what is
+        // distinctive; ignore what is not.
+        let rarity = cue_rarity(&needle, template);
+        if rarity == 0 {
+            continue;
+        }
 
         if needle.contains(' ') {
             if haystack.contains(&needle) {
                 // Multi-word matches are stronger evidence than single tokens.
-                score += 3 + needle.split_whitespace().count() as u32;
+                score += (3 + needle.split_whitespace().count() as u32) * rarity;
             }
             continue;
         }
 
         if tokens.iter().any(|token| *token == needle) {
-            score += 3;
+            score += 3 * rarity;
             continue;
         }
 
@@ -195,7 +254,7 @@ fn score_section(sentence: &str, spec: &SectionSpec) -> u32 {
                         .all(|c| c.is_ascii_digit())
             })
         {
-            score += 2;
+            score += 2 * rarity;
         }
     }
 
@@ -538,6 +597,6 @@ CLINICIAN: Follow up in one week if not improving.
         let template = TemplateLibrary::builtin().unwrap();
         let soap = template.get("soap").unwrap();
         let plan = soap.section("plan").unwrap();
-        assert!(score_section("Amoxicillin 500mg three times a day", plan) > 0);
+        assert!(score_section("Amoxicillin 500mg three times a day", plan, soap) > 0);
     }
 }

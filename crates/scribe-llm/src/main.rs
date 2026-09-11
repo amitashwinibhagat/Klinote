@@ -41,6 +41,8 @@ struct TemplateIn {
     voice: String,
     #[serde(default)]
     render: scribe_core::RenderKind,
+    #[serde(default)]
+    audience: scribe_core::Audience,
     sections: Vec<SectionIn>,
 }
 
@@ -157,6 +159,10 @@ fn run(model_path: &PathBuf, request: &Request) -> Result<ClinicalNote, String> 
     // The grounding check must run on model output too: a paraphrase is fine,
     // an invented figure or drug name is not.
     note.verify_support(&request.transcript);
+    // Asking the model for plain language is not a guarantee. Enforce it.
+    if request.template.audience == scribe_core::Audience::Patient {
+        note.simplify_for_patient();
+    }
     Ok(note)
 }
 
@@ -424,6 +430,7 @@ fn assemble(
                         evidence: evidence.clone(),
                         ambiguous: evidence.len() != 1,
                         support: Support::Supported,
+                        wording: Default::default(),
                     });
                 }
             }

@@ -31,6 +31,17 @@ pub enum RenderKind {
     Letter,
 }
 
+/// Who reads the finished document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Audience {
+    /// A colleague. Clinical shorthand is appropriate.
+    #[default]
+    Clinical,
+    /// The patient. Shorthand is expanded or flagged, never left to decode.
+    Patient,
+}
+
 /// What the clinician is producing from the consult.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -62,6 +73,8 @@ pub struct Template {
     pub family: TemplateFamily,
     #[serde(default)]
     pub render: RenderKind,
+    #[serde(default)]
+    pub audience: Audience,
     pub sections: Vec<SectionSpec>,
 }
 
@@ -133,6 +146,7 @@ mod tests {
             voice: String::new(),
             family: TemplateFamily::Note,
             render: RenderKind::Sections,
+            audience: Audience::Clinical,
             sections,
         }
     }

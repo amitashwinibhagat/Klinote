@@ -764,10 +764,18 @@ final class AppModel: ObservableObject {
         selectedEncounter?.transcript?.nameChecks?.count ?? 0
     }
 
+    /// Shorthand the patient would have to decode. Only ever set on a
+    /// patient-facing document.
+    func jargonCount(for note: ClinicalNote) -> Int {
+        note.sections.flatMap(\.sentences).filter(\.isJargon).count
+    }
+
     /// Ready to paste: required sections filled, no unresolved name checks.
     var isPasteReady: Bool {
         guard let note = selectedEncounter?.note else { return false }
-        return note.missingRequired.isEmpty && nameCheckCount == 0
+        return note.missingRequired.isEmpty
+            && nameCheckCount == 0
+            && jargonCount(for: note) == 0
     }
 
     func promptPasteIfReady() {

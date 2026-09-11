@@ -98,8 +98,11 @@ struct NoteSentence: Codable, Hashable, Identifiable {
     let ambiguous: Bool
     /// "supported" or "unverified". Set by the engine's grounding check.
     let support: String?
+    /// "plain" or "jargon". Set only on patient-facing documents.
+    let wording: String?
 
     var isUnverified: Bool { support == "unverified" }
+    var isJargon: Bool { wording == "jargon" }
 
     /// Stable within a note: the sentence text plus its first evidence id.
     var id: String { "\(evidence.first ?? "none")::\(text)" }
@@ -169,10 +172,13 @@ struct TemplateSummary: Decodable, Identifiable, Hashable {
     let family: String?
     /// "sections" or "letter".
     let render: String?
+    /// "clinical" or "patient".
+    let audience: String?
     let sections: [TemplateSectionSummary]
 
     var isDocument: Bool { family == "document" }
     var isLetter: Bool { render == "letter" }
+    var isPatientFacing: Bool { audience == "patient" }
 }
 
 struct TemplateSectionSummary: Decodable, Identifiable, Hashable {
