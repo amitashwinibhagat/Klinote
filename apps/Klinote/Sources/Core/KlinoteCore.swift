@@ -97,9 +97,9 @@ struct NoteSentence: Codable, Hashable, Identifiable {
     let evidence: [String]
     let ambiguous: Bool
     /// "supported" or "unverified". Set by the engine's grounding check.
-    let support: String?
+    var support: String?
     /// "plain" or "jargon". Set only on patient-facing documents.
-    let wording: String?
+    var wording: String?
 
     var isUnverified: Bool { support == "unverified" }
     var isJargon: Bool { wording == "jargon" }

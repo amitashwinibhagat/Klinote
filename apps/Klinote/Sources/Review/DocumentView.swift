@@ -230,13 +230,18 @@ struct SectionBlock: View {
             } else {
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(Array(section.sentences.enumerated()), id: \.element.id) { index, sentence in
-                        SentenceRow(
-                            sentence: sentence,
-                            number: index + 1,
-                            isSelected: model.selectedSentenceID == sentence.id
-                        ) {
-                            model.selectedSentenceID =
-                                model.selectedSentenceID == sentence.id ? nil : sentence.id
+                        if model.editingSentenceID == sentence.id {
+                            SentenceEditor(sentence: sentence, model: model)
+                        } else {
+                            SentenceRow(
+                                sentence: sentence,
+                                number: index + 1,
+                                isSelected: model.selectedSentenceID == sentence.id,
+                                onEdit: { model.editingSentenceID = sentence.id }
+                            ) {
+                                model.selectedSentenceID =
+                                    model.selectedSentenceID == sentence.id ? nil : sentence.id
+                            }
                         }
                     }
                 }
@@ -248,10 +253,57 @@ struct SectionBlock: View {
 
 /// A sentence with its margin reference. The reference is a number, not a
 /// colour, so it survives a monochrome display and a colour-blind reader.
+/// Correct one sentence. ⌘↩ saves, Escape cancels.
+struct SentenceEditor: View {
+    let sentence: NoteSentence
+    @ObservedObject var model: AppModel
+    @State private var draft: String
+    @FocusState private var focused: Bool
+
+    init(sentence: NoteSentence, model: AppModel) {
+        self.sentence = sentence
+        self.model = model
+        _draft = State(initialValue: sentence.text)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space8) {
+            TextEditor(text: $draft)
+                .font(KlinoteFont.document(14))
+                .focused($focused)
+                .frame(minHeight: 56)
+                .padding(KlinoteMetrics.space8)
+                .background(KlinoteColor.document)
+                .clipShape(RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous)
+                        .strokeBorder(KlinoteColor.ink.opacity(0.4), lineWidth: 1)
+                )
+            HStack(spacing: KlinoteMetrics.space8) {
+                Text("Correcting one sentence. The words in the margin are unchanged.")
+                    .font(KlinoteFont.label())
+                    .foregroundStyle(KlinoteColor.tertiary)
+                Spacer(minLength: 0)
+                Button("Cancel") { model.editingSentenceID = nil }
+                    .controlSize(.small)
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") { model.commitSentenceEdit(sentence.id, to: draft) }
+                    .controlSize(.small)
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 6)
+        .onAppear { focused = true }
+    }
+}
+
 struct SentenceRow: View {
     let sentence: NoteSentence
     let number: Int
     let isSelected: Bool
+    var onEdit: () -> Void = {}
     let onSelect: () -> Void
     @State private var hovering = false
 
@@ -308,14 +360,19 @@ struct SentenceRow: View {
         }
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
+        .onTapGesture(count: 2, perform: onEdit)
         .onTapGesture(perform: onSelect)
+        .contextMenu {
+            Button("Correct this sentence…", action: onEdit)
+            Button("Show the words behind it", action: onSelect)
+        }
         .animation(.easeOut(duration: KlinoteMetrics.motionState), value: isSelected)
         .animation(.easeOut(duration: 0.12), value: hovering)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "Sentence \(number)\(sentence.ambiguous ? ", source unclear" : "")"
         )
-        .accessibilityHint("Shows the words this sentence came from")
+        .accessibilityHint("Shows the words this sentence came from. Double-click to correct it.")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
@@ -431,7 +488,7 @@ struct SignatureBlock: View {
                 }
             }
 
-            Text("Copy note is the path into the record. Mark as reviewed stays on this Mac.")
+            Text("Double-click any sentence to correct it. Copy note is the path into the record; mark as reviewed stays on this Mac.")
                 .font(KlinoteFont.label())
                 .foregroundStyle(KlinoteColor.tertiary)
         }

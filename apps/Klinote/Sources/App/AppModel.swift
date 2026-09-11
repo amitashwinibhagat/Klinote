@@ -118,7 +118,12 @@ final class AppModel: ObservableObject {
     @Published var copyBanner: String?
     @Published var isSwapping = false
     @Published var isPasting = false
+    /// The sentence currently open for correction, if any.
+    @Published var editingSentenceID: String?
     @Published var templates: [TemplateSummary] = []
+    /// First-run setup, which states the clinician's consent duty and offers
+    /// the download as a choice rather than a wall.
+    @AppStorage("klinote.didCompleteSetup") var didCompleteSetup = false
 
     /// A recording captured before the speech model finished downloading,
     /// held until the download completes so it is transcribed for real.
@@ -439,6 +444,21 @@ final class AppModel: ObservableObject {
 
     // MARK: - Recording
 
+    func togglePause() {
+        guard recordingState.isActive else { return }
+        if recordingState.isPaused {
+            resumeRecording()
+        } else {
+            pauseRecording()
+        }
+    }
+
+    /// The Consult menu acts on whatever is selected in the sidebar.
+    func makeDocumentFromSelection(_ templateId: String) {
+        guard let id = selection else { return }
+        makeDocument(from: id, templateId: templateId)
+    }
+
     func toggleRecording() {
         if recordingState.isDrafting { return }
         if recordingState.isActive {
@@ -741,6 +761,53 @@ final class AppModel: ObservableObject {
         persist(encounter)
         // Accepting a suggestion teaches this practice's vocabulary.
         LearnedTerms.learn(heard: heard, replacement: suggest)
+        promptPasteIfReady()
+    }
+
+    /// Correct one sentence of the note.
+    ///
+    /// This is the step the product promises and did not have: the clinician
+    /// reviews, **corrects**, then signs. An edited sentence is the clinician's
+    /// own words, so the machine's grounding and wording flags come off it —
+    /// they judge model claims, not a human's.
+    ///
+    /// It does not teach the vocabulary. Learning stays tied to an explicit
+    /// acceptance, so a typo never becomes a rule.
+    func commitSentenceEdit(_ sentenceID: String, to newText: String) {
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        defer { editingSentenceID = nil }
+        guard !trimmed.isEmpty else { return }
+        guard var encounter = selectedEncounter, var note = encounter.note else { return }
+
+        var changed = false
+        for sectionIndex in note.sections.indices {
+            for sentenceIndex in note.sections[sectionIndex].sentences.indices {
+                guard note.sections[sectionIndex].sentences[sentenceIndex].id == sentenceID else {
+                    continue
+                }
+                guard note.sections[sectionIndex].sentences[sentenceIndex].text != trimmed else {
+                    return
+                }
+                note.sections[sectionIndex].sentences[sentenceIndex].text = trimmed
+                note.sections[sectionIndex].sentences[sentenceIndex].support = "supported"
+                note.sections[sectionIndex].sentences[sentenceIndex].wording = "plain"
+                note.sections[sectionIndex].body = note.sections[sectionIndex]
+                    .sentences
+                    .map(\.text)
+                    .joined(separator: " ")
+                changed = true
+            }
+        }
+        guard changed else { return }
+
+        encounter.note = note
+        if encounter.state == .draft {
+            encounter.state = .edited
+        }
+        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
         promptPasteIfReady()
     }
 

@@ -239,6 +239,13 @@ struct EncounterSidebar: View {
         .sheet(isPresented: $model.isPasting) {
             PasteTranscriptSheet(model: model)
         }
+        .sheet(isPresented: Binding(
+            get: { !model.didCompleteSetup },
+            set: { if !$0 { model.didCompleteSetup = true } }
+        )) {
+            SetupSheet(model: model)
+                .interactiveDismissDisabled()
+        }
         .alert("Rename consult", isPresented: Binding(
             get: { renameID != nil },
             set: { if !$0 { renameID = nil } }

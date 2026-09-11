@@ -22,10 +22,54 @@ struct KlinoteApp: App {
                 .accessibilityLabel("Klinote — \(model.recordingState.word)")
         }
         .menuBarExtraStyle(.menu)
+        .commands {
+            // Without this the app has no Edit menu at all, and the standard
+            // paste shortcut does nothing — including in the paste-transcript
+            // sheet, which is the whole zero-download path.
+            CommandGroup(replacing: .pasteboard) {
+                Button("Cut") { send(#selector(NSText.cut(_:))) }
+                    .keyboardShortcut("x")
+                Button("Copy") { send(#selector(NSText.copy(_:))) }
+                    .keyboardShortcut("c")
+                Button("Paste") { send(#selector(NSText.paste(_:))) }
+                    .keyboardShortcut("v")
+                Divider()
+                Button("Select All") { send(#selector(NSText.selectAll(_:))) }
+                    .keyboardShortcut("a")
+            }
+
+            // The global hotkeys stay on Carbon so they work while the
+            // clinician is in the record system. These menu items are for
+            // discovery, so they deliberately bind no shortcut of their own.
+            CommandMenu("Consult") {
+                Button("Record this consult") { model.startRecording() }
+                    .disabled(model.recordingState.isActive)
+                Button("Pause or resume") { model.togglePause() }
+                    .disabled(!model.recordingState.isActive)
+                Button("Stop and write the note") { model.stopAndDraft() }
+                    .disabled(!model.recordingState.isActive)
+                Divider()
+                Button("Copy note") { model.copySelectedNote() }
+                    .disabled(model.selectedEncounter?.note == nil)
+                Button("Mark as reviewed") { model.fileSelectedNote() }
+                    .disabled(model.selectedEncounter?.state == .approved)
+                Divider()
+                Button("Make a referral letter") { model.makeDocumentFromSelection("referral_letter") }
+                Button("Make the patient's copy") { model.makeDocumentFromSelection("patient_summary") }
+                Button("Swap clinician and patient") { model.swapSpeakersAndRedraft() }
+                    .disabled(model.selectedEncounter?.isSyntheticDemo != false)
+            }
+        }
 
         Settings {
             SettingsRootView(model: model)
         }
+    }
+
+    /// Standard first-responder actions, so the Edit menu reaches whichever
+    /// text field currently has focus.
+    private func send(_ selector: Selector) {
+        NSApp.sendAction(selector, to: nil, from: nil)
     }
 }
 
