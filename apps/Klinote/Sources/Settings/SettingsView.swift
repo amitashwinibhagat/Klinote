@@ -60,6 +60,16 @@ private struct GeneralSettings: View {
                 }
             }
 
+            Section("Who is at the desk") {
+                TextField("Your name", text: $model.clinicianName)
+                TextField("Registration or professional number", text: $model.clinicianRegistration)
+                Text("Appears in the signature block, and identifies your consults on a shared Mac. Not a login — Klinote still has no account.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("Show other clinicians' consults", isOn: $model.showAllClinicians)
+                    .disabled(model.clinicianName.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+
             Section("Review window") {
                 Toggle("Show the evidence margin", isOn: $showMarginByDefault)
                 Text("Click a sentence to see the words that produced it.")

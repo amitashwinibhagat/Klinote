@@ -49,6 +49,9 @@ cues = [
 key = "plan"
 title = "Plan"
 required = true
+# These sentences become the consult's checklist: things to order, arrange,
+# prescribe or follow up. Not inferred — the clinician's own words.
+actions = true
 guidance = "Investigations, prescriptions, referrals, follow-up, safety netting."
 cues = [
   "plan", "prescribe", "prescribed", "prescribing", "start on", "dose", "dosage", "mg",

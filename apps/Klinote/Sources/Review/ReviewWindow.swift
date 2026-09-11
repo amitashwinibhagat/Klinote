@@ -16,6 +16,12 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         self.init(window: nil)
     }
 
+    /// Whether the letter is actually on screen. The copy guard needs to know
+    /// whether the clinician can see which consult they are copying.
+    var isShowing: Bool {
+        window?.isVisible == true && window?.isMiniaturized == false
+    }
+
     func show() {
         if let window {
             ActivationPolicy.enter()
@@ -236,8 +242,7 @@ struct EncounterSidebar: View {
                                     renameID = encounter.id
                                 },
                                 onCopy: {
-                                    model.selection = encounter.id
-                                    model.copySelectedNote()
+                                    model.requestCopy(of: encounter.id)
                                 },
                                 onMakeDocument: { templateId in
                                     model.makeDocument(from: encounter.id, templateId: templateId)
@@ -279,6 +284,60 @@ struct EncounterSidebar: View {
                 Spacer()
             }
 
+            if !model.openTaskRows.isEmpty {
+                Hairline()
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(model.openTaskRows, id: \.task.id) { row in
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Button {
+                                    model.setTask(row.task, done: true)
+                                } label: {
+                                    Image(systemName: "square")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(KlinoteColor.tertiary)
+                                }
+                                .buttonStyle(.borderless)
+                                .help("Tick when you have done this.")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.task.text)
+                                        .font(KlinoteFont.ui(11.5))
+                                        .foregroundStyle(KlinoteColor.primary)
+                                        .lineLimit(2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text(
+                                        "\(row.encounter.patientRef) · "
+                                            + EncounterSpine.time(row.encounter.startedAt)
+                                    )
+                                    .font(KlinoteFont.data(10))
+                                    .foregroundStyle(KlinoteColor.tertiary)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.vertical, 4)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                model.selection = row.encounter.id
+                                model.selectedSentenceID = nil
+                                ReviewWindowController.shared.show()
+                            }
+                            Hairline()
+                        }
+                    }
+                    .padding(.top, 4)
+                } label: {
+                    HStack {
+                        TabLabel(text: "Still to do")
+                        Spacer()
+                        Text("\(model.openTaskRows.count)")
+                            .font(KlinoteFont.data(10))
+                            .foregroundStyle(KlinoteColor.ink)
+                    }
+                }
+                .padding(.horizontal, KlinoteMetrics.space16)
+                .padding(.vertical, KlinoteMetrics.space8)
+            }
+
             Hairline()
             HStack {
                 SettingsLink {
@@ -294,6 +353,9 @@ struct EncounterSidebar: View {
         .background(KlinoteColor.desk)
         .sheet(isPresented: $model.isPasting) {
             PasteTranscriptSheet(model: model)
+        }
+        .sheet(item: $model.pendingCopy) { encounter in
+            CopyConfirmSheet(encounter: encounter, model: model)
         }
         .sheet(isPresented: Binding(
             get: { !model.didCompleteSetup },

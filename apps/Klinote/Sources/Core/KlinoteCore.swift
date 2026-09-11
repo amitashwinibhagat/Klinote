@@ -56,8 +56,26 @@ struct StoreListEnvelope: Decodable {
     let sessions: [StoredSession]?
 }
 
+struct ConsultTask: Decodable, Identifiable, Hashable {
+    let id: String
+    let encounterId: String
+    let text: String
+    let sourceKey: String?
+    let createdAt: String
+    var done: Bool
+}
+
+struct TaskListEnvelope: Decodable {
+    let ok: Bool
+    let error: String?
+    let tasks: [ConsultTask]?
+}
+
 struct StoredSession: Decodable {
     let patientRef: String
+    /// Which clinician was at the desk. Nil for notes saved before this
+    /// existed, and for anything saved by a tool rather than a person.
+    let clinicianRef: String?
     let discipline: String
     let templateId: String
     let startedAt: String
@@ -195,6 +213,8 @@ struct TemplateSectionSummary: Codable, Identifiable, Hashable {
     var required: Bool
     /// The vocabulary the rule-based engine routes on. Editable per practice.
     var cues: [String]
+    /// True when these sentences are work to do: the consult's checklist.
+    var actions: Bool
 
     var id: String { key }
 
@@ -376,7 +396,8 @@ enum KlinoteCore {
         templateId: String,
         startedAt: Date,
         note: ClinicalNote,
-        transcript: Transcript
+        transcript: Transcript,
+        clinician: String?
     ) throws {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
@@ -385,7 +406,9 @@ enum KlinoteCore {
             "discipline": discipline,
             "template_id": templateId,
             "started_at": formatter.string(from: startedAt),
-            "actor": "shell",
+            "actor": clinician?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                ? clinician!
+                : "shell",
         ]
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -406,6 +429,53 @@ enum KlinoteCore {
     static func deleteSession(id: String) throws {
         let envelope: EngineEnvelope<Bool> = try envelope(
             from: scribe_store_delete(storePath(), try StoreKey.hex(), id)
+        )
+        guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not delete") }
+    }
+
+    // MARK: - Tasks
+
+    /// A task is a sentence out of the clinician's own note. Nothing infers
+    /// one, so nothing can invent one.
+    static func addTask(encounterId: String, text: String, sourceKey: String?) throws {
+        let payload: [String: Any] = [
+            "encounter_id": encounterId,
+            "text": text,
+            "source_key": sourceKey as Any? ?? NSNull(),
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw KlinoteCoreError.malformedResponse
+        }
+        let envelope: EngineEnvelope<Bool> = try envelope(
+            from: scribe_task_add(storePath(), try StoreKey.hex(), json)
+        )
+        guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not add") }
+    }
+
+    /// `encounterId` nil returns every open task, oldest first.
+    static func tasks(encounterId: String?) throws -> [ConsultTask] {
+        let payload: TaskListEnvelope = try envelope(
+            from: scribe_task_list(storePath(), try StoreKey.hex(), encounterId)
+        )
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "could not list") }
+        return payload.tasks ?? []
+    }
+
+    static func setTaskDone(id: String, done: Bool) throws {
+        let data = try JSONSerialization.data(withJSONObject: ["id": id, "done": done])
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw KlinoteCoreError.malformedResponse
+        }
+        let envelope: EngineEnvelope<Bool> = try envelope(
+            from: scribe_task_set_done(storePath(), try StoreKey.hex(), json)
+        )
+        guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not tick") }
+    }
+
+    static func deleteTask(id: String) throws {
+        let envelope: EngineEnvelope<Bool> = try envelope(
+            from: scribe_task_delete(storePath(), try StoreKey.hex(), id)
         )
         guard envelope.ok else { throw KlinoteCoreError.engine(envelope.error ?? "could not delete") }
     }

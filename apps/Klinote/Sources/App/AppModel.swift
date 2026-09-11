@@ -83,6 +83,8 @@ struct Encounter: Identifiable {
     var state: NoteState
     var note: ClinicalNote?
     var transcript: Transcript?
+    /// Which clinician was at the desk when this was saved.
+    var clinicianRef: String? = nil
     /// True when the note was produced from the bundled sample rather than a
     /// real recording. The interface must say so, in the document itself.
     var isSyntheticDemo: Bool
@@ -135,6 +137,22 @@ final class AppModel: ObservableObject {
     /// the download as a choice rather than a wall.
     @AppStorage("klinote.didCompleteSetup") var didCompleteSetup = false
 
+    /// Who is at the desk. A practice Mac may be shared, and a note that says
+    /// "reviewed by you" is not a signature.
+    @AppStorage("klinote.clinicianName") var clinicianName = ""
+    @AppStorage("klinote.clinicianRegistration") var clinicianRegistration = ""
+    /// Show every clinician's consults on a shared Mac. Off by default once a
+    /// name is set, because my list should be mine.
+    @AppStorage("klinote.showAllClinicians") var showAllClinicians = false
+
+    /// Open tasks across every consult — what the day still owes.
+    @Published var tasks: [ConsultTask] = []
+    /// Bumped when a task changes, so views observing the model re-read ticks.
+    @Published var taskRevision = 0
+    /// Set when a copy is requested for a consult that is not on screen. The
+    /// clinician confirms before the clipboard changes.
+    @Published var pendingCopy: Encounter?
+
     /// A recording captured before the speech model finished downloading,
     /// held until the download completes so it is transcribed for real.
     private var pendingRecording: URL?
@@ -181,6 +199,7 @@ final class AppModel: ObservableObject {
         }
         purgeExpiredNotes()
         loadPersistedSessions()
+        reloadTasks()
         if encounters.isEmpty {
             prepareDemoNote()
         }
@@ -216,6 +235,7 @@ final class AppModel: ObservableObject {
                 state: state,
                 note: note,
                 transcript: transcript,
+                clinicianRef: session.clinicianRef,
                 isSyntheticDemo: synthetic
             )
         }
@@ -283,6 +303,7 @@ final class AppModel: ObservableObject {
             selection = encounter.id
             persist(encounter)
             selectFirstEvidence()
+            syncTasks(for: encounter)
             if learned > 0 {
                 copyBanner = learned == 1
                     ? "1 learned correction applied."
@@ -341,11 +362,19 @@ final class AppModel: ObservableObject {
             return words.lowercased().contains(trimmed)
         }
 
+        let mine = clinicianName.trimmingCharacters(in: .whitespacesAndNewlines)
+        // On a shared practice Mac my list should be mine. Notes saved before
+        // anyone said who they were are shown to everyone, because hiding a
+        // note is worse than showing one that is not mine.
+        let scoped = (mine.isEmpty || showAllClinicians)
+            ? filtered
+            : filtered.filter { $0.clinicianRef == nil || $0.clinicianRef == mine }
+
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         var order: [Date] = []
         var byDay: [Date: [Encounter]] = [:]
-        for encounter in filtered.sorted(by: { $0.startedAt > $1.startedAt }) {
+        for encounter in scoped.sorted(by: { $0.startedAt > $1.startedAt }) {
             let day = calendar.startOfDay(for: encounter.startedAt)
             if byDay[day] == nil {
                 byDay[day] = []
@@ -448,8 +477,73 @@ final class AppModel: ObservableObject {
             templateId: encounter.templateId,
             startedAt: encounter.startedAt,
             note: note,
-            transcript: transcript
+            transcript: transcript,
+            clinician: clinicianName
         )
+    }
+
+    // MARK: - Tasks
+
+    /// One row per sentence in a section the template marks as work to do.
+    ///
+    /// Called after a note is drafted. It never deletes: a task the clinician
+    /// ticked stays ticked even if the note is re-drafted.
+    func syncTasks(for encounter: Encounter) {
+        guard let note = encounter.note else { return }
+        for section in note.sections {
+            let isAction = templates
+                .first { $0.id == encounter.templateId }?
+                .sections.first { $0.key == section.key }?
+                .actions ?? false
+            guard isAction else { continue }
+            for sentence in section.sentences {
+                try? KlinoteCore.addTask(
+                    encounterId: encounter.id,
+                    text: sentence.text,
+                    sourceKey: section.key
+                )
+            }
+        }
+        reloadTasks()
+    }
+
+    func reloadTasks() {
+        tasks = (try? KlinoteCore.tasks(encounterId: nil)) ?? []
+    }
+
+    /// Tasks for one consult, ticked or not. Reads through on every task
+    /// change, so the letter's checkboxes stay honest.
+    func tasks(for encounterID: String) -> [ConsultTask] {
+        _ = taskRevision
+        return (try? KlinoteCore.tasks(encounterId: encounterID)) ?? []
+    }
+
+    /// The task a given sentence became, if its section is work to do.
+    func task(for encounterID: String, sentence: String) -> ConsultTask? {
+        tasks(for: encounterID).first { $0.text == sentence }
+    }
+
+    /// Open tasks for consults that are on screen, newest consult first.
+    var openTaskRows: [(task: ConsultTask, encounter: Encounter)] {
+        _ = taskRevision
+        return tasks.compactMap { task in
+            guard let encounter = encounters.first(where: { $0.id == task.encounterId }) else {
+                return nil
+            }
+            return (task, encounter)
+        }
+    }
+
+    func setTask(_ task: ConsultTask, done: Bool) {
+        try? KlinoteCore.setTaskDone(id: task.id, done: done)
+        reloadTasks()
+        taskRevision += 1
+    }
+
+    func deleteTask(_ task: ConsultTask) {
+        try? KlinoteCore.deleteTask(id: task.id)
+        reloadTasks()
+        taskRevision += 1
     }
 
     func selectFirstEvidence() {
@@ -708,6 +802,7 @@ final class AppModel: ObservableObject {
                     self.elapsed = 0
                     self.persist(encounter)
                     self.selectFirstEvidence()
+                    self.syncTasks(for: encounter)
                     RecordingStripController.shared.hide()
                     ReviewWindowController.shared.show()
                     if learned > 0 {
@@ -763,6 +858,25 @@ final class AppModel: ObservableObject {
         return fallback
     }
 
+    /// Copy, but only without asking when the consult being copied is the one
+    /// on screen. The failure this prevents is pasting the wrong patient's note
+    /// at 11:40 with a queue outside, and it is the cheapest harm to avoid.
+    func requestCopy(of encounterID: String) {
+        guard let encounter = encounters.first(where: { $0.id == encounterID }),
+              encounter.note != nil
+        else { return }
+        let onScreen = selection == encounterID && ReviewWindowController.shared.isShowing
+        if onScreen {
+            copySelectedNote()
+        } else {
+            selection = encounterID
+            selectedSentenceID = nil
+            selectFirstEvidence()
+            ReviewWindowController.shared.show()
+            pendingCopy = encounter
+        }
+    }
+
     /// Puts paste-ready plain text on the clipboard. Section titles and bodies
     /// only: no Markdown, no engine name, no unfiled statements, no footer.
     func copySelectedNote() {
@@ -776,7 +890,14 @@ final class AppModel: ObservableObject {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
             isCopying = true
-            copyBanner = "Copied. Paste into the record."
+            // Name the consult in the receipt, so a paste can be checked
+            // against what the clipboard actually holds.
+            if let encounter = selectedEncounter {
+                copyBanner = "Copied \(EncounterSpine.time(encounter.startedAt)) · "
+                    + "\(encounter.patientRef) · \(displayName(for: encounter)). Paste into the record."
+            } else {
+                copyBanner = "Copied. Paste into the record."
+            }
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 self.isCopying = false

@@ -116,9 +116,22 @@ impl Store {
                     detail  TEXT
                 );
 
+                -- What the consult asked the clinician to do. Not inferred:
+                -- each row is a sentence the clinician's own note contains.
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id           TEXT PRIMARY KEY,
+                    encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+                    text         TEXT NOT NULL,
+                    source_key   TEXT,
+                    created_at   TEXT NOT NULL,
+                    done_at      TEXT,
+                    UNIQUE(encounter_id, text)
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_transcripts_encounter ON transcripts(encounter_id);
                 CREATE INDEX IF NOT EXISTS idx_notes_encounter ON notes(encounter_id);
                 CREATE INDEX IF NOT EXISTS idx_audit_subject ON audit_log(subject);
+                CREATE INDEX IF NOT EXISTS idx_tasks_open ON tasks(done_at);
                 "#,
             )
             .map_err(storage_error)
@@ -290,6 +303,104 @@ impl Store {
         Ok(())
     }
 
+    /// Add a task the consult asked for, ignoring one that already exists.
+    /// Returns true when a new row was written.
+    pub fn add_task(
+        &self,
+        encounter_id: &str,
+        text: &str,
+        source_key: Option<&str>,
+    ) -> Result<bool> {
+        let inserted = self
+            .conn
+            .execute(
+                r#"INSERT INTO tasks (id, encounter_id, text, source_key, created_at)
+                   VALUES (lower(hex(randomblob(16))), ?1, ?2, ?3, ?4)
+                   ON CONFLICT(encounter_id, text) DO NOTHING"#,
+                params![encounter_id, text, source_key, Utc::now().to_rfc3339()],
+            )
+            .map_err(storage_error)?;
+        Ok(inserted > 0)
+    }
+
+    /// Open tasks, oldest first, with the consult they came from.
+    pub fn open_tasks(&self) -> Result<Vec<Task>> {
+        let mut statement = self
+            .conn
+            .prepare(
+                "SELECT id, encounter_id, text, source_key, created_at
+                 FROM tasks WHERE done_at IS NULL ORDER BY created_at ASC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok(Task {
+                    id: row.get(0)?,
+                    encounter_id: row.get(1)?,
+                    text: row.get(2)?,
+                    source_key: row.get(3)?,
+                    created_at: row.get(4)?,
+                    done: false,
+                })
+            })
+            .map_err(storage_error)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(storage_error)
+    }
+
+    /// Every task for one consult, open or done, so the letter can show ticks.
+    pub fn tasks_for(&self, encounter_id: &str) -> Result<Vec<Task>> {
+        let mut statement = self
+            .conn
+            .prepare(
+                "SELECT id, encounter_id, text, source_key, created_at, done_at
+                 FROM tasks WHERE encounter_id = ?1 ORDER BY created_at ASC",
+            )
+            .map_err(storage_error)?;
+        let rows = statement
+            .query_map(params![encounter_id], |row| {
+                Ok(Task {
+                    id: row.get(0)?,
+                    encounter_id: row.get(1)?,
+                    text: row.get(2)?,
+                    source_key: row.get(3)?,
+                    created_at: row.get(4)?,
+                    done: row.get::<_, Option<String>>(5)?.is_some(),
+                })
+            })
+            .map_err(storage_error)?;
+        rows.collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(storage_error)
+    }
+
+    /// Tick or untick. A task is a note to self, not a clinical record, so
+    /// unticking is allowed.
+    pub fn set_task_done(&self, id: &str, done: bool) -> Result<()> {
+        let stamp = if done {
+            Some(Utc::now().to_rfc3339())
+        } else {
+            None
+        };
+        let changed = self
+            .conn
+            .execute(
+                "UPDATE tasks SET done_at = ?2 WHERE id = ?1",
+                params![id, stamp],
+            )
+            .map_err(storage_error)?;
+        if changed == 0 {
+            return Err(ScribeError::Storage(format!("no task {id}")));
+        }
+        Ok(())
+    }
+
+    pub fn delete_task(&self, id: &str) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM tasks WHERE id = ?1", params![id])
+            .map_err(storage_error)?;
+        Ok(())
+    }
+
     /// Hard-delete every encounter that started before `cutoff`.
     ///
     /// Retention is a statutory obligation, not a preference, so this is a real
@@ -425,6 +536,17 @@ impl Store {
     }
 }
 
+/// One thing a consult asked the clinician to do.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Task {
+    pub id: String,
+    pub encounter_id: String,
+    pub text: String,
+    pub source_key: Option<String>,
+    pub created_at: String,
+    pub done: bool,
+}
+
 /// One encounter plus its latest transcript and note, for the shell list.
 #[derive(Debug, Clone)]
 pub struct StoredSession {
@@ -511,6 +633,50 @@ mod tests {
         store.save_encounter(&encounter).unwrap();
         store.delete_encounter(&encounter.id.to_string()).unwrap();
         assert_eq!(store.encounter_count().unwrap(), 0);
+    }
+
+    #[test]
+    fn tasks_are_deduped_and_tickable() {
+        let store = Store::open_in_memory().unwrap();
+        let encounter = encounter();
+        store.save_encounter(&encounter).unwrap();
+        let id = encounter.id.to_string();
+
+        assert!(
+            store
+                .add_task(&id, "Arrange a throat swab", Some("plan"))
+                .unwrap()
+        );
+        // Re-drafting a note must not duplicate the same task.
+        assert!(
+            !store
+                .add_task(&id, "Arrange a throat swab", Some("plan"))
+                .unwrap()
+        );
+        assert!(store.add_task(&id, "Review in one week", None).unwrap());
+        assert_eq!(store.open_tasks().unwrap().len(), 2);
+
+        let first = store.open_tasks().unwrap().remove(0);
+        store.set_task_done(&first.id, true).unwrap();
+        assert_eq!(store.open_tasks().unwrap().len(), 1);
+        // A task is a note to self: unticking is allowed.
+        store.set_task_done(&first.id, false).unwrap();
+        assert_eq!(store.open_tasks().unwrap().len(), 2);
+
+        let for_encounter = store.tasks_for(&id).unwrap();
+        assert_eq!(for_encounter.len(), 2);
+        assert!(for_encounter.iter().all(|task| !task.done));
+    }
+
+    #[test]
+    fn deleting_a_consult_takes_its_tasks() {
+        let store = Store::open_in_memory().unwrap();
+        let encounter = encounter();
+        store.save_encounter(&encounter).unwrap();
+        let id = encounter.id.to_string();
+        store.add_task(&id, "Refer to ENT", None).unwrap();
+        store.delete_encounter(&id).unwrap();
+        assert!(store.open_tasks().unwrap().is_empty());
     }
 
     #[test]

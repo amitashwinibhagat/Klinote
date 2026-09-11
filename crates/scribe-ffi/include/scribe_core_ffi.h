@@ -126,6 +126,22 @@ char *scribe_store_delete(const char *db_path, const char *key, const char *enco
  */
 char *scribe_store_purge(const char *db_path, const char *key, const char *cutoff_rfc3339);
 
+/*
+ * Tasks: what the consult asked the clinician to do. Never inferred — each row
+ * is a sentence the clinician's own note contains.
+ *
+ * add:      {"encounter_id":"..","text":"..","source_key":"plan"}
+ *           -> {"ok":true,"added":true|false}   (re-adding the same text is a no-op)
+ * list:     encounter_id NULL -> every open task, else that consult's tasks
+ *           -> {"ok":true,"tasks":[{id,encounter_id,text,source_key,created_at,done}]}
+ * set_done: {"id":"..","done":true}
+ * delete:   task id
+ */
+char *scribe_task_add(const char *db_path, const char *key, const char *request_json);
+char *scribe_task_list(const char *db_path, const char *key, const char *encounter_id);
+char *scribe_task_set_done(const char *db_path, const char *key, const char *request_json);
+char *scribe_task_delete(const char *db_path, const char *key, const char *task_id);
+
 /* Free any string returned by this library. NULL is a no-op. */
 void scribe_string_free(char *pointer);
 

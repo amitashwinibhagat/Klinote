@@ -18,6 +18,10 @@ pub struct SectionSpec {
     pub required: bool,
     #[serde(default)]
     pub cues: Vec<String>,
+    /// True when this section's sentences are work to do rather than
+    /// description — the plan a consult asks the clinician to carry out.
+    #[serde(default)]
+    pub actions: bool,
 }
 
 /// How a generated document is laid out when it is put on the clipboard.
@@ -158,6 +162,7 @@ mod tests {
             guidance: String::new(),
             required,
             cues: Vec::new(),
+            actions: false,
         }
     }
 

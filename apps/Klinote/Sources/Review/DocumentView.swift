@@ -225,6 +225,8 @@ struct SectionBlock: View {
         return .filled
     }
 
+    private var encounterID: String { model.selectedEncounter?.id ?? "" }
+
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
             SectionHeader(title: section.title, state: state)
@@ -243,6 +245,13 @@ struct SectionBlock: View {
                                 sentence: sentence,
                                 number: index + 1,
                                 isSelected: model.selectedSentenceID == sentence.id,
+                                task: model.task(
+                                    for: encounterID,
+                                    sentence: sentence.text
+                                ),
+                                onToggleTask: { task in
+                                    model.setTask(task, done: !task.done)
+                                },
                                 onEdit: { model.editingSentenceID = sentence.id }
                             ) {
                                 model.selectedSentenceID =
@@ -309,12 +318,27 @@ struct SentenceRow: View {
     let sentence: NoteSentence
     let number: Int
     let isSelected: Bool
+    /// Present when this sentence is work to do — the consult's checklist.
+    var task: ConsultTask?
+    var onToggleTask: (ConsultTask) -> Void = { _ in }
     var onEdit: () -> Void = {}
     let onSelect: () -> Void
     @State private var hovering = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
+            if let task {
+                Button {
+                    onToggleTask(task)
+                } label: {
+                    Image(systemName: task.done ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 12))
+                        .foregroundStyle(task.done ? KlinoteColor.ink : KlinoteColor.tertiary)
+                }
+                .buttonStyle(.borderless)
+                .help(task.done ? "Done. Click to reopen." : "Tick when you have done this.")
+                .accessibilityLabel(task.done ? "ConsultTask done" : "ConsultTask not done")
+            }
             Text(sentence.ambiguous ? "\(number)?" : "\(number)")
                 .font(KlinoteFont.data(9))
                 .foregroundStyle(isSelected ? KlinoteColor.ink : KlinoteColor.tertiary)
@@ -323,6 +347,7 @@ struct SentenceRow: View {
             Text(sentence.text)
                 .font(KlinoteFont.document(14, weight: isSelected ? .semibold : .regular))
                 .foregroundStyle(KlinoteColor.primary)
+                .strikethrough(task?.done == true, color: KlinoteColor.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -449,13 +474,30 @@ struct SignatureBlock: View {
 
     private var isReviewed: Bool { model.selectedEncounter?.state == .approved }
 
+    /// A note that says "reviewed by you" is not signed. Name the clinician,
+    /// and their registration if they gave one, so a printed letter and a
+    /// shared practice Mac both identify who is accountable.
+    private var signatureLine: String {
+        let name = model.clinicianName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let registration = model.clinicianRegistration
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let who = name.isEmpty ? nil : name
+        guard isReviewed else {
+            return who.map { "Not yet reviewed — \($0)" } ?? "Not yet reviewed"
+        }
+        guard let who else { return "Reviewed on this Mac" }
+        return registration.isEmpty
+            ? "Reviewed by \(who)"
+            : "Reviewed by \(who) · \(registration)"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space16) {
             Hairline()
 
             HStack(alignment: .bottom, spacing: KlinoteMetrics.space24) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(isReviewed ? "Reviewed by you" : "Not yet reviewed")
+                    Text(signatureLine)
                         .font(KlinoteFont.label())
                         .foregroundStyle(KlinoteColor.secondary)
                     Text(isReviewed ? "On this Mac. Not in the record until you paste." : "Paste into the record. Then mark reviewed here.")

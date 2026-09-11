@@ -59,6 +59,7 @@ pub extern "C" fn scribe_list_templates() -> *mut c_char {
                         "guidance": section.guidance,
                         "required": section.required,
                         "cues": section.cues,
+                        "actions": section.actions,
                     })).collect::<Vec<_>>(),
                 })
             })
@@ -389,6 +390,11 @@ pub unsafe extern "C" fn scribe_store_save(
             .unwrap_or(Discipline::GeneralPractice);
         let mut encounter = Encounter::new(&request.patient_ref, discipline);
         encounter.id = request.note.encounter_id;
+        // Who was at the desk. A practice Mac may be shared, and "reviewed by
+        // you" is not a signature.
+        if let Some(actor) = request.actor.as_deref().filter(|a| *a != "shell") {
+            encounter.clinician_ref = Some(actor.to_owned());
+        }
         if let Some(template_id) = request.template_id {
             encounter.template_id = scribe_core::TemplateId::new(template_id);
         }
@@ -445,6 +451,8 @@ pub unsafe extern "C" fn scribe_store_list(
             .map(|session| {
                 json!({
                     "patient_ref": session.encounter.patient_ref,
+                    "clinician_ref": session.encounter.clinician_ref,
+                    "id": session.encounter.id,
                     "discipline": session.encounter.discipline.as_str(),
                     "template_id": session.encounter.template_id.as_str(),
                     "started_at": session.encounter.started_at.to_rfc3339(),
@@ -512,6 +520,149 @@ pub unsafe extern "C" fn scribe_store_purge(
     .unwrap_or_else(error_envelope);
 
     into_c_string(&payload.to_string())
+}
+
+/// Add a task the consult asked for. Input: `{"encounter_id":"..","text":"..",
+/// "source_key":"plan"}`. Re-adding the same text is a no-op.
+/// Output: `{"ok":true,"added":true|false}`.
+///
+/// # Safety
+/// Pointers must be null or valid NUL-terminated UTF-8.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_task_add(
+    db_path: *const c_char,
+    key: *const c_char,
+    request_json: *const c_char,
+) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let path = unsafe { cstr_to_string(db_path) }?;
+        let key = unsafe { optional_cstr(key) }?;
+        let raw = unsafe { cstr_to_string(request_json) }?;
+        let request: TaskRequest =
+            serde_json::from_str(&raw).map_err(|err| format!("invalid request json: {err}"))?;
+        let store = scribe_store::Store::open_with_key(&path, key.as_deref())
+            .map_err(|err| err.to_string())?;
+        let added = store
+            .add_task(
+                &request.encounter_id,
+                &request.text,
+                request.source_key.as_deref(),
+            )
+            .map_err(|err| err.to_string())?;
+        Ok(json!({ "ok": true, "added": added }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
+/// Tasks for one consult (`?encounter_id=`) or every open task (omitted).
+/// Output: `{"ok":true,"tasks":[{id,encounter_id,text,source_key,created_at,done}]}`.
+///
+/// # Safety
+/// Pointers must be null or valid NUL-terminated UTF-8.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_task_list(
+    db_path: *const c_char,
+    key: *const c_char,
+    encounter_id: *const c_char,
+) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let path = unsafe { cstr_to_string(db_path) }?;
+        let key = unsafe { optional_cstr(key) }?;
+        let encounter = unsafe { optional_cstr(encounter_id) }?;
+        let store = scribe_store::Store::open_with_key(&path, key.as_deref())
+            .map_err(|err| err.to_string())?;
+        let tasks = match encounter.as_deref() {
+            Some(id) => store.tasks_for(id),
+            None => store.open_tasks(),
+        }
+        .map_err(|err| err.to_string())?;
+        let items: Vec<Value> = tasks
+            .into_iter()
+            .map(|task| {
+                json!({
+                    "id": task.id,
+                    "encounter_id": task.encounter_id,
+                    "text": task.text,
+                    "source_key": task.source_key,
+                    "created_at": task.created_at,
+                    "done": task.done,
+                })
+            })
+            .collect();
+        Ok(json!({ "ok": true, "tasks": items }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
+/// Tick or untick a task. Input: `{"id":"..","done":true}`.
+/// Output: `{"ok":true}`.
+///
+/// # Safety
+/// Pointers must be null or valid NUL-terminated UTF-8.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_task_set_done(
+    db_path: *const c_char,
+    key: *const c_char,
+    request_json: *const c_char,
+) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let path = unsafe { cstr_to_string(db_path) }?;
+        let key = unsafe { optional_cstr(key) }?;
+        let raw = unsafe { cstr_to_string(request_json) }?;
+        let request: TaskDoneRequest =
+            serde_json::from_str(&raw).map_err(|err| format!("invalid request json: {err}"))?;
+        let store = scribe_store::Store::open_with_key(&path, key.as_deref())
+            .map_err(|err| err.to_string())?;
+        store
+            .set_task_done(&request.id, request.done)
+            .map_err(|err| err.to_string())?;
+        Ok(json!({ "ok": true }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
+/// Delete a task. Output: `{"ok":true}`.
+///
+/// # Safety
+/// Pointers must be null or valid NUL-terminated UTF-8.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_task_delete(
+    db_path: *const c_char,
+    key: *const c_char,
+    task_id: *const c_char,
+) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let path = unsafe { cstr_to_string(db_path) }?;
+        let key = unsafe { optional_cstr(key) }?;
+        let id = unsafe { cstr_to_string(task_id) }?;
+        let store = scribe_store::Store::open_with_key(&path, key.as_deref())
+            .map_err(|err| err.to_string())?;
+        store.delete_task(&id).map_err(|err| err.to_string())?;
+        Ok(json!({ "ok": true }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+struct TaskRequest {
+    encounter_id: String,
+    text: String,
+    #[serde(default)]
+    source_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaskDoneRequest {
+    id: String,
+    done: bool,
 }
 
 /// Free a string returned by this library. Passing null is a no-op.
