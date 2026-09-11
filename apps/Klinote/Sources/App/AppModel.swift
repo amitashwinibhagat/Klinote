@@ -362,25 +362,11 @@ final class AppModel: ObservableObject {
 
     /// Print, with the same wrong-consult guard as copy. Printing the wrong
     /// note puts it on paper, where it cannot be recalled.
-    func requestPrint(of encounterID: String) {
-        guard let encounter = encounters.first(where: { $0.id == encounterID }),
-              encounter.note != nil
-        else { return }
-        let onScreen = selection == encounterID && ReviewWindowController.shared.isShowing
-        if onScreen {
-            printSelectedNote()
-        } else {
-            selection = encounterID
-            selectedSentenceID = nil
-            selectFirstEvidence()
-            ReviewWindowController.shared.show()
-            pendingPrint = encounter
-        }
-    }
+
 
     func requestPrintFromSelection() {
         guard let id = selection else { return }
-        requestPrint(of: id)
+        request(.print, of: id)
     }
 
     /// Print exactly what Copy note would have put on the clipboard.
@@ -875,19 +861,43 @@ final class AppModel: ObservableObject {
     /// Copy, but only without asking when the consult being copied is the one
     /// on screen. The failure this prevents is pasting the wrong patient's note
     /// at 11:40 with a queue outside, and it is the cheapest harm to avoid.
+    /// Copy and print differ only in what they do at the end and which sheet
+    /// they raise, so they share one path through the guard. Two copies of
+    /// this logic is how the print guard came to be missing for a while.
+    enum Output { case copy, print }
+
     func requestCopy(of encounterID: String) {
-        guard let encounter = encounters.first(where: { $0.id == encounterID }),
-              encounter.note != nil
-        else { return }
-        let onScreen = selection == encounterID && ReviewWindowController.shared.isShowing
-        if onScreen {
-            copySelectedNote()
-        } else {
+        request(.copy, of: encounterID)
+    }
+
+    func request(_ output: Output, of encounterID: String) {
+        guard let encounter = encounters.first(where: { $0.id == encounterID }) else { return }
+        switch CopyGuard.decision(
+            requested: encounterID,
+            selection: selection,
+            isOnScreen: ReviewWindowController.shared.isShowing,
+            hasNote: encounter.note != nil
+        ) {
+        case .nothingToCopy:
+            return
+        case .allowed:
+            act(output)
+        case .confirm:
             selection = encounterID
             selectedSentenceID = nil
             selectFirstEvidence()
             ReviewWindowController.shared.show()
-            pendingCopy = encounter
+            switch output {
+            case .copy: pendingCopy = encounter
+            case .print: pendingPrint = encounter
+            }
+        }
+    }
+
+    private func act(_ output: Output) {
+        switch output {
+        case .copy: copySelectedNote()
+        case .print: printSelectedNote()
         }
     }
 
@@ -1069,38 +1079,49 @@ final class AppModel: ObservableObject {
         note.sections.flatMap(\.sentences).filter(\.isJargon).count
     }
 
+    /// What the letterhead says, from the one implementation of the rule.
+    func readiness(for encounter: Encounter) -> Readiness {
+        guard let note = encounter.note else { return .empty }
+        return Readiness.of(
+            missingRequired: note.missingRequired,
+            nameChecks: encounter.transcript?.nameChecks?.count ?? 0,
+            jargon: jargonCount(for: note),
+            unfiled: note.unassigned.count
+        )
+    }
+
     /// Ready to paste: required sections filled, no unresolved name checks.
     var isPasteReady: Bool {
-        guard let note = selectedEncounter?.note else { return false }
-        return note.missingRequired.isEmpty
-            && nameCheckCount == 0
-            && jargonCount(for: note) == 0
+        selectedEncounter.map(readiness(for:))?.isPasteReady ?? false
     }
 
     func promptPasteIfReady() {
-        if nameCheckCount > 0 {
-            copyBanner = nameCheckCount == 1
+        guard let encounter = selectedEncounter else { return }
+        switch readiness(for: encounter) {
+        case .namesToCheck(let count):
+            copyBanner = count == 1
                 ? "Check the drug name, then copy."
-                : "Check \(nameCheckCount) names, then copy."
-        } else if isPasteReady {
+                : "Check \(count) names, then copy."
+        case .ready, .empty:
             copyBanner = "Ready. Copy the note into the record."
+        case .missingRequired, .wording:
+            break
         }
     }
 
     var completenessLine: String {
-        guard let note = selectedEncounter?.note else { return "" }
-        let total = note.sections.count
-        let filled = note.sections.filter { !$0.body.trimmingCharacters(in: .whitespaces).isEmpty }.count
-        if !note.missingRequired.isEmpty {
-            let names = note.missingRequired.map { key in
+        guard let encounter = selectedEncounter, let note = encounter.note else { return "" }
+        let filled = note.sections.filter {
+            !$0.body.trimmingCharacters(in: .whitespaces).isEmpty
+        }.count
+        return Readiness.completenessLine(
+            sections: note.sections.count,
+            filled: filled,
+            missingTitles: note.missingRequired.map { key in
                 note.sections.first { $0.key == key }?.title ?? key
-            }
-            return "\(filled) of \(total) sections · missing: \(names.joined(separator: ", "))"
-        }
-        if nameCheckCount > 0 {
-            return "\(filled) of \(total) sections · \(nameCheckCount) name\(nameCheckCount == 1 ? "" : "s") to check"
-        }
-        return "\(filled) of \(total) sections documented · ready to copy"
+            },
+            readiness: readiness(for: encounter)
+        )
     }
 
     var isSynthetic: Bool { selectedEncounter?.isSyntheticDemo ?? false }

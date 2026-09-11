@@ -108,6 +108,27 @@ final class DecisionsTests: XCTestCase {
         XCTAssertEqual(readiness.label, "Ready · 7 not filed")
     }
 
+    func testCompletenessLineNamesTheMissingSections() {
+        // "Missing something required" makes the clinician go looking.
+        let line = Readiness.completenessLine(
+            sections: 4,
+            filled: 3,
+            missingTitles: ["Plan"],
+            readiness: .missingRequired
+        )
+        XCTAssertEqual(line, "3 of 4 sections · missing: Plan")
+    }
+
+    func testCompletenessLineCountsNamesToCheck() {
+        let line = Readiness.completenessLine(
+            sections: 4,
+            filled: 4,
+            missingTitles: [],
+            readiness: .namesToCheck(2)
+        )
+        XCTAssertEqual(line, "4 of 4 sections · 2 names to check")
+    }
+
     func testReadinessLabelsAreSingularForOne() {
         XCTAssertEqual(Readiness.namesToCheck(1).label, "1 name to check")
         XCTAssertEqual(Readiness.namesToCheck(3).label, "3 names to check")

@@ -44,11 +44,19 @@ enum Readiness: Equatable {
         }
     }
 
-    /// The sentence under the letterhead: counts, not scolding.
-    static func completenessLine(sections: Int, filled: Int, readiness: Readiness) -> String {
+    /// The sentence under the letterhead: counts, not scolding. A missing
+    /// section is named, because "missing something required" makes the
+    /// clinician go looking.
+    static func completenessLine(
+        sections: Int,
+        filled: Int,
+        missingTitles: [String],
+        readiness: Readiness
+    ) -> String {
+        if !missingTitles.isEmpty {
+            return "\(filled) of \(sections) sections · missing: \(missingTitles.joined(separator: ", "))"
+        }
         switch readiness {
-        case .missingRequired:
-            return "\(filled) of \(sections) sections · missing something required"
         case .namesToCheck(let count):
             return "\(filled) of \(sections) sections · \(count) name\(count == 1 ? "" : "s") to check"
         default:

@@ -146,21 +146,10 @@ struct Letterhead: View {
 
     /// Conversational leftovers must not mask readiness: a consult with seven
     /// "how are you today?" lines in unfiled is still ready to copy.
+    /// One rule, one implementation. This was a second copy of the precedence
+    /// in Readiness, which is how the two could drift apart unnoticed.
     private var readinessLabel: String {
-        let names = encounter.transcript?.nameChecks?.count ?? 0
-        if names > 0 {
-            return names == 1 ? "1 name to check" : "\(names) names to check"
-        }
-        if !note.missingRequired.isEmpty {
-            return "Missing required"
-        }
-        if model.jargonCount(for: note) > 0 {
-            return "Check wording"
-        }
-        if !note.unassigned.isEmpty {
-            return "Ready · \(note.unassigned.count) not filed"
-        }
-        return "Ready to copy"
+        model.readiness(for: encounter).label
     }
 }
 
