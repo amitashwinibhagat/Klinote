@@ -78,17 +78,14 @@ struct Letterhead: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
-            Text("klinote")
-                .font(.system(size: 13, weight: .semibold))
-                .tracking(-0.4)
-                .foregroundStyle(KlinoteColor.ink)
+            BrandMark()
             HStack(alignment: .firstTextBaseline) {
                 Text(templateTitle)
-                    .font(KlinoteFont.document(19, weight: .semibold))
+                    .font(KlinoteFont.documentTitle())
                     .foregroundStyle(KlinoteColor.primary)
                 Spacer(minLength: KlinoteMetrics.space16)
                 Text(encounter.patientRef)
-                    .font(KlinoteFont.data(11))
+                    .font(KlinoteFont.data())
                     .foregroundStyle(KlinoteColor.secondary)
             }
 
@@ -117,7 +114,7 @@ struct Letterhead: View {
                     Text(model.isSwapping ? "Swapping voices…" : "Voices look wrong? Swap clinician and patient")
                 }
                 .buttonStyle(.plain)
-                .font(KlinoteFont.ui(12))
+                .font(KlinoteFont.caption())
                 .foregroundStyle(KlinoteColor.ink)
                 .disabled(model.isSwapping)
                 .help("⌥⌘S")
@@ -163,10 +160,10 @@ struct Field: View {
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
             FieldLabel(text: label)
             Text(value)
-                .font(KlinoteFont.data(11))
+                .font(KlinoteFont.data())
                 .foregroundStyle(KlinoteColor.primary)
         }
     }
@@ -192,7 +189,7 @@ struct ProvisionanceLine: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
             Text(engineLine)
                 .font(KlinoteFont.label())
                 .foregroundStyle(
@@ -233,10 +230,10 @@ struct SectionBlock: View {
 
             if section.sentences.isEmpty {
                 Text("Not documented.")
-                    .font(KlinoteFont.document(14))
+                    .font(KlinoteFont.document())
                     .foregroundStyle(KlinoteColor.tertiary)
             } else {
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
                     ForEach(Array(section.sentences.enumerated()), id: \.element.id) { index, sentence in
                         if model.editingSentenceID == sentence.id {
                             SentenceEditor(sentence: sentence, model: model)
@@ -284,7 +281,7 @@ struct SentenceEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space8) {
             TextEditor(text: $draft)
-                .font(KlinoteFont.document(14))
+                .font(KlinoteFont.document())
                 .focused($focused)
                 .frame(minHeight: 56)
                 .padding(KlinoteMetrics.space8)
@@ -308,8 +305,8 @@ struct SentenceEditor: View {
                     .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 6)
+        .padding(.vertical, KlinoteMetrics.space4)
+        .padding(.horizontal, KlinoteMetrics.inline6)
         .onAppear { focused = true }
     }
 }
@@ -332,7 +329,7 @@ struct SentenceRow: View {
                     onToggleTask(task)
                 } label: {
                     Image(systemName: task.done ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 12))
+                        .font(.system(size: KlinoteMetrics.iconRegular))
                         .foregroundStyle(task.done ? KlinoteColor.ink : KlinoteColor.tertiary)
                 }
                 .buttonStyle(.borderless)
@@ -340,12 +337,12 @@ struct SentenceRow: View {
                 .accessibilityLabel(task.done ? "ConsultTask done" : "ConsultTask not done")
             }
             Text(sentence.ambiguous ? "\(number)?" : "\(number)")
-                .font(KlinoteFont.data(9))
+                .font(KlinoteFont.microNumber())
                 .foregroundStyle(isSelected ? KlinoteColor.ink : KlinoteColor.tertiary)
                 .frame(width: 18, alignment: .trailing)
 
             Text(sentence.text)
-                .font(KlinoteFont.document(14, weight: isSelected ? .semibold : .regular))
+                .font(KlinoteFont.document(weight: isSelected ? .semibold : .regular))
                 .foregroundStyle(KlinoteColor.primary)
                 .strikethrough(task?.done == true, color: KlinoteColor.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -353,10 +350,10 @@ struct SentenceRow: View {
 
             if sentence.isJargon {
                 Text("check wording")
-                    .font(KlinoteFont.label(9, weight: .semibold))
+                    .font(KlinoteFont.micro())
                     .foregroundStyle(KlinoteColor.caution)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
+                    .padding(.horizontal, KlinoteMetrics.radiusChip)
+                    .padding(.vertical, KlinoteMetrics.inline2)
                     .overlay(
                         RoundedRectangle(cornerRadius: KlinoteMetrics.radiusChip, style: .continuous)
                             .strokeBorder(KlinoteColor.caution.opacity(0.5), lineWidth: 1)
@@ -365,10 +362,10 @@ struct SentenceRow: View {
                     .fixedSize()
             } else if sentence.isUnverified {
                 Text("check source")
-                    .font(KlinoteFont.label(9, weight: .semibold))
+                    .font(KlinoteFont.micro())
                     .foregroundStyle(KlinoteColor.caution)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
+                    .padding(.horizontal, KlinoteMetrics.radiusChip)
+                    .padding(.vertical, KlinoteMetrics.inline2)
                     .overlay(
                         RoundedRectangle(cornerRadius: KlinoteMetrics.radiusChip, style: .continuous)
                             .strokeBorder(KlinoteColor.caution.opacity(0.5), lineWidth: 1)
@@ -377,8 +374,8 @@ struct SentenceRow: View {
                     .fixedSize()
             }
         }
-        .padding(.vertical, 2)
-        .padding(.horizontal, 6)
+        .padding(.vertical, KlinoteMetrics.inline2)
+        .padding(.horizontal, KlinoteMetrics.inline6)
         .background(
             isSelected
                 ? KlinoteColor.accent.opacity(0.14)
@@ -387,7 +384,7 @@ struct SentenceRow: View {
         .overlay(alignment: .leading) {
             Rectangle()
                 .fill(isSelected ? KlinoteColor.ink : hovering ? KlinoteColor.ink.opacity(0.35) : Color.clear)
-                .frame(width: 2)
+                .frame(width: KlinoteMetrics.ruleWidth)
         }
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
@@ -419,12 +416,12 @@ struct NameCheckBlock: View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
             SectionHeader(title: "Check these names", state: .missingRequired)
             Text("Heard in the consult. Not replaced until you say so.")
-                .font(KlinoteFont.ui(12))
+                .font(KlinoteFont.caption())
                 .foregroundStyle(KlinoteColor.secondary)
             ForEach(checks) { check in
                 HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
                     Text("\(check.heard) → \(check.suggest)")
-                        .font(KlinoteFont.document(13))
+                        .font(KlinoteFont.documentMinor())
                         .foregroundStyle(KlinoteColor.primary)
                     Spacer(minLength: 0)
                     Button("Use \(check.suggest)") {
@@ -446,17 +443,17 @@ struct UnfiledBlock: View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
             SectionHeader(title: "Not filed to a section", state: .missingRequired)
             Text("Heard, not placed. File them or drop them before you sign.")
-                .font(KlinoteFont.ui(12))
+                .font(KlinoteFont.caption())
                 .foregroundStyle(KlinoteColor.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             ForEach(items) { item in
                 HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
                     Text(item.speakerRole.uppercased())
-                        .font(KlinoteFont.label(9, weight: .semibold))
+                        .font(KlinoteFont.micro())
                         .foregroundStyle(KlinoteColor.tertiary)
                         .frame(width: 62, alignment: .leading)
                     Text(item.text)
-                        .font(KlinoteFont.document(13))
+                        .font(KlinoteFont.documentMinor())
                         .foregroundStyle(KlinoteColor.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -496,12 +493,12 @@ struct SignatureBlock: View {
             Hairline()
 
             HStack(alignment: .bottom, spacing: KlinoteMetrics.space24) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: KlinoteMetrics.space4) {
                     Text(signatureLine)
                         .font(KlinoteFont.label())
                         .foregroundStyle(KlinoteColor.secondary)
                     Text(isReviewed ? "On this Mac. Not in the record until you paste." : "Paste into the record. Then mark reviewed here.")
-                        .font(KlinoteFont.document(14))
+                        .font(KlinoteFont.document())
                         .foregroundStyle(KlinoteColor.tertiary)
                 }
 
@@ -509,7 +506,7 @@ struct SignatureBlock: View {
 
                 VStack(alignment: .trailing, spacing: KlinoteMetrics.space8) {
                     Text(model.completenessLine)
-                        .font(KlinoteFont.ui(12))
+                        .font(KlinoteFont.caption())
                         .foregroundStyle(
                             model.isPasteReady ? KlinoteColor.secondary : KlinoteColor.caution
                         )

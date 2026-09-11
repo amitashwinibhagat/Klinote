@@ -15,16 +15,16 @@ struct PasteTranscriptSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space16) {
             Text("Paste a transcript")
-                .font(KlinoteFont.ui(15, weight: .semibold))
+                .font(KlinoteFont.panelHeading())
                 .foregroundStyle(KlinoteColor.primary)
             Text("One line per turn, starting with CLINICIAN: or PATIENT:. No audio and no download — the note is written on this Mac.")
-                .font(KlinoteFont.ui(12))
+                .font(KlinoteFont.caption())
                 .foregroundStyle(KlinoteColor.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             TextEditor(text: $text)
-                .font(KlinoteFont.document(13))
-                .frame(minHeight: 220)
+                .font(KlinoteFont.documentMinor())
+                .frame(minHeight: KlinoteMetrics.sheetMinHeight)
                 .padding(KlinoteMetrics.space8)
                 .background(KlinoteColor.recessed)
                 .clipShape(RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous))
@@ -46,8 +46,8 @@ struct PasteTranscriptSheet: View {
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
-        .padding(KlinoteMetrics.space24)
-        .frame(width: 620)
+        .padding(KlinoteMetrics.sheetInset)
+        .frame(width: KlinoteMetrics.sheetWidth)
         .background(KlinoteColor.document)
     }
 }

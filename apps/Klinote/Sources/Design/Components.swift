@@ -105,8 +105,8 @@ struct SectionHeader: View {
                     Text(word)
                         .font(KlinoteFont.label())
                         .foregroundStyle(state.tone)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
+                        .padding(.horizontal, KlinoteMetrics.inline6)
+                        .padding(.vertical, KlinoteMetrics.inline2)
                         .overlay(
                             RoundedRectangle(cornerRadius: KlinoteMetrics.radiusChip, style: .continuous)
                                 .strokeBorder(state.tone.opacity(0.5), lineWidth: 1)
@@ -123,6 +123,24 @@ struct SectionHeader: View {
     }
 }
 
+// MARK: - The mark
+
+/// The wordmark. Lowercase, tight, no rule, no serif, no domain line — the
+/// name is the mark. One component, because there were three copies of this in
+/// the codebase at three sizes with three hand-tuned tracking values, which is
+/// how a brand mark starts to drift.
+struct BrandMark: View {
+    var size: CGFloat = 13
+
+    var body: some View {
+        Text("klinote")
+            .font(.system(size: size, weight: .semibold))
+            .tracking(size * KlinoteMetrics.wordmarkTracking)
+            .foregroundStyle(KlinoteColor.ink)
+            .accessibilityLabel("Klinote")
+    }
+}
+
 // MARK: - Primary action
 
 struct KlinotePrimaryButtonStyle: ButtonStyle {
@@ -130,12 +148,12 @@ struct KlinotePrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(KlinoteFont.ui(13, weight: .semibold))
+            .font(KlinoteFont.emphasis())
             .foregroundStyle(.white)
             .padding(.horizontal, KlinoteMetrics.space16)
-            .padding(.vertical, 7)
+            .padding(.vertical, KlinoteMetrics.space8)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous)
                     .fill(KlinoteColor.inkFill)
             )
             .opacity(configuration.isPressed ? 0.82 : 1)
@@ -154,10 +172,10 @@ struct RecordingLamp: View {
     @State private var pulse = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 2, style: .continuous)
+        RoundedRectangle(cornerRadius: KlinoteMetrics.radiusLamp, style: .continuous)
             .fill(isPaused ? Color.clear : KlinoteColor.record)
             .overlay(
-                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                RoundedRectangle(cornerRadius: KlinoteMetrics.radiusLamp, style: .continuous)
                     .strokeBorder(KlinoteColor.record, lineWidth: 1.5)
             )
             .frame(width: 10, height: 10)
@@ -248,7 +266,7 @@ struct TraceView: View {
                 height: size.height * 0.7
             )
             let colour = index < lit ? KlinoteColor.record : KlinoteColor.hairline.opacity(0.4)
-            context.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(colour))
+            context.fill(Path(roundedRect: rect, cornerRadius: KlinoteMetrics.radiusLamp), with: .color(colour))
         }
     }
 }
@@ -264,7 +282,7 @@ struct EmptyState: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
             Text(title)
-                .font(KlinoteFont.ui(15, weight: .semibold))
+                .font(KlinoteFont.panelHeading())
                 .foregroundStyle(KlinoteColor.primary)
             Text(message)
                 .font(KlinoteFont.ui())

@@ -33,16 +33,16 @@ struct MarginView: View {
                 .padding(.bottom, KlinoteMetrics.space8)
 
                 if showingWholeConsult {
-                    HStack(spacing: 6) {
+                    HStack(spacing: KlinoteMetrics.inline6) {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 11))
+                            .font(.system(size: KlinoteMetrics.iconSmall))
                             .foregroundStyle(KlinoteColor.tertiary)
                         TextField("Search the words", text: $transcriptSearch)
                             .textFieldStyle(.plain)
-                            .font(KlinoteFont.ui(12))
+                            .font(KlinoteFont.caption())
                     }
                     .padding(.horizontal, KlinoteMetrics.space8)
-                    .padding(.vertical, 5)
+                    .padding(.vertical, KlinoteMetrics.inline6)
                     .background(KlinoteColor.recessed)
                     .clipShape(RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous))
                     .padding(.horizontal, KlinoteMetrics.space16)
@@ -102,19 +102,19 @@ struct MarginView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space4) {
             TabLabel(text: showingWholeConsult ? "Whole consultation" : "Evidence")
             if showingWholeConsult {
                 Text("\(model.selectedEncounter?.transcript?.segments.count ?? 0) things said. A gap marked held was not recorded.")
-                    .font(KlinoteFont.ui(12))
+                    .font(KlinoteFont.caption())
                     .foregroundStyle(KlinoteColor.secondary)
             } else if let sentenceNumber = selectedSentenceNumber {
                 Text("Words that produced sentence \(sentenceNumber)")
-                    .font(KlinoteFont.ui(12, weight: .medium))
+                    .font(KlinoteFont.caption(.medium))
                     .foregroundStyle(KlinoteColor.primary)
             } else {
                 Text("Select a sentence to see the words that produced it.")
-                    .font(KlinoteFont.ui(12))
+                    .font(KlinoteFont.caption())
                     .foregroundStyle(KlinoteColor.secondary)
             }
         }
@@ -187,23 +187,23 @@ struct UtteranceRow: View {
     let isPrimary: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space4) {
             HStack(spacing: KlinoteMetrics.space8) {
                 Text(role.uppercased())
-                    .font(KlinoteFont.label(9, weight: .semibold))
+                    .font(KlinoteFont.micro())
                     .foregroundStyle(isEvidence ? KlinoteColor.ink : KlinoteColor.tertiary)
                 Text(Self.timestamp(segment.startMs))
-                    .font(KlinoteFont.data(10))
+                    .font(KlinoteFont.microData())
                     .foregroundStyle(KlinoteColor.tertiary)
                 Spacer(minLength: 0)
                 if isPrimary {
                     Text("source")
-                        .font(KlinoteFont.label(9, weight: .semibold))
+                        .font(KlinoteFont.micro())
                         .foregroundStyle(KlinoteColor.ink)
                 }
             }
             Text(segment.text)
-                .font(KlinoteFont.ui(12.5, weight: isEvidence ? .medium : .regular))
+                .font(KlinoteFont.utterance(isEvidence ? .medium : .regular))
                 .foregroundStyle(isEvidence ? KlinoteColor.primary : KlinoteColor.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -214,7 +214,7 @@ struct UtteranceRow: View {
         .overlay(alignment: .leading) {
             Rectangle()
                 .fill(isPrimary ? KlinoteColor.ink : Color.clear)
-                .frame(width: 2)
+                .frame(width: KlinoteMetrics.ruleWidth)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

@@ -29,10 +29,10 @@ struct CopyConfirmSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space16) {
             Text("Copy this consult?")
-                .font(KlinoteFont.ui(15, weight: .semibold))
+                .font(KlinoteFont.panelHeading())
                 .foregroundStyle(KlinoteColor.primary)
             Text("This is not the consult the window was showing. Check it is the right one before you paste.")
-                .font(KlinoteFont.ui(12))
+                .font(KlinoteFont.caption())
                 .foregroundStyle(KlinoteColor.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -42,10 +42,10 @@ struct CopyConfirmSheet: View {
                 Field(label: "Document", value: model.displayName(for: encounter))
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: KlinoteMetrics.space4) {
                 TabLabel(text: "Starts with")
                 Text(firstLine)
-                    .font(KlinoteFont.document(13))
+                    .font(KlinoteFont.documentMinor())
                     .foregroundStyle(KlinoteColor.primary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -66,8 +66,8 @@ struct CopyConfirmSheet: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(KlinoteMetrics.space24)
-        .frame(width: 520)
+        .padding(KlinoteMetrics.sheetInset)
+        .frame(width: KlinoteMetrics.sheetWidth)
         .background(KlinoteColor.document)
     }
 }

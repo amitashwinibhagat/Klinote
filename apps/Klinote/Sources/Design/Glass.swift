@@ -84,21 +84,21 @@ struct NotaGlassPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         if #available(macOS 26.0, *), !reduceTransparency {
             configuration.label
-                .font(KlinoteFont.ui(13, weight: .semibold))
+                .font(KlinoteFont.emphasis())
                 .padding(.horizontal, KlinoteMetrics.space16)
-                .padding(.vertical, 7)
-                .glassEffect(.regular.tint(KlinoteColor.inkFill).interactive(), in: .rect(cornerRadius: 8))
+                .padding(.vertical, KlinoteMetrics.space8)
+                .glassEffect(.regular.tint(KlinoteColor.inkFill).interactive(), in: .rect(cornerRadius: KlinoteMetrics.radiusModule))
                 .opacity(configuration.isPressed ? 0.86 : 1)
                 .opacity(isEnabled ? 1 : 0.45)
                 .contentShape(Rectangle())
         } else {
             configuration.label
-                .font(KlinoteFont.ui(13, weight: .semibold))
+                .font(KlinoteFont.emphasis())
                 .foregroundStyle(.white)
                 .padding(.horizontal, KlinoteMetrics.space16)
-                .padding(.vertical, 7)
+                .padding(.vertical, KlinoteMetrics.space8)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous)
                         .fill(KlinoteColor.inkFill)
                 )
                 .opacity(configuration.isPressed ? 0.82 : 1)

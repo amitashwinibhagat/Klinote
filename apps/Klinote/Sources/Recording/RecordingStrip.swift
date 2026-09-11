@@ -96,12 +96,12 @@ struct RecordingStripView: View {
                     isPaused: model.recordingState.isPaused || model.recordingState.isHolding
                 )
                 Text(headline)
-                    .font(KlinoteFont.ui(14, weight: .semibold))
+                    .font(KlinoteFont.panelHeading())
                     .foregroundStyle(KlinoteColor.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: KlinoteMetrics.space8)
                 Text(isDrafting ? "…" : Self.clock(model.elapsed))
-                    .font(KlinoteFont.data(12))
+                    .font(KlinoteFont.clock())
                     .monospacedDigit()
                     .foregroundStyle(KlinoteColor.secondary)
             }
@@ -155,9 +155,9 @@ struct RecordingStripView: View {
         }
         .padding(KlinoteMetrics.space16)
         .frame(width: 380)
-        .klinoteGlass(cornerRadius: 12, tint: KlinoteColor.record.opacity(0.18), interactive: true)
+        .klinoteGlass(cornerRadius: KlinoteMetrics.radiusDocument, tint: KlinoteColor.record.opacity(0.18), interactive: true)
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: KlinoteMetrics.radiusDocument, style: .continuous)
                 .strokeBorder(KlinoteColor.record.opacity(0.65), lineWidth: 1.5)
         )
         .environment(\.klinoteReduceMotion, systemReduceMotion)

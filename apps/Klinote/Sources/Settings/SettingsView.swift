@@ -139,7 +139,7 @@ private struct TemplateSettings: View {
                             Toggle("Required before signing", isOn: section.required)
                             TextField("Guidance", text: section.guidance, axis: .vertical)
                             TextField("Cues (comma separated)", text: section.cuesText, axis: .vertical)
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(KlinoteFont.data())
                             Text(
                                 section.wrappedValue.cues.isEmpty
                                     ? "No cues: the rule-based engine will not route anything here."
@@ -363,7 +363,7 @@ private struct LearnedVocabulary: View {
                 ForEach(terms.sorted(by: { $0.key < $1.key }), id: \.key) { heard, replacement in
                     HStack {
                         Text("\(heard) → \(replacement)")
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(KlinoteFont.data())
                         Spacer()
                         Button("Forget") {
                             LearnedTerms.forget(heard)
@@ -374,7 +374,7 @@ private struct LearnedVocabulary: View {
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: KlinoteMetrics.space8) {
                 TextField("heard", text: $newHeard)
                 Text("→")
                 TextField("use instead", text: $newReplacement)
@@ -392,19 +392,16 @@ private struct LearnedVocabulary: View {
 
 private struct AboutSettings: View {
     var body: some View {
-        VStack(spacing: 12) {
-            Text("klinote")
-                .font(.system(size: 28, weight: .semibold))
-                .tracking(-0.8)
-                .foregroundStyle(KlinoteColor.ink)
+        VStack(spacing: KlinoteMetrics.space12) {
+            BrandMark(size: 28)
             Text("Clinical notes that never leave the room.")
                 .foregroundStyle(.secondary)
             Text(AppVersion.display)
-                .font(.system(size: 11))
+                .font(.system(size: KlinoteMetrics.iconSmall))
                 .foregroundStyle(.tertiary)
             Spacer()
         }
-        .padding(.top, 32)
+        .padding(.top, KlinoteMetrics.space32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

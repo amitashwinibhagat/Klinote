@@ -63,16 +63,28 @@ Selected pairs carry a rule and a bold weight.
 
 Three system faces, no shipping fonts, each with one job.
 
-| Role | Face | Size / weight | Notes |
-|---|---|---|---|
-| Note body | **New York** (`design: .serif`) | 14 pt / regular | Line height 1.5, measure 68ch. This is the letter |
-| Document title | New York | 19 pt / semibold | The letterhead heading |
-| Section tab | SF Pro | 11 pt / semibold | Uppercase, `+0.6` tracking, `text.secondary` |
-| Field label | SF Pro | 11 pt / medium | `text.secondary` |
-| Body / control | SF Pro | 13 pt / regular | All interface text |
-| Emphasis | SF Pro | 13 pt / semibold | Matched phrase in the margin |
-| Data, time, IDs | **SF Mono** | 11 pt / regular | Tabular figures, always |
-| Margin utterance | SF Pro | 12.5 pt / regular | `text.secondary`; matched phrase semibold, `text.primary` |
+**Every size in the product is a named role.** Nothing reaches a font by
+number. The roles below are the whole set; a new one is a change to this file
+first, not a number typed at a call site.
+
+| Role | Token | Face | Size / weight | Notes |
+|---|---|---|---|---|
+| Note body | `document()` | **New York** (`design: .serif`) | 14 pt / regular | Line height 1.5, measure 68ch. This is the letter |
+| Document title | `documentTitle()` | New York | 19 pt / semibold | The letterhead heading |
+| Document aside | `documentMinor()` | New York | 13 pt / regular | Unfiled statements, a suggested name, a transcript being pasted. One step under the body so it reads as material under discussion, not as the record |
+| Tagline | `tagline()` | New York | 16 pt / medium | The line under the wordmark |
+| Section tab | `tab()` | SF Pro | 11 pt / semibold | Uppercase, `+0.6` tracking, `text.secondary` |
+| Field label | `label()` | SF Pro | 11 pt / medium | `text.secondary` |
+| Micro label | `micro()` | SF Pro | 9 pt / semibold | Chip text. The smallest step in the product |
+| Body / control | `ui()` | SF Pro | 13 pt / regular | All interface text |
+| Emphasis | `emphasis()` | SF Pro | 13 pt / semibold | Button labels, a selected sentence |
+| Panel heading | `panelHeading()` | SF Pro | 15 pt / semibold | A heading inside a sheet or an empty state |
+| Caption | `caption()` | SF Pro | 12 pt / regular | Explanatory text under a control, a promise, or an error |
+| Margin utterance | `utterance()` | SF Pro | 12.5 pt / regular | `text.secondary`; matched phrase semibold, `text.primary` |
+| Data, time, IDs | `data()` | **SF Mono** | 11 pt / regular | Tabular figures, always |
+| Micro data | `microData()` | SF Mono | 10 pt / regular | Counts and row metadata in the margins |
+| Micro number | `microNumber()` | SF Mono | 9 pt / regular | The margin number tying a sentence to its evidence |
+| Clock | `clock()` | SF Mono | 12 pt / regular | The recording clock, menu-bar titles |
 
 **Scale ratio 1.2**, fixed. No fluid or clamp-sized type: a Mac is viewed at
 consistent DPI and a heading that shrinks in a narrower pane looks broken.
@@ -89,8 +101,16 @@ prose; letter-spaced small caps larger than 12 pt.
 
 - **Spacing scale:** 4 · 8 · 12 · 16 · 24 · 32 · 48. Sections are separated by
   32; more space above a section tab than below it (24 above, 12 below).
+- **Inline scale:** 2 · 6. Chips, a field label against its value, and the
+  inside of a row need finer steps than the layout scale allows. These two
+  exist so those gaps are a decision rather than a typed number. No other
+  value below 4 may appear in the product.
 - **Radii:** document plane 10 · module 8 · inline chip 4 · lamp 2. The letter
   is squared; only the plane is softened.
+- **Modal chrome:** one sheet family, so one width (620) and one inset (24).
+  Three sibling sheets had drifted to 520/620 and 24/32, which reads as three
+  products rather than one.
+- **Symbol sizes:** 11 · 13. Two steps, no others.
 - **Rules:** module border 1 px `rule.hairline`; field rules 1 px at 60%
   opacity; the letterhead rule is the only 2 pt rule in the product, in `ink`.
 - **Elevation:** exactly one shadow in the product — a 1 px `rule.hairline`

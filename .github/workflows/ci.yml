@@ -46,3 +46,9 @@ jobs:
       # not asserted: one file may touch the network, and only to download.
       - name: Network surface
         run: ./scripts/check-network-surface.sh
+
+      # DESIGN.md is the source of truth for the visual system. This keeps the
+      # mechanical half of it honest: no font by number, no radius or spacing
+      # off the scale, one width for the sheet family.
+      - name: Design tokens
+        run: ./scripts/check-design-tokens.sh

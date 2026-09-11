@@ -20,12 +20,9 @@ struct SetupSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space24) {
             VStack(alignment: .leading, spacing: KlinoteMetrics.space8) {
-                Text("klinote")
-                    .font(.system(size: 20, weight: .semibold))
-                    .tracking(-0.6)
-                    .foregroundStyle(KlinoteColor.ink)
+                BrandMark(size: 20)
                 Text("Clinical notes that never leave the room.")
-                    .font(KlinoteFont.document(16, weight: .medium))
+                    .font(KlinoteFont.tagline())
                     .foregroundStyle(KlinoteColor.primary)
             }
 
@@ -55,7 +52,7 @@ struct SetupSheet: View {
 
             if model.storeError != nil {
                 Text("Klinote could not open its encrypted store. If macOS asked for your keychain password and you chose Deny, your existing consults cannot be read. Quit and reopen Klinote, then choose Allow.")
-                    .font(KlinoteFont.ui(12))
+                    .font(KlinoteFont.caption())
                     .foregroundStyle(KlinoteColor.caution)
                     .fixedSize(horizontal: false, vertical: true)
                 Rule()
@@ -89,8 +86,8 @@ struct SetupSheet: View {
                     .disabled(!acknowledged)
             }
         }
-        .padding(KlinoteMetrics.space32)
-        .frame(width: 620)
+        .padding(KlinoteMetrics.sheetInset)
+        .frame(width: KlinoteMetrics.sheetWidth)
         .background(KlinoteColor.document)
     }
 
@@ -137,16 +134,16 @@ private struct Point: View {
     var body: some View {
         HStack(alignment: .top, spacing: KlinoteMetrics.space12) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: KlinoteMetrics.iconRegular, weight: .medium))
                 .foregroundStyle(KlinoteColor.ink)
                 .frame(width: 20, alignment: .center)
-                .padding(.top, 1)
-            VStack(alignment: .leading, spacing: 2) {
+                .padding(.top, KlinoteMetrics.inline2)
+            VStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
                 Text(title)
-                    .font(KlinoteFont.ui(13, weight: .semibold))
+                    .font(KlinoteFont.emphasis())
                     .foregroundStyle(KlinoteColor.primary)
                 Text(detail)
-                    .font(KlinoteFont.ui(12))
+                    .font(KlinoteFont.caption())
                     .foregroundStyle(KlinoteColor.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

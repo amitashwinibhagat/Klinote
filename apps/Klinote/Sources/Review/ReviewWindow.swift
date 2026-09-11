@@ -104,7 +104,7 @@ struct ReviewWindow: View {
                 // A denied Keychain key would otherwise look like lost history.
                 HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
                     Text("Klinote could not open its encrypted store: \(storeError)")
-                        .font(KlinoteFont.ui(12))
+                        .font(KlinoteFont.caption())
                         .foregroundStyle(KlinoteColor.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
@@ -118,7 +118,7 @@ struct ReviewWindow: View {
             } else if let error = model.lastError {
                 HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
                     Text(error)
-                        .font(KlinoteFont.ui(12))
+                        .font(KlinoteFont.caption())
                         .foregroundStyle(KlinoteColor.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
@@ -132,7 +132,7 @@ struct ReviewWindow: View {
             } else if let banner = model.copyBanner {
                 HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
                     Text(banner)
-                        .font(KlinoteFont.ui(12, weight: .medium))
+                        .font(KlinoteFont.caption(.medium))
                         .foregroundStyle(KlinoteColor.ink)
                     Spacer(minLength: 0)
                     Button("Dismiss") { model.copyBanner = nil }
@@ -215,19 +215,19 @@ struct EncounterSidebar: View {
             .padding(.vertical, KlinoteMetrics.space12)
 
             if !model.encounters.isEmpty {
-                HStack(spacing: 6) {
+                HStack(spacing: KlinoteMetrics.inline6) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: KlinoteMetrics.iconSmall, weight: .medium))
                         .foregroundStyle(KlinoteColor.tertiary)
                     TextField("Search consults", text: $search)
                         .textFieldStyle(.plain)
-                        .font(KlinoteFont.ui(12))
+                        .font(KlinoteFont.caption())
                     if !search.isEmpty {
                         Button {
                             search = ""
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 11))
+                                .font(.system(size: KlinoteMetrics.iconSmall))
                                 .foregroundStyle(KlinoteColor.tertiary)
                         }
                         .buttonStyle(.borderless)
@@ -235,7 +235,7 @@ struct EncounterSidebar: View {
                     }
                 }
                 .padding(.horizontal, KlinoteMetrics.space12)
-                .padding(.vertical, 6)
+                .padding(.vertical, KlinoteMetrics.inline6)
                 .background(KlinoteColor.recessed)
                 .clipShape(RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous))
                 .padding(.horizontal, KlinoteMetrics.space12)
@@ -247,7 +247,7 @@ struct EncounterSidebar: View {
             if model.encounters.isEmpty {
                 VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
                     Text("No consults yet")
-                        .font(KlinoteFont.ui(15, weight: .semibold))
+                        .font(KlinoteFont.panelHeading())
                         .foregroundStyle(KlinoteColor.primary)
                     Text("Already have a transcript? Paste it and get a note now — no download. Or record a consult.")
                         .font(KlinoteFont.ui())
@@ -296,11 +296,11 @@ struct EncounterSidebar: View {
                                     TabLabel(text: group.day)
                                     Spacer()
                                     Text("\(group.encounters.count)")
-                                        .font(KlinoteFont.data(10))
+                                        .font(KlinoteFont.microData())
                                         .foregroundStyle(KlinoteColor.tertiary)
                                 }
                                 .padding(.horizontal, KlinoteMetrics.space16)
-                                .padding(.vertical, 6)
+                                .padding(.vertical, KlinoteMetrics.inline6)
                                 .background(KlinoteColor.margin)
                                 .overlay(alignment: .top) { Hairline() }
                                 .overlay(alignment: .bottom) { Hairline() }
@@ -325,19 +325,19 @@ struct EncounterSidebar: View {
                 DisclosureGroup {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(model.openTaskRows, id: \.task.id) { row in
-                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.inline6) {
                                 Button {
                                     model.setTask(row.task, done: true)
                                 } label: {
                                     Image(systemName: "square")
-                                        .font(.system(size: 11))
+                                        .font(.system(size: KlinoteMetrics.iconSmall))
                                         .foregroundStyle(KlinoteColor.tertiary)
                                 }
                                 .buttonStyle(.borderless)
                                 .help("Tick when you have done this.")
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
                                     Text(row.task.text)
-                                        .font(KlinoteFont.ui(11.5))
+                                        .font(KlinoteFont.caption())
                                         .foregroundStyle(KlinoteColor.primary)
                                         .lineLimit(2)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -345,12 +345,12 @@ struct EncounterSidebar: View {
                                         "\(row.encounter.patientRef) · "
                                             + EncounterSpine.time(row.encounter.startedAt)
                                     )
-                                    .font(KlinoteFont.data(10))
+                                    .font(KlinoteFont.microData())
                                     .foregroundStyle(KlinoteColor.tertiary)
                                 }
                                 Spacer(minLength: 0)
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, KlinoteMetrics.space4)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 model.selection = row.encounter.id
@@ -360,13 +360,13 @@ struct EncounterSidebar: View {
                             Hairline()
                         }
                     }
-                    .padding(.top, 4)
+                    .padding(.top, KlinoteMetrics.space4)
                 } label: {
                     HStack {
                         TabLabel(text: "Still to do")
                         Spacer()
                         Text("\(model.openTaskRows.count)")
-                            .font(KlinoteFont.data(10))
+                            .font(KlinoteFont.microData())
                             .foregroundStyle(KlinoteColor.ink)
                     }
                 }
@@ -441,10 +441,10 @@ struct EncounterSpine: View {
     @State private var hovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space4) {
             HStack(alignment: .firstTextBaseline) {
                 Text(encounter.isSyntheticDemo ? "Sample" : Self.time(encounter.startedAt))
-                    .font(KlinoteFont.data(12))
+                    .font(KlinoteFont.clock())
                     .foregroundStyle(KlinoteColor.primary)
                 Spacer(minLength: KlinoteMetrics.space8)
                 Text(encounter.state.word)
@@ -465,7 +465,7 @@ struct EncounterSpine: View {
                     Button("Delete", role: .destructive, action: onDelete)
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: KlinoteMetrics.iconSmall, weight: .semibold))
                         .foregroundStyle(KlinoteColor.secondary)
                         .frame(width: 20, height: 16)
                         .contentShape(Rectangle())
@@ -477,7 +477,7 @@ struct EncounterSpine: View {
             }
             HStack(spacing: KlinoteMetrics.space8) {
                 Text(encounter.patientRef)
-                    .font(KlinoteFont.data(11))
+                    .font(KlinoteFont.data())
                     .foregroundStyle(KlinoteColor.secondary)
                     .lineLimit(1)
                 Text(displayName.isEmpty ? encounter.templateId : displayName)
@@ -493,7 +493,7 @@ struct EncounterSpine: View {
         .overlay(alignment: .leading) {
             Rectangle()
                 .fill(isSelected ? KlinoteColor.accent : .clear)
-                .frame(width: 2)
+                .frame(width: KlinoteMetrics.ruleWidth)
         }
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
