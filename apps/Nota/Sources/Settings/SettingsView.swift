@@ -116,10 +116,10 @@ private struct RecordingSettings: View {
                 LabeledContent("Status", value: downloader.state.word)
                 switch downloader.state {
                 case .missing:
-                    Button("Download speech model (465 MB)") {
+                    Button("Download speech engine (465 MB, once)") {
                         downloader.start()
                     }
-                    Text("Open-source whisper.cpp with speaker diarisation. Downloaded once, then runs entirely on this Mac. Audio never leaves the device.")
+                    Text("Runs on this Mac. Consultations are never uploaded. Download this before you record — not during a consult.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .downloading(let fraction):
@@ -139,6 +139,8 @@ private struct RecordingSettings: View {
             Section("Shortcuts") {
                 LabeledContent("Start or stop recording", value: "⌥⌘R")
                 LabeledContent("Pause or resume", value: "⌥⌘P")
+                LabeledContent("Copy note", value: "⌘⇧C")
+                LabeledContent("Swap clinician and patient", value: "⌥⌘S")
                 LabeledContent("Open Nota", value: "⌘⇧N")
                 LabeledContent("File a note", value: "⌘↩")
             }
@@ -153,8 +155,16 @@ private struct RecordingSettings: View {
 }
 
 private struct PrivacySettings: View {
+    @AppStorage("nota.teachingBuildAcknowledged") private var teachingBuildAcknowledged = false
+
     var body: some View {
         Form {
+            Section("This build") {
+                Toggle("I understand this build is for teaching only", isOn: $teachingBuildAcknowledged)
+                Text("Encryption at rest is not built. Do not record real patients until it is. Recording stays off until you acknowledge this.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
             Section("Where your data is") {
                 Text("Everything Nota produces stays in this Mac's application support folder. There is no account, no sync, and no server.")
                     .font(.caption)
@@ -187,9 +197,6 @@ private struct AboutSettings: View {
                 .font(.system(size: 26, weight: .semibold, design: .serif))
             Text("Clinical notes that never leave the room.")
                 .foregroundStyle(.secondary)
-            Text("Engine contract \(NotaCore.schemaVersion)")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.tertiary)
             Text(AppVersion.display)
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)

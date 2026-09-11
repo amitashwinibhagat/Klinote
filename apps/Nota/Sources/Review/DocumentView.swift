@@ -254,42 +254,68 @@ struct SignatureBlock: View {
     @ObservedObject var model: AppModel
     let note: ClinicalNote
 
+    private var isReviewed: Bool { model.selectedEncounter?.state == .approved }
+    private var canSwap: Bool {
+        guard let encounter = model.selectedEncounter else { return false }
+        return !encounter.isSyntheticDemo && (encounter.transcript?.speakers.count ?? 0) >= 2
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: NotaMetrics.space16) {
             Hairline()
 
             HStack(alignment: .bottom, spacing: NotaMetrics.space24) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Reviewed and signed by")
+                    Text(isReviewed ? "Reviewed by you" : "Not yet reviewed")
                         .font(NotaFont.label())
                         .foregroundStyle(NotaColor.secondary)
-                    Text("—")
-                        .font(NotaFont.document(15))
+                    Text(isReviewed ? "Just now, on this Mac" : "Copy the note, then mark it reviewed.")
+                        .font(NotaFont.document(14))
                         .foregroundStyle(NotaColor.tertiary)
                 }
 
                 Spacer(minLength: 0)
 
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .trailing, spacing: NotaMetrics.space8) {
                     Text(model.completenessLine)
                         .font(NotaFont.ui(12))
                         .foregroundStyle(
                             note.missingRequired.isEmpty ? NotaColor.secondary : NotaColor.caution
                         )
                         .multilineTextAlignment(.trailing)
-                    Button {
-                        model.fileSelectedNote()
-                    } label: {
-                        Text(model.isFiling ? "Filing…" : "File note")
+
+                    HStack(spacing: NotaMetrics.space8) {
+                        if canSwap {
+                            Button {
+                                model.swapSpeakersAndRedraft()
+                            } label: {
+                                Text(model.isSwapping ? "Swapping…" : "Swap speakers")
+                            }
+                            .controlSize(.small)
+                            .disabled(model.isSwapping)
+                            .help("Swap clinician and patient, then rebuild the note (⌥⌘S)")
+                        }
+                        Button {
+                            model.copySelectedNote()
+                        } label: {
+                            Text(model.isCopying ? "Copied" : "Copy note")
+                        }
+                        .controlSize(.small)
+                        .help("Copy the note to paste into the record (⌘⇧C)")
+                        Button {
+                            model.fileSelectedNote()
+                        } label: {
+                            Text(model.isFiling ? "Saving…" : "Mark as reviewed")
+                        }
+                        .buttonStyle(NotaPrimaryButtonStyle())
+                        .keyboardShortcut(.return, modifiers: .command)
+                        .disabled(model.isFiling || isReviewed)
+                        .help("Mark this draft as reviewed on this Mac (⌘↩)")
                     }
-                    .buttonStyle(NotaPrimaryButtonStyle())
-                    .keyboardShortcut(.return, modifiers: .command)
-                    .disabled(model.isFiling || model.selectedEncounter?.state == .approved)
-                    .help("File this note into the record (⌘↩)")
                 }
             }
 
-            Text("Filing records your approval. The draft itself is machine-generated and is never filed without this action.")
+            Text("Copy note puts it on the clipboard for your record system. Mark as reviewed stays on this Mac — it does not send anything anywhere.")
                 .font(NotaFont.label())
                 .foregroundStyle(NotaColor.tertiary)
         }

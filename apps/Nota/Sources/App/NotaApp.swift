@@ -71,6 +71,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) {
             Task { @MainActor in ReviewWindowController.shared.show() }
         }
+
+        // ⌘⇧C — copy the selected note as Markdown.
+        HotKeyCenter.shared.register(
+            .copyNote,
+            keyCode: kVK_ANSI_C,
+            modifiers: cmdKey | shiftKey
+        ) {
+            Task { @MainActor in AppModel.shared.copySelectedNote() }
+        }
+
+        // ⌥⌘S — swap clinician and patient, rebuild the note.
+        HotKeyCenter.shared.register(
+            .swapSpeakers,
+            keyCode: kVK_ANSI_S,
+            modifiers: optionKey | cmdKey
+        ) {
+            Task { @MainActor in AppModel.shared.swapSpeakersAndRedraft() }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -83,17 +101,26 @@ struct MenuBarContent: View {
     @ObservedObject private var downloader = ModelDownloader.shared
 
     var body: some View {
-        if case .downloading(let fraction) = downloader.state {
-            Text("Downloading speech model \(Int(fraction * 100))%")
-            Divider()
-        } else if case .failed(let message) = downloader.state {
-            Text("Speech model: \(message)")
-            Button("Retry download") { downloader.start() }
+        if let error = model.lastError {
+            Text(error)
             Divider()
         }
 
-        if model.recordingState.isActive {
-            Text(model.recordingState.isPaused ? "Recording paused" : "Recording")
+        if case .downloading(let fraction) = downloader.state {
+            Text("Downloading speech engine \(Int(fraction * 100))%")
+            Divider()
+        } else if case .missing = downloader.state {
+            Button("Download speech engine…") { downloader.start() }
+            Divider()
+        } else if case .failed = downloader.state {
+            Button("Retry speech engine download") { downloader.start() }
+            Divider()
+        }
+
+        if model.recordingState.isDrafting {
+            Text("Drafting the note on this Mac")
+        } else if model.recordingState.isActive {
+            Text(model.recordingState.isPaused ? "Paused — not recording" : "Recording")
             Button("Stop and draft") { model.stopAndDraft() }
             if model.recordingState.isPaused {
                 Button("Resume") { model.resumeRecording() }
@@ -111,11 +138,19 @@ struct MenuBarContent: View {
                 model.selection = encounter.id
                 ReviewWindowController.shared.show()
             } label: {
-                Text("\(encounter.patientRef) · \(encounter.state.word)")
+                Text(encounter.menuTitle)
             }
         }
 
         if !model.encounters.isEmpty { Divider() }
+
+        Button("Copy note") { model.copySelectedNote() }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+            .disabled(model.selectedEncounter?.note == nil)
+
+        Button("Swap clinician and patient") { model.swapSpeakersAndRedraft() }
+            .keyboardShortcut("s", modifiers: [.option, .command])
+            .disabled(model.selectedEncounter?.isSyntheticDemo != false)
 
         Button("Open Nota") { ReviewWindowController.shared.show() }
             .keyboardShortcut("n", modifiers: [.command, .shift])

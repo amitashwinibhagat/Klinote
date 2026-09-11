@@ -82,22 +82,34 @@ struct UnassignedStatement: Codable, Identifiable, Hashable {
     var id: String { "\(evidence.first ?? "none")::\(text)" }
 }
 
-struct Transcript: Decodable {
+struct Transcript: Codable {
     let encounterId: String
-    let speakers: [TranscriptSpeaker]
+    var speakers: [TranscriptSpeaker]
     let segments: [TranscriptSegment]
     let language: String
     let engine: String
-    let humanSupplied: Bool
+    var humanSupplied: Bool
+    var createdAt: String?
+
+    /// Flip clinician ↔ patient on the two well-known speakers. Other roles stay.
+    mutating func swapClinicianAndPatient() {
+        for index in speakers.indices {
+            switch speakers[index].role {
+            case "clinician": speakers[index].role = "patient"
+            case "patient": speakers[index].role = "clinician"
+            default: break
+            }
+        }
+    }
 }
 
-struct TranscriptSpeaker: Decodable, Identifiable {
+struct TranscriptSpeaker: Codable, Identifiable {
     let id: UInt32
-    let role: String
+    var role: String
     let label: String?
 }
 
-struct TranscriptSegment: Decodable, Identifiable {
+struct TranscriptSegment: Codable, Identifiable {
     let id: String
     let speaker: UInt32
     let startMs: UInt64
@@ -226,6 +238,35 @@ enum NotaCore {
             throw NotaCoreError.malformedResponse
         }
         return (note, transcript)
+    }
+
+    /// Rebuild a note from an already-diarised transcript (speaker swap, etc.).
+    static func note(
+        fromTranscript transcript: Transcript,
+        templateId: String
+    ) throws -> ClinicalNote {
+        var transcript = transcript
+        if transcript.createdAt == nil {
+            transcript.createdAt = ISO8601DateFormatter().string(from: Date())
+        }
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let transcriptData = try encoder.encode(transcript)
+        guard let transcriptObject = try JSONSerialization.jsonObject(with: transcriptData) as? [String: Any] else {
+            throw NotaCoreError.malformedResponse
+        }
+        let request: [String: Any] = [
+            "template_id": templateId,
+            "transcript": transcriptObject,
+        ]
+        let requestData = try JSONSerialization.data(withJSONObject: request)
+        guard let requestJSON = String(data: requestData, encoding: .utf8) else {
+            throw NotaCoreError.malformedResponse
+        }
+        let payload: NoteEnvelope = try envelope(from: scribe_note_from_transcript(requestJSON))
+        guard payload.ok else { throw NotaCoreError.engine(payload.error ?? "unknown error") }
+        guard let note = payload.note else { throw NotaCoreError.malformedResponse }
+        return note
     }
 
     // MARK: - Plumbing

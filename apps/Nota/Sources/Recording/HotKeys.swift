@@ -19,6 +19,8 @@ final class HotKeyCenter {
         case toggleRecording = 1
         case togglePause = 2
         case openNota = 3
+        case copyNote = 4
+        case swapSpeakers = 5
     }
 
     private var handlers: [UInt32: () -> Void] = [:]

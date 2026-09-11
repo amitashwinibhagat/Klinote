@@ -1,10 +1,10 @@
 //
 // Recorder.swift
 //
-// Live capture with AVAudioEngine. Audio is written to a temporary mono
-// 16-bit WAV file that the engine transcribes in one shot — no streaming ASR
-// yet. The recording is deleted right after the draft is produced; Nota never
-// keeps a recording unless the clinician asks it to.
+// Live capture with AVAudioEngine. Audio is written to a temporary WAV that
+// the engine transcribes in one shot. Pause actually pauses the engine — a
+// paused strip must mean the microphone is not writing. The file is deleted
+// after the draft is produced.
 //
 
 import AVFoundation
@@ -15,11 +15,13 @@ final class Recorder: ObservableObject {
     static let shared = Recorder()
 
     @Published var isRecording = false
+    @Published var isPaused = false
     @Published var inputLevel: Double = 0
 
     private let engine = AVAudioEngine()
+    private var file: AVAudioFile?
     private var tempURL: URL?
-    private var levelTimer: Timer?
+    private var tapInstalled = false
 
     private init() {}
 
@@ -33,6 +35,10 @@ final class Recorder: ObservableObject {
 
     /// Begin capture. Returns the file URL the audio is being written to.
     func start() throws -> URL {
+        if engine.isRunning || tapInstalled {
+            stop()
+        }
+
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         let sampleRate = format.sampleRate
@@ -50,22 +56,15 @@ final class Recorder: ObservableObject {
         ]
 
         let file = try AVAudioFile(forWriting: url, settings: settings)
+        self.file = file
 
-        // Tapping the input gives us a mono-converted, 16-bit buffer that we
-        // write straight to the file. Level metering comes from the same tap.
-        input.installTap(onBus: 0, bufferSize: 4096, format: nil) { buffer, _ in
-            // The tap format may be stereo; AVAudioFile(forWriting:) with a
-            // channel count of 1 will handle the downmix if we write frames
-            // at the tap's own format. To keep it simple and correct we write
-            // the tap buffer verbatim — same sample rate, whatever channels —
-            // because hound + the engine mono-downmix anyway.
+        input.installTap(onBus: 0, bufferSize: 4096, format: nil) { [weak self] buffer, _ in
             do {
                 try file.write(from: buffer)
             } catch {
                 NSLog("Nota: could not write recording: \(error)")
             }
 
-            // RMS level for the patient-visible trace.
             let channel = buffer.floatChannelData?[0]
             guard let channel else { return }
             let count = Int(buffer.frameLength)
@@ -75,27 +74,51 @@ final class Recorder: ObservableObject {
             }
             let rms = (sum / Float(max(count, 1))).squareRoot()
             Task { @MainActor in
-                self.inputLevel = Double(min(1, rms * 4))
+                self?.inputLevel = Double(min(1, rms * 4))
             }
         }
+        tapInstalled = true
 
         engine.prepare()
         try engine.start()
 
         tempURL = url
         isRecording = true
-        startLevelTimer()
+        isPaused = false
         return url
     }
 
-    func stop() {
-        engine.stop()
-        engine.inputNode.removeTap(onBus: 0)
+    /// Pause the microphone. The file stays open so resume can continue it.
+    func pause() {
+        guard engine.isRunning else { return }
+        engine.pause()
+        isPaused = true
         isRecording = false
-        stopLevelTimer()
+        inputLevel = 0
     }
 
-    /// The captured file, or nil if capture never started.
+    func resume() throws {
+        guard isPaused else { return }
+        try engine.start()
+        isPaused = false
+        isRecording = true
+    }
+
+    func stop() {
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        if engine.isRunning {
+            engine.stop()
+        }
+        // Closing the file flushes headers.
+        file = nil
+        isRecording = false
+        isPaused = false
+        inputLevel = 0
+    }
+
     func capturedFile() -> URL? {
         tempURL
     }
@@ -105,17 +128,6 @@ final class Recorder: ObservableObject {
             try? FileManager.default.removeItem(at: tempURL)
         }
         tempURL = nil
-    }
-
-    private func startLevelTimer() {
-        stopLevelTimer()
-        levelTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
-            // inputLevel is already updated from the tap; nothing more to do.
-        }
-    }
-
-    private func stopLevelTimer() {
-        levelTimer?.invalidate()
-        levelTimer = nil
+        file = nil
     }
 }

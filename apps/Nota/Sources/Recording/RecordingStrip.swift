@@ -22,7 +22,7 @@ final class RecordingStripController {
         }
 
         let panel = StripPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 344, height: 132),
+            contentRect: NSRect(x: 0, y: 0, width: 396, height: 148),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -73,20 +73,33 @@ struct RecordingStripView: View {
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    private var isRecording: Bool { model.recordingState.isActive }
+    private var isLive: Bool { model.recordingState.isRecording }
+    private var isDrafting: Bool {
+        if case .finalising = model.recordingState { return true }
+        return false
+    }
+
+    private var headline: String {
+        switch model.recordingState {
+        case .paused: "Paused — not recording"
+        case .finalising: "Drafting the note on this Mac"
+        default: "This consultation is being recorded on this Mac only"
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: NotaMetrics.space12) {
-            HStack(spacing: NotaMetrics.space8) {
+            HStack(alignment: .firstTextBaseline, spacing: NotaMetrics.space8) {
                 RecordingLamp(
-                    isRecording: isRecording,
+                    isRecording: isLive,
                     isPaused: model.recordingState.isPaused
                 )
-                Text("Recording consultation")
-                    .font(NotaFont.ui(15, weight: .semibold))
+                Text(headline)
+                    .font(NotaFont.ui(14, weight: .semibold))
                     .foregroundStyle(NotaColor.primary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: NotaMetrics.space8)
-                Text(Self.clock(model.elapsed))
+                Text(isDrafting ? "…" : Self.clock(model.elapsed))
                     .font(NotaFont.data(12))
                     .monospacedDigit()
                     .foregroundStyle(NotaColor.secondary)
@@ -94,7 +107,7 @@ struct RecordingStripView: View {
 
             TraceView(
                 level: model.traceLevel,
-                isActive: model.recordingState.isRecording,
+                isActive: isLive,
                 reduceMotion: systemReduceMotion
             )
             .frame(height: 26)
@@ -108,11 +121,15 @@ struct RecordingStripView: View {
                     }
                 }
                 .controlSize(.small)
+                .disabled(isDrafting)
+                .accessibilityLabel(model.recordingState.isPaused ? "Resume recording" : "Pause recording")
 
                 Button("Stop and draft") {
                     model.stopAndDraft()
                 }
                 .controlSize(.small)
+                .disabled(isDrafting)
+                .accessibilityLabel("Stop recording and draft the note")
 
                 Spacer(minLength: 0)
 
@@ -122,7 +139,7 @@ struct RecordingStripView: View {
             }
         }
         .padding(NotaMetrics.space16)
-        .frame(width: 344)
+        .frame(width: 380)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(reduceTransparency ? AnyShapeStyle(NotaColor.desk) : AnyShapeStyle(.regularMaterial))
@@ -134,7 +151,6 @@ struct RecordingStripView: View {
         )
         .environment(\.notaReduceMotion, systemReduceMotion)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Recorder")
     }
 
     static func clock(_ seconds: TimeInterval) -> String {

@@ -10,8 +10,9 @@ macos
 
 Swift/SwiftUI shell over a Rust core (Cargo workspace in `crates/`), linked as a
 static library through a hand-written C ABI. Project generated with XcodeGen.
-There is no networking code anywhere in the product; that is an architectural
-invariant, not a policy (see `docs/engineering/ADR/0002`).
+The Rust engine contains no networking code (see `docs/engineering/ADR/0002`).
+The Swift shell's only network action is a first-use download of the open-source
+whisper.cpp model; audio and notes never leave the Mac.
 
 ## Users
 
@@ -67,16 +68,19 @@ is looked at afterwards, briefly.
 dentistry, veterinary) as clinician-editable TOML. Rule-based note generation
 with per-sentence evidence links. Required-section completeness checking. A
 plain-text transcript path that works with no model at all. WAV ingest, VAD,
-two-speaker turn-taking diarisation. SQLite storage with an append-only audit
-log. A C ABI for the shell.
+whisper.cpp ASR with tinydiarize speaker-boundary detection (model downloaded
+once on first use). A Swift/SwiftUI macOS shell: menu bar, patient-visible
+recording strip, review window with evidence margin, settings. SQLite storage
+with an append-only audit log. A C ABI for the shell.
 
-**Not built.** Any UI. A real speech-recognition engine (the shipped default is
-a mock that emits synthetic text). A model-backed generator. EHR integration.
-Encryption at rest. Retention and deletion.
+**Not built.** A model-backed generator. EHR integration. Encryption at rest.
+Retention and deletion. Persistence of encounters across app relaunch in the
+shell (the engine store exists; the app does not wire it yet).
 
 **Constraints.**
 
-- On-device only. No network code, no telemetry, no runtime model downloads.
+- On-device only. No telemetry. The only inbound network is the first-use
+  speech-engine download; audio and notes never leave the Mac.
 - No direct patient identifiers anywhere in the product — `patient_ref` is an
   opaque pseudonym.
 - A machine never sets a note to approved. Only a human does.
