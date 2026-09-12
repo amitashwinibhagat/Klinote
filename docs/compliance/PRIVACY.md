@@ -46,6 +46,7 @@ repository or in the app database.
 | **Encryption at rest** | SQLCipher. Key in the Keychain (`one.klinote.mac` / `sqlite-key`). Teaching-era plaintext files are renamed `*.unencrypted-bak` and a new ciphertext database is created. |
 | **Retention policy** | Per practice: keep forever, or 3 / 12 / 36 months. Expired notes are purged at launch, and the setting says which. |
 | **Real delete** | Hard `DELETE`, then `VACUUM`, so the freed pages are not left in the database file, plus an audit entry recording the count and the cutoff and never the content. The app tells the clinician "this is a real delete, not a flag", and a test reads the database file to check that the text is actually gone. |
+| **Sandboxed** | The app runs inside `~/Library/Containers/one.klinote.mac` with three entitlements: the microphone, the network client used for the model download, and nothing else. It exists because Klinote reads untrusted input with large C++ parsers — whisper.cpp on audio, llama.cpp on a downloaded GGUF — and the sandbox is what limits what a memory-safety bug in either can reach. Verified by running it: the store opens with its existing Keychain key, Whisper initialises Metal and BLAS, and the `scribe-llm` helper spawns. |
 
 ## What is missing, and blocks real patient data
 
@@ -54,8 +55,16 @@ repository or in the app database.
 | **No access control beyond the key** | Any process running as the user can read the database once the Keychain has released the key. | Consider per-practice database files, and a review of the Keychain access policy. |
 | **No export/portability story** | Clinicians have a right to their data. | Documented export format and a one-command backup. |
 | **No BAA/DPA position** | Even though no data is processed by us, some practices require paperwork. | Written data-handling statement; counsel review before enterprise sales. |
-| **Not sandboxed** | The app can read and write anything the user can. The sandbox is what would contain a memory-safety bug in the C++ that parses untrusted input — Whisper reading audio, llama.cpp reading a downloaded model — and hospital IT review asks about it. | Enable the sandbox and migrate the database, models and Keychain item into the container. Mandatory for the Mac App Store; optional for direct distribution, which is what 0.1.x is. Cheapest before there are installs to migrate. |
 | **Not notarized** | A downloaded copy is refused by Gatekeeper until the clinician works around it. | Store notarization credentials and run `NOTARY_PROFILE=klinote scripts/release.sh`. See [`RELEASING.md`](../engineering/RELEASING.md). |
+
+### Upgrading an install from 0.1.x
+
+A sandboxed build cannot read `~/Library/Application Support/Klinote` or
+`~/Library/Preferences/one.klinote.mac.plist`, which is what 0.1.x used. Run
+[`scripts/move-into-container.sh`](../../scripts/move-into-container.sh) once
+before opening the new build: it copies the database, the models and the
+settings into the container, item by item, and never overwrites anything. The
+originals are left in place.
 
 ## Concierge-sprint rules
 

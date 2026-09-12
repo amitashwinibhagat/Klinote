@@ -3,34 +3,34 @@
 <plist version="1.0">
 <dict>
 	<!--
-	  Unsandboxed, deliberately — but not for the reason this comment used to
-	  give. It claimed the Rust core needs the database path without "a
-	  container dance". It does not: every path is derived from
-	  `.applicationSupportDirectory` and `.temporaryDirectory` and handed to
-	  the engine as an absolute path, and both of those resolve inside the
-	  container for a sandboxed app. A container is an ordinary writable
-	  directory, so the engine would not change at all.
+	  Sandboxed.
 
-	  The sandbox is required only for the Mac App Store. Klinote is
-	  distributed directly with a Developer ID, where it is optional and
-	  shipping without it is unremarkable.
+	  The reason is containment, not compliance. Klinote takes input from three
+	  places it does not control — a microphone, an audio file, and a GGUF model
+	  downloaded over the network — and reads all three with large C++ parsers:
+	  whisper.cpp and llama.cpp. The sandbox is what limits what a memory-safety
+	  bug in either of them can reach. For an app holding clinical records that
+	  is worth having even though the Mac App Store, the only place it is
+	  mandatory, is not where this ships.
 
-	  What enabling it would actually take, so the next person does not have to
-	  work it out again:
-	    · the database, the models and the learned terms move to
-	      ~/Library/Containers/one.klinote.mac/Data, so existing installs need
-	      a migration — get it wrong and the notes are unreadable;
-	    · the Keychain item may need re-authorising, because the sandbox scopes
-	      keychain access to the app;
-	    · the model downloader needs `com.apple.security.network.client`;
-	    · the `scribe-llm` helper has to be re-verified under the sandbox.
-
-	  It is the cheapest it will ever be while there are no installs to
-	  migrate. Tracked in docs/compliance/PRIVACY.md.
+	  What it changes:
+	    · the database, the models and the learned terms live in
+	      ~/Library/Containers/one.klinote.mac/Data/Library/Application Support/Klinote
+	      rather than ~/Library/Application Support/Klinote;
+	    · a sandboxed build cannot read the old location — that is the point of
+	      it — so an install from 0.1.x has to be moved once from outside the
+	      app: scripts/move-into-container.sh;
+	    · `device.audio-input` is the microphone, and is why the app asks.
 	-->
 	<key>com.apple.security.app-sandbox</key>
-	<false/>
+	<true/>
 	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!--
+	  The model download is the only network use: downloads, never uploads. It
+	  lives in exactly one file, which scripts/check-network-surface.sh enforces.
+	-->
+	<key>com.apple.security.network.client</key>
 	<true/>
 </dict>
 </plist>
