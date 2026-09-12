@@ -10,17 +10,27 @@
 //
 
 import Foundation
+// Foundation Models ships with the macOS 26 SDK, and this app deploys to
+// macOS 15. The framework is already optional at run time — every use below is
+// behind `#available(macOS 26.0, *)` and the caller falls back to the
+// rule-based draft — so it has to be optional at build time too, or the source
+// cannot be compiled by anything but the newest Xcode.
+#if canImport(FoundationModels)
 import FoundationModels
+#endif
 
 enum NoteDrafter {
     static var isAvailable: Bool {
+        #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
             return SystemLanguageModel.default.isAvailable
         }
+        #endif
         return false
     }
 
     static var unavailableReason: String? {
+        #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
             switch SystemLanguageModel.default.availability {
             case .available:
@@ -35,6 +45,7 @@ enum NoteDrafter {
                 return "The on-device language model is not available."
             }
         }
+        #endif
         return "On-device note drafting needs macOS 26 or later."
     }
 
@@ -44,6 +55,7 @@ enum NoteDrafter {
         template: TemplateSummary,
         encounterId: String
     ) async -> ClinicalNote? {
+        #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
             return await draftWithFoundationModels(
                 transcript: transcript,
@@ -51,9 +63,11 @@ enum NoteDrafter {
                 encounterId: encounterId
             )
         }
+        #endif
         return nil
     }
 
+    #if canImport(FoundationModels)
     @available(macOS 26.0, *)
     private static func draftWithFoundationModels(
         transcript: Transcript,
@@ -143,6 +157,7 @@ enum NoteDrafter {
             return nil
         }
     }
+    #endif
 
     private struct Utterance {
         let index: Int

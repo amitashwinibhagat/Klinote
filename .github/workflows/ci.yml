@@ -6,7 +6,16 @@ on:
 
 jobs:
   test:
-    runs-on: macos-15
+    # macos-26, not macos-15: the app uses Apple's Foundation Models, which
+    # ships with the macOS 26 SDK. On an older image the Swift job fails with
+    # "No such module 'FoundationModels'" before it can run a single test. The
+    # import is conditionally compiled now, so older SDKs build too — but the
+    # point of this job is to test the app that actually ships, including that
+    # path, and that needs the newer SDK.
+    #
+    # It must also be an arm64 runner: cargo builds the Rust engine for the
+    # host, so an Intel runner cannot produce the arm64-only app.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
