@@ -57,6 +57,12 @@ jobs:
       # UI, so the bundle needs no test host — and a test host would launch the
       # app, open the encrypted store and read the Keychain, which is not
       # something a test run should do.
+      - name: Install XcodeGen
+        # The project file is generated from apps/Klinote/project.yml and is not
+        # committed, so the runner has to have the generator. It is present on
+        # GitHub's macOS images today; this keeps the job working when it is not.
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+
       - name: Swift tests
         run: |
           cd apps/Klinote
