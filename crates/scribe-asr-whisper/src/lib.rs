@@ -182,6 +182,7 @@ impl WhisperAsrEngine {
             if rest.len() < MIN_TAIL_SAMPLES {
                 break;
             }
+            let rest_ms = rest.len() as u64 / SAMPLES_PER_MS;
 
             // The discarded audio begins where the decoder decided a turn had
             // ended, so the answer that follows belongs to the other voice.
@@ -203,6 +204,15 @@ impl WhisperAsrEngine {
             let recovered_to = more.last().map(|s| s.end_ms).unwrap_or(covered_ms);
             if recovered_to < covered_ms + MIN_PROGRESS_MS {
                 // No real progress: stop rather than loop on the same audio.
+                break;
+            }
+            // A second pass over a sliver of trailing room noise does not
+            // recover speech, it invents it: measured on a real microphone
+            // recording, the last 1.3 seconds of a fifteen-second consult came
+            // back as a thirty-second segment reading "Okay." Judge the
+            // recovery by the audio it was given, not by the timestamps the
+            // decoder returned — on silence those are fiction.
+            if is_sparse(spoken_chars(&more), rest_ms) {
                 break;
             }
             speaker = next_speaker;
@@ -288,8 +298,12 @@ fn language_name(detected_lang: i32, options: &AsrOptions) -> String {
 const SAMPLES_PER_MS: u64 = 16;
 /// Half a second of audio is the least worth a second pass.
 const MIN_TAIL_SAMPLES: usize = 8_000;
-/// A gap smaller than this is a normal pause, not a discarded chunk.
-const MIN_UNCOVERED_MS: u64 = 1_000;
+/// A gap smaller than this is a normal pause, not a discarded chunk. A short
+/// tail is also the worst case for the decoder: given a sliver of silence it
+/// invents fluent text rather than admitting there is nothing to hear, and
+/// fluent text defeats a density check. The failure worth repairing discarded
+/// nine and a half seconds.
+const MIN_UNCOVERED_MS: u64 = 3_000;
 /// Each pass must move the end of the transcript forward by this much.
 const MIN_PROGRESS_MS: u64 = 500;
 /// Bounded: a pathological file must not turn one transcription into many.
@@ -427,11 +441,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_sliver_of_trailing_noise_is_not_worth_a_second_pass() {
+        // Measured: a real recording left 1.34s uncovered and the second pass
+        // returned "Okay." with a thirty-second timestamp.
+        assert!(!tail_is_uncovered(14_960, 13_620));
+        // The failure that matters discarded several seconds.
+        assert!(tail_is_uncovered(13_470, 4_020));
+    }
+
+    #[test]
     fn a_short_tail_is_left_alone() {
         // Ordinary pauses are not discarded chunks.
         assert!(!tail_is_uncovered(20_000, 20_000));
         assert!(!tail_is_uncovered(20_000, 19_500));
-        assert!(tail_is_uncovered(20_000, 19_000));
+        assert!(!tail_is_uncovered(20_000, 18_000));
+        assert!(tail_is_uncovered(20_000, 17_000));
     }
 
     #[test]
