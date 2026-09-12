@@ -216,6 +216,7 @@ struct ProvisionanceLine: View {
 struct SectionBlock: View {
     let section: NoteSection
     @ObservedObject var model: AppModel
+    @State private var isAdding = false
 
     private var state: SectionState {
         if !section.complete { return .missingRequired }
@@ -230,9 +231,26 @@ struct SectionBlock: View {
             SectionHeader(title: section.title, state: state)
 
             if section.sentences.isEmpty {
-                Text("Not documented.")
-                    .font(KlinoteFont.document())
-                    .foregroundStyle(KlinoteColor.tertiary)
+                HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
+                    Text("Not documented.")
+                        .font(KlinoteFont.document())
+                        .foregroundStyle(KlinoteColor.tertiary)
+                    Spacer(minLength: 0)
+                    if !isAdding {
+                        Button("Write this section") { isAdding = true }
+                            .controlSize(.small)
+                            .accessibilityLabel("Write the \(section.title) section")
+                    }
+                }
+                if !isAdding {
+                    // Say why it is empty, so an empty section does not read as
+                    // a failure. Quire writes from the recording; whatever the
+                    // consult did not cover has to come from the clinician.
+                    Text("Quire writes what it heard. Whatever this consult did not cover, write here.")
+                        .font(KlinoteFont.label())
+                        .foregroundStyle(KlinoteColor.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 VStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
                     ForEach(Array(section.sentences.enumerated()), id: \.element.id) { index, sentence in
@@ -258,6 +276,15 @@ struct SectionBlock: View {
                         }
                     }
                 }
+                if !isAdding {
+                    Button("Add a line") { isAdding = true }
+                        .controlSize(.small)
+                        .accessibilityLabel("Add a line to \(section.title)")
+                }
+            }
+
+            if isAdding {
+                AddedLineEditor(section: section, model: model) { isAdding = false }
             }
         }
         .padding(.bottom, KlinoteMetrics.space32)
@@ -304,6 +331,56 @@ struct SentenceEditor: View {
                     .controlSize(.small)
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(.vertical, KlinoteMetrics.space4)
+        .padding(.horizontal, KlinoteMetrics.inline6)
+        .onAppear { focused = true }
+    }
+}
+
+/// The editor for a line the clinician adds. Deliberately plainer than the
+/// correction editor: nothing was said, so there is no original to preserve and
+/// no margin to point at.
+struct AddedLineEditor: View {
+    let section: NoteSection
+    @ObservedObject var model: AppModel
+    var onClose: () -> Void
+
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space8) {
+            TextEditor(text: $draft)
+                .font(KlinoteFont.document())
+                .focused($focused)
+                .frame(minHeight: 56)
+                .padding(KlinoteMetrics.space8)
+                .background(KlinoteColor.document)
+                .clipShape(RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous)
+                        .strokeBorder(KlinoteColor.ink.opacity(0.4), lineWidth: 1)
+                )
+            HStack(spacing: KlinoteMetrics.space8) {
+                Text("Your words. The margin will say you wrote them.")
+                    .font(KlinoteFont.label())
+                    .foregroundStyle(KlinoteColor.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button("Cancel") { onClose() }
+                    .controlSize(.small)
+                    .keyboardShortcut(.cancelAction)
+                Button("Add") {
+                    if model.addSentence(toSection: section.key, text: draft) {
+                        draft = ""
+                        onClose()
+                    }
+                }
+                .controlSize(.small)
+                .keyboardShortcut(.return, modifiers: .command)
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(.vertical, KlinoteMetrics.space4)

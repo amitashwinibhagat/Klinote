@@ -41,7 +41,9 @@ struct ClinicalNote: Codable, Identifiable, Hashable {
     let generatedAt: String
     let engine: String
     let reviewState: String
-    let missingRequired: [String]
+    /// Keys of required sections with nothing in them. `var` because a
+    /// clinician writing a line into an empty section is what clears one.
+    var missingRequired: [String]
     let machineGenerated: Bool
 
     static func == (lhs: ClinicalNote, rhs: ClinicalNote) -> Bool { lhs.id == rhs.id }
@@ -54,7 +56,8 @@ struct NoteSection: Codable, Identifiable, Hashable {
     var body: String
     let evidence: [String]
     var sentences: [NoteSentence]
-    let complete: Bool
+    /// Whether this section counts as documented. `var` for the same reason.
+    var complete: Bool
 
     var id: String { key }
 }
@@ -67,12 +70,25 @@ struct NoteSentence: Codable, Hashable, Identifiable {
     var support: String?
     /// "plain" or "jargon". Set only on patient-facing documents.
     var wording: String?
+    /// "clinician" when a person wrote this line rather than the engine
+    /// drafting it from the recording. Nil for everything the engine wrote.
+    ///
+    /// Optional so a note saved before a clinician could add lines still
+    /// decodes — the same reason `Transcript.heldMs` is optional.
+    var authored: String?
+    /// Stable identity for a line a clinician added, so two identical lines in
+    /// one note do not collide. Nil on engine-written sentences, which are
+    /// identified by the words they came from.
+    var lineId: String?
 
     var isUnverified: Bool { support == "unverified" }
     var isJargon: Bool { wording == "jargon" }
+    /// A person wrote this. It has no words behind it, and the margin says so
+    /// rather than letting it look like everything else.
+    var isAuthored: Bool { authored != nil }
 
     /// Stable within a note: the sentence text plus its first evidence id.
-    var id: String { "\(evidence.first ?? "none")::\(text)" }
+    var id: String { lineId ?? "\(evidence.first ?? "none")::\(text)" }
 }
 
 struct UnassignedStatement: Codable, Identifiable, Hashable {

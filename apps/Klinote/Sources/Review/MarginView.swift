@@ -111,6 +111,17 @@ struct MarginView: View {
                 Text("\(model.selectedEncounter?.transcript?.segments.count ?? 0) things said. A gap marked held was not recorded.")
                     .font(KlinoteFont.caption())
                     .foregroundStyle(KlinoteColor.secondary)
+            } else if let selected = selectedSentence, selected.sentence.isAuthored {
+                // Nothing was said, so there is nothing to point at. Saying so
+                // is the difference between "you wrote this" and a line that
+                // looks like every other line.
+                Text("You wrote this line")
+                    .font(KlinoteFont.caption(.medium))
+                    .foregroundStyle(KlinoteColor.primary)
+                Text("It did not come from the recording, so there are no words behind it.")
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if let sentenceNumber = selectedSentenceNumber {
                 // Short, and allowed to wrap. This line is how a clinician
                 // knows which sentence the margin is answering for, so it must

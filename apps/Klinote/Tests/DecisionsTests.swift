@@ -2,6 +2,136 @@ import XCTest
 
 /// The decisions the shell makes about a consult. No app, no store, no
 /// Keychain, no UI — these are functions over values.
+extension DecisionsTests {
+    // MARK: - Writing a line into an empty section
+
+    /// Build a note with one filled section and three the engine left empty —
+    /// the shape a 15-second recording actually produces.
+    private func partiallyFilledNote() -> ClinicalNote {
+        func section(_ key: String, _ title: String, _ body: String, required: Bool) -> NoteSection {
+            NoteSection(
+                key: key,
+                title: title,
+                body: body,
+                evidence: [],
+                sentences: body.isEmpty
+                    ? []
+                    : [NoteSentence(text: body, evidence: ["u1"], ambiguous: false,
+                                    support: "supported", wording: nil)],
+                complete: !required || !body.isEmpty
+            )
+        }
+        return ClinicalNote(
+            id: "n1",
+            encounterId: "e1",
+            templateId: "soap",
+            sections: [
+                section("subjective", "Subjective", "Sore throat for four days.", required: true),
+                section("objective", "Objective", "", required: true),
+                section("assessment", "Assessment", "", required: true),
+                section("plan", "Plan", "", required: true),
+            ],
+            unassigned: [],
+            generatedAt: "2026-09-11T00:00:00Z",
+            engine: "quire-phlox",
+            reviewState: "draft",
+            missingRequired: ["objective", "assessment", "plan"],
+            machineGenerated: true
+        )
+    }
+
+    func testAddingALineFillsTheSectionAndClearsItFromMissing() {
+        let note = partiallyFilledNote()
+        let updated = NoteEditing.adding(
+            "Chest clear on auscultation.",
+            toSection: "objective",
+            in: note,
+            lineId: "line-1"
+        )
+        XCTAssertNotNil(updated)
+        XCTAssertEqual(updated?.missingRequired, ["assessment", "plan"])
+        let objective = updated?.sections.first { $0.key == "objective" }
+        XCTAssertEqual(objective?.complete, true)
+        XCTAssertEqual(objective?.sentences.count, 1)
+    }
+
+    func testAnAddedLineIsFoldedIntoTheBodySoCopyCarriesIt() {
+        // The clipboard is built from `body`. A line on screen but not in the
+        // body would be missing from what gets pasted into the record.
+        let updated = NoteEditing.adding(
+            "Chest clear.", toSection: "objective", in: partiallyFilledNote(), lineId: "line-1"
+        )
+        XCTAssertEqual(updated?.sections.first { $0.key == "objective" }?.body, "Chest clear.")
+    }
+
+    func testAnAddedLineDoesNotDisturbOtherSections() {
+        let updated = NoteEditing.adding(
+            "Chest clear.", toSection: "objective", in: partiallyFilledNote(), lineId: "line-1"
+        )
+        XCTAssertEqual(
+            updated?.sections.first { $0.key == "subjective" }?.body,
+            "Sore throat for four days."
+        )
+    }
+
+    func testAddingNothingIsANoOpSoNothingIsPersisted() {
+        for empty in ["", "   ", "\n\t "] {
+            XCTAssertNil(
+                NoteEditing.adding(empty, toSection: "objective",
+                                   in: partiallyFilledNote(), lineId: "line-1"),
+                "whitespace must not become a line"
+            )
+        }
+    }
+
+    func testAddingToASectionThatDoesNotExistIsRefused() {
+        XCTAssertNil(
+            NoteEditing.adding("x", toSection: "nonsense",
+                               in: partiallyFilledNote(), lineId: "line-1")
+        )
+    }
+
+    func testAnAddedLineIsMarkedAsWrittenByAPerson() {
+        let updated = NoteEditing.adding(
+            "Chest clear.", toSection: "objective", in: partiallyFilledNote(), lineId: "line-1"
+        )
+        let line = updated?.sections.first { $0.key == "objective" }?.sentences.first
+        XCTAssertEqual(line?.isAuthored, true)
+        XCTAssertEqual(line?.evidence, [])
+        // Not "supported": nothing verified it. Not "unverified" either, which
+        // would put a warning on the clinician's own words.
+        XCTAssertNil(line?.support)
+    }
+
+    func testTwoIdenticalWrittenLinesDoNotShareAnId() {
+        // "Nil." in two sections is normal clinical writing. Under the
+        // evidence-based id both would be "none::Nil." and selecting one would
+        // select both.
+        let once = NoteEditing.adding("Nil.", toSection: "objective",
+                                      in: partiallyFilledNote(), lineId: "line-1")
+        let twice = once.flatMap {
+            NoteEditing.adding("Nil.", toSection: "plan", in: $0, lineId: "line-2")
+        }
+        let ids = twice?.sections.flatMap(\.sentences).filter(\.isAuthored).map(\.id) ?? []
+        XCTAssertEqual(ids.count, 2)
+        XCTAssertEqual(Set(ids).count, 2, "two lines, two identities")
+    }
+
+    func testAnAddedLineMakesTheNoteCountAsReady() {
+        // The whole point: after writing the missing sections the note is no
+        // longer stuck reporting something missing.
+        var note = partiallyFilledNote()
+        for key in ["objective", "assessment", "plan"] {
+            note = NoteEditing.adding("Written.", toSection: key, in: note, lineId: key) ?? note
+        }
+        XCTAssertTrue(note.missingRequired.isEmpty)
+        XCTAssertTrue(
+            Readiness.of(missingRequired: note.missingRequired, nameChecks: 0,
+                         jargon: 0, unfiled: 0).isPasteReady
+        )
+    }
+}
+
 final class DecisionsTests: XCTestCase {
 
     // MARK: - Helpers

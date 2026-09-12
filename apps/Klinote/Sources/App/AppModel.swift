@@ -1023,6 +1023,34 @@ final class AppModel: ObservableObject {
     ///
     /// It does not teach the vocabulary. Learning stays tied to an explicit
     /// acceptance, so a typo never becomes a rule.
+    /// Write a line into a section the engine left empty, or short.
+    ///
+    /// The line is marked as a person's, so nothing downstream can present it
+    /// as something the patient said, and the note stops being a pure machine
+    /// draft the moment one is added.
+    @discardableResult
+    func addSentence(toSection key: String, text: String) -> Bool {
+        guard var encounter = selectedEncounter, let note = encounter.note else { return false }
+        guard let updated = NoteEditing.adding(
+            text,
+            toSection: key,
+            in: note,
+            lineId: UUID().uuidString
+        ) else { return false }
+
+        encounter.note = updated
+        if encounter.state == .draft {
+            encounter.state = .edited
+        }
+        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
+        syncTasks(for: encounter)
+        promptPasteIfReady()
+        return true
+    }
+
     func commitSentenceEdit(_ sentenceID: String, to newText: String) {
         let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
         defer { editingSentenceID = nil }
