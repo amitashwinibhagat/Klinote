@@ -467,7 +467,13 @@ final class AppModel: ObservableObject {
                 )
                 await MainActor.run {
                     if let index = self.encounters.firstIndex(where: { $0.id == document.id }) {
-                        self.encounters[index].note = drafted
+                        // Same reason as the redraft: a line typed into the
+                        // document while the model was working is in no
+                        // transcript, so it has to be carried across.
+                        let current = self.encounters[index].note
+                        self.encounters[index].note = current.map {
+                            NoteEditing.carryingAuthoredLines(from: $0, into: drafted)
+                        } ?? drafted
                         self.persist(self.encounters[index])
                         self.selectFirstEvidence()
                     }
@@ -1097,19 +1103,22 @@ final class AppModel: ObservableObject {
         isRedrafting = true
         defer { isRedrafting = false }
 
-        let note = await Self.preferLocalDraft(
+        let drafted = await Self.preferLocalDraft(
             transcript: transcript,
             template: template,
             fallback: existing
         )
         // The model may still have failed; if the result is the note we already
         // had, say so by doing nothing rather than pretending it improved.
-        guard !note.wasWrittenByRules else {
+        guard !drafted.wasWrittenByRules else {
             if announceFailure {
                 lastError = "Quire could not write this note. The draft is unchanged."
             }
             return false
         }
+        // Anything the clinician typed is in no transcript, so the model cannot
+        // have written it and replacing the note would delete it.
+        let note = NoteEditing.carryingAuthoredLines(from: existing, into: drafted)
 
         var updated = stored
         updated.note = note

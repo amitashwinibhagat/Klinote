@@ -40,6 +40,125 @@ extension DecisionsTests {
         )
     }
 
+    // MARK: - A redraft must not delete the clinician's own lines
+
+    /// A note the model has just written again: same template, different prose,
+    /// and — the point — none of the clinician's lines, because they were never
+    /// in the transcript it read.
+    private func redraftedNote() -> ClinicalNote {
+        var note = partiallyFilledNote()
+        note = ClinicalNote(
+            id: note.id,
+            encounterId: note.encounterId,
+            templateId: note.templateId,
+            sections: note.sections.map { section in
+                var copy = section
+                copy.sentences = [
+                    NoteSentence(
+                        text: "Model prose for \(section.key).",
+                        evidence: ["u-model"],
+                        ambiguous: false,
+                        support: "supported",
+                        wording: "plain"
+                    )
+                ]
+                copy.body = copy.sentences.map(\.text).joined(separator: " ")
+                copy.complete = true
+                return copy
+            },
+            unassigned: note.unassigned,
+            generatedAt: note.generatedAt,
+            engine: "quire-phlox",
+            reviewState: note.reviewState,
+            missingRequired: [],
+            machineGenerated: note.machineGenerated
+        )
+        return note
+    }
+
+    func testARedraftKeepsTheLineTheClinicianTyped() {
+        // The model never saw it, so it cannot reproduce it, so replacing the
+        // note deleted it — silently, and with the record marked "Edited".
+        let withNote = NoteEditing.adding(
+            "Chest clear.", toSection: "objective", in: partiallyFilledNote(), lineId: "line-1"
+        )
+        let existing = withNote!
+        let merged = NoteEditing.carryingAuthoredLines(from: existing, into: redraftedNote())
+
+        let objective = merged.sections.first { $0.key == "objective" }
+        XCTAssertEqual(objective?.sentences.last?.text, "Chest clear.")
+        XCTAssertEqual(objective?.sentences.last?.isAuthored, true)
+        // The model's prose is still there; this is a merge, not a revert.
+        XCTAssertEqual(objective?.sentences.first?.text, "Model prose for objective.")
+    }
+
+    func testARestoredLineReachesTheBodySoTheClipboardCarriesIt() {
+        let existing = NoteEditing.adding(
+            "Chest clear.", toSection: "objective", in: partiallyFilledNote(), lineId: "line-1"
+        )!
+        let merged = NoteEditing.carryingAuthoredLines(from: existing, into: redraftedNote())
+        let body = merged.sections.first { $0.key == "objective" }?.body ?? ""
+        XCTAssertTrue(body.contains("Chest clear."), body)
+        XCTAssertTrue(body.contains("Model prose for objective."), body)
+    }
+
+    func testARestoredLineFillsASectionTheModelLeftEmpty() {
+        var redrafted = redraftedNote()
+        let index = redrafted.sections.firstIndex { $0.key == "plan" }!
+        redrafted.sections[index].sentences = []
+        redrafted.sections[index].body = ""
+        redrafted.sections[index].complete = false
+        redrafted.missingRequired = ["plan"]
+
+        let existing = NoteEditing.adding(
+            "Review in a week.", toSection: "plan", in: partiallyFilledNote(), lineId: "line-2"
+        )!
+        let merged = NoteEditing.carryingAuthoredLines(from: existing, into: redrafted)
+        let plan = merged.sections.first { $0.key == "plan" }
+        XCTAssertEqual(plan?.complete, true)
+        XCTAssertEqual(plan?.body, "Review in a week.")
+        XCTAssertFalse(merged.missingRequired.contains("plan"))
+    }
+
+    func testMergingTwiceDoesNotMultiplyTheLine() {
+        // The paste path and the download notification can both land, and a
+        // merge of a merge must not grow the note.
+        let existing = NoteEditing.adding(
+            "Chest clear.", toSection: "objective", in: partiallyFilledNote(), lineId: "line-1"
+        )!
+        let once = NoteEditing.carryingAuthoredLines(from: existing, into: redraftedNote())
+        let twice = NoteEditing.carryingAuthoredLines(from: once, into: once)
+        let lines = twice.sections.first { $0.key == "objective" }?.sentences
+            .filter { $0.text == "Chest clear." } ?? []
+        XCTAssertEqual(lines.count, 1)
+    }
+
+    func testMergingLeavesModelSentencesAlone() {
+        let existing = NoteEditing.adding(
+            "Chest clear.", toSection: "objective", in: partiallyFilledNote(), lineId: "line-1"
+        )!
+        let merged = NoteEditing.carryingAuthoredLines(from: existing, into: redraftedNote())
+        let section = merged.sections.first { $0.key == "objective" }!
+        XCTAssertEqual(section.sentences.filter(\.isAuthored).count, 1)
+        XCTAssertEqual(section.sentences.filter { !$0.isAuthored }.count, 1)
+    }
+
+    func testALineIsNotMovedIntoASectionItWasNotWrittenFor() {
+        // A different template is a different question. Putting a line into a
+        // section that was not written for it would be worse than leaving it out.
+        let existing = NoteEditing.adding(
+            "Chest clear.", toSection: "objective", in: partiallyFilledNote(), lineId: "line-1"
+        )!
+        var other = redraftedNote()
+        other.sections.removeAll { $0.key == "objective" }
+        let merged = NoteEditing.carryingAuthoredLines(from: existing, into: other)
+        XCTAssertFalse(merged.sections.contains { $0.key == "objective" })
+        XCTAssertFalse(
+            merged.sections.contains { $0.sentences.contains { $0.text == "Chest clear." } },
+            "the line must not be invented into another section"
+        )
+    }
+
     func testANoteKnowsWhetherTheRulesWroteIt() {
         // The letterhead, the prompt and the redraft all key off this. A note
         // written by the rules used to read exactly like a model-written one,
