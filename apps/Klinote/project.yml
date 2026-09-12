@@ -91,8 +91,31 @@ targets:
         basedOnDependencyAnalysis: false
         script: |
           set -euo pipefail
-          cp "$SRCROOT/../../target/release/scribe-llm" "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/scribe-llm"
-          chmod +x "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/scribe-llm"
+          helper="$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/scribe-llm"
+          cp "$SRCROOT/../../target/release/scribe-llm" "$helper"
+          chmod +x "$helper"
+
+          # cargo links the helper ad-hoc and a file copied by a script phase is
+          # never signed by Xcode — the app gets sealed *around* it. The bundle
+          # verifies locally, and notarization rejects the whole archive:
+          #   "The binary is not signed with a valid Developer ID certificate."
+          #   "The signature does not include a secure timestamp."
+          #   "The executable does not have the hardened runtime enabled."
+          # So sign it here, with the identity this build is using, before Xcode
+          # seals the app.
+          if [ "${CODE_SIGNING_ALLOWED:-NO}" = "YES" ] && [ -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" ]; then
+            identity="$EXPANDED_CODE_SIGN_IDENTITY"
+            case "$identity" in
+              "Developer ID"*)
+                # A secure timestamp needs Apple's servers, and only a real
+                # certificate can carry one.
+                codesign --force --options runtime --timestamp --sign "$identity" "$helper"
+                ;;
+              *)
+                codesign --force --options runtime --sign "$identity" "$helper"
+                ;;
+            esac
+          fi
 
   # Tests compile Sources/Domain directly instead of importing the app.
   #

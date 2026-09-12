@@ -82,6 +82,34 @@ app="$root/build/DerivedData/Build/Products/Release/Klinote.app"
 echo
 echo "verifying the signature"
 codesign --verify --deep --strict --verbose=2 "$app"
+
+# Notarization judges every executable in the bundle, not just the app, and the
+# app can verify perfectly while a nested helper does not. That is worth a local
+# check rather than a two-minute round trip to Apple: the first notarized build
+# came back Invalid solely because `scribe-llm` was ad-hoc signed, untimestamped
+# and not hardened.
+nested_failed=0
+while IFS= read -r nested; do
+  relative="${nested#"$app"/}"
+  info="$(codesign -dv --verbose=4 "$nested" 2>&1 || true)"
+  problem=""
+  grep -q "Authority=Developer ID Application" <<<"$info" \
+    || problem="not signed with a Developer ID"
+  grep -q "^Timestamp=" <<<"$info" \
+    || problem="${problem:+$problem; }no secure timestamp"
+  grep -qE "flags=0x[0-9a-f]+\(runtime\)" <<<"$info" \
+    || problem="${problem:+$problem; }hardened runtime not enabled"
+  if [ -n "$problem" ]; then
+    echo "::error::$relative — $problem"
+    nested_failed=1
+  else
+    echo "  $relative: ok"
+  fi
+done < <(find "$app/Contents/MacOS" -type f -perm -u+x)
+if [ "$nested_failed" -ne 0 ]; then
+  echo "          Notarization will reject the archive. See RELEASING.md."
+  exit 1
+fi
 codesign -dv --verbose=4 "$app" 2>&1 | grep -E "Authority|TeamIdentifier|Timestamp|flags" || true
 echo "  entitlements:"
 codesign -d --entitlements - --xml "$app" 2>/dev/null \
