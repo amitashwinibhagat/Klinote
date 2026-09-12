@@ -29,3 +29,7 @@ scripts/__pycache__/
 /apps/LocalClinicalScribe/DerivedData/
 *.xcuserstate
 xcuserdata/
+
+# Build output and packaged releases
+/build/
+/dist/
