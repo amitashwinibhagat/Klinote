@@ -81,7 +81,18 @@ final class AppModel: ObservableObject {
     @Published var templateId = "soap"
     @Published var lastError: String?
     @Published var isFiling = false
-    @Published var isRedrafting = false
+    /// Which consults are being written again right now.
+    ///
+    /// This was one flag for the whole app, so a rewrite already in flight
+    /// silently cancelled the request for another consult — the paste redraft
+    /// and a download finishing can overlap, and one of them simply did nothing.
+    @Published private(set) var redrafting: Set<String> = []
+
+    /// Whether the consult on screen is the one being written again.
+    var isRedrafting: Bool {
+        guard let id = selectedEncounter?.id else { return false }
+        return redrafting.contains(id)
+    }
     @Published var isCopying = false
     @Published var copyBanner: String?
     @Published var isSwapping = false
@@ -1091,17 +1102,18 @@ final class AppModel: ObservableObject {
     /// clinician to record the consultation again.
     @discardableResult
     func redraftWithNoteModel(_ encounterID: String? = nil, announceFailure: Bool = false) async -> Bool {
-        guard !isRedrafting else { return false }
         guard let id = encounterID ?? selection,
               let stored = encounters.first(where: { $0.id == id }),
               let transcript = stored.transcript,
               let existing = stored.note
         else { return false }
+        // Same consult twice is pointless; a different consult is not.
+        guard !redrafting.contains(id) else { return false }
         let template = templates.first { $0.id == stored.templateId } ?? templates.first
         guard let template else { return false }
 
-        isRedrafting = true
-        defer { isRedrafting = false }
+        redrafting.insert(id)
+        defer { redrafting.remove(id) }
 
         let drafted = await Self.preferLocalDraft(
             transcript: transcript,

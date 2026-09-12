@@ -74,6 +74,24 @@ Both were found by writing this script rather than by reading about it:
   is what the local build uses and it is fine for development, which is exactly
   why it is easy to ship by mistake.
 
+## Testing a sandboxed build
+
+**Test the signed release build, not a local one.** Keychain access is tied to
+the code signature: an item written by the Developer ID build cannot be read by
+an ad-hoc build signed with `-`. Because the store key lives in the Keychain, an
+ad-hoc sandboxed build therefore cannot open the encrypted database at all — it
+shows an empty window with no consults, and it looks exactly like a broken store
+rather than a signing mismatch.
+
+So when checking anything to do with the store, the Keychain, or the sandbox,
+build with `scripts/release.sh` and test `/Applications/Klinote.app` from that.
+`xcodebuild` straight to a derived-data folder will produce an app that cannot
+see the data.
+
+A related consequence, since it will bite during development: a debug build
+cannot read a release build's key, so the two do not share a database. That is
+the signature doing its job, not a bug to work around.
+
 ## Architecture
 
 `ARCHS=arm64`, because the Rust engine is compiled by cargo for the host. A

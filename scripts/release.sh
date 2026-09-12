@@ -47,6 +47,21 @@ if [ -z "$identity" ]; then
   exit 1
 fi
 
+# Say this here rather than letting the nested-signature check below report it
+# as "no secure timestamp", which reads like a broken environment instead of
+# what it is: an ad-hoc build is not a release.
+case "$identity" in
+  "Developer ID"*) ;;
+  *)
+    echo "::error::'$identity' is not a Developer ID Application certificate."
+    echo "          An ad-hoc build ('-') works on this Mac and nowhere else: it"
+    echo "          cannot be notarized, and no secure timestamp can be applied to"
+    echo "          it. Leave CODE_SIGN_IDENTITY unset to use the Developer ID in"
+    echo "          the keychain. See docs/engineering/RELEASING.md."
+    exit 1
+    ;;
+esac
+
 team="$(sed -n 's/.*(\([A-Z0-9]*\))$/\1/p' <<<"$identity")"
 echo "building Klinote $version"
 echo "  identity: $identity"

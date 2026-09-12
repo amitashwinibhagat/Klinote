@@ -73,6 +73,21 @@ struct SetupSheet: View {
             }
             .toggleStyle(.checkbox)
 
+            if case .downloading(let fraction) = downloader.noteState {
+                HStack(spacing: KlinoteMetrics.space8) {
+                    ProgressView(value: fraction)
+                        .frame(maxWidth: 220)
+                    Text("Writing model \(Int(fraction * 100))%")
+                        .font(KlinoteFont.label())
+                        .foregroundStyle(KlinoteColor.secondary)
+                }
+            } else if case .failed(let message) = downloader.noteState {
+                Text("The writing model did not download: \(message) You can add it later — a note already written is written again from its saved transcript.")
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.caution)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
                 Text(acknowledged
                      ? "Notes are kept until you delete them, or set a retention period in Settings → Privacy."
@@ -113,11 +128,15 @@ struct SetupSheet: View {
     /// second is the one people would have skipped — leaving them with the
     /// thinner draft and no way to know.
     private var primaryTitle: String {
-        switch (downloader.state, noteReady) {
-        case (.ready, true): "Start using Klinote"
-        case (.ready, false): "Download Quire (1.9 GB)"
+        switch (downloader.state, downloader.noteState) {
+        case (.ready, .ready): "Start using Klinote"
+        // Quire is the larger download by far, and this read "Download Quire
+        // (1.9 GB)" while it was already downloading — as if nothing had
+        // started.
+        case (.ready, .downloading(let fraction)): "Continue · writing \(Int(fraction * 100))%"
+        case (.ready, _): "Download Quire (1.9 GB)"
         case (.downloading(let fraction), _): "Continue · listening \(Int(fraction * 100))%"
-        case (_, true): "Download listening (465 MB)"
+        case (_, .ready): "Download listening (465 MB)"
         default: "Download both (2.3 GB)"
         }
     }

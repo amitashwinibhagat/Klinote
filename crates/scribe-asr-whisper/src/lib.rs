@@ -87,8 +87,14 @@ impl AsrEngine for WhisperAsrEngine {
 
         // One pass over the recording, then repair it if the transcript does
         // not account for all of the audio (see `recover`).
-        let (segments, _, detected_lang) =
-            self.recover(&samples.samples, options, SpeakerId::CLINICIAN, 0)?;
+        let mut budget_ms = MAX_RECOVERY_AUDIO_MS;
+        let (segments, _, detected_lang) = self.recover(
+            &samples.samples,
+            options,
+            SpeakerId::CLINICIAN,
+            0,
+            &mut budget_ms,
+        )?;
 
         let segments = merge_same_speaker(segments);
 
@@ -120,6 +126,7 @@ impl WhisperAsrEngine {
         options: &AsrOptions,
         start_speaker: SpeakerId,
         depth: u32,
+        budget_ms: &mut u64,
     ) -> Result<(Vec<AsrSegment>, SpeakerId, i32)> {
         let (segments, speaker, lang) = self.pass(samples, options, start_speaker)?;
         let span_ms = samples.len() as u64 / SAMPLES_PER_MS;
@@ -127,19 +134,30 @@ impl WhisperAsrEngine {
         if !is_sparse(spoken_chars(&segments), span_ms)
             || !is_splittable(span_ms)
             || depth >= MAX_SPLIT_DEPTH
+            || !can_afford_split(span_ms, *budget_ms)
         {
             return Ok((segments, speaker, lang));
         }
+        // Splitting decodes both halves, so it costs another copy of this slice.
+        // The budget is what stops a recording that looks sparse at every level
+        // being decoded several times over while the clinician watches
+        // "Writing the note".
+        *budget_ms = budget_ms.saturating_sub(span_ms);
 
         let mid = samples.len() / 2;
         if mid == 0 {
             return Ok((segments, speaker, lang));
         }
         let mid_ms = mid as u64 / SAMPLES_PER_MS;
-        let (mut first, mid_speaker, first_lang) =
-            self.recover(&samples[..mid], options, start_speaker, depth + 1)?;
+        let (mut first, mid_speaker, first_lang) = self.recover(
+            &samples[..mid],
+            options,
+            start_speaker,
+            depth + 1,
+            budget_ms,
+        )?;
         let (mut second, end_speaker, _) =
-            self.recover(&samples[mid..], options, mid_speaker, depth + 1)?;
+            self.recover(&samples[mid..], options, mid_speaker, depth + 1, budget_ms)?;
         for segment in second.iter_mut() {
             segment.start_ms += mid_ms;
             segment.end_ms += mid_ms;
@@ -255,6 +273,12 @@ fn is_sparse(chars: usize, span_ms: u64) -> bool {
     (chars as f64) / (span_ms as f64 / 1000.0) < MIN_PLAUSIBLE_CHARS_PER_SEC
 }
 
+/// Can this slice pay for a split? Splitting decodes both halves, so it costs
+/// another copy of the slice, and the budget is what bounds the total.
+fn can_afford_split(span_ms: u64, budget_ms: u64) -> bool {
+    budget_ms >= span_ms
+}
+
 /// Does the split hold substantially more text than the pass it replaces?
 ///
 /// A marginal gain is more likely to be a hallucination on silence than
@@ -316,6 +340,9 @@ const MIN_SPLIT_SPAN_MS: u64 = 8_000;
 const MAX_SPLIT_SPAN_MS: u64 = 120_000;
 /// Halving ends around four seconds, which is shorter than any turn.
 const MAX_SPLIT_DEPTH: u32 = 3;
+/// Extra audio the repair may decode, on top of the recording itself. Total
+/// work is bounded by the recording plus this, whatever the audio does.
+const MAX_RECOVERY_AUDIO_MS: u64 = 180_000;
 
 impl WhisperAsrEngine {
     /// One `whisper_full` over `samples`, returning segments, the speaker the
@@ -489,6 +516,20 @@ mod tests {
         // A fifteen-minute consult must not pay four passes to be told it is
         // quiet; it is left sparse instead.
         assert!(!is_splittable(900_000));
+    }
+
+    #[test]
+    fn the_repair_cannot_decode_for_ever() {
+        // The total is the recording plus the budget, however sparse the audio
+        // looks at every level. Before this a two-minute recording could be
+        // decoded several times over while the clinician watched "Writing the
+        // note" with no indication that anything was still happening.
+        assert!(can_afford_split(60_000, 180_000));
+        assert!(can_afford_split(60_000, 60_000));
+        assert!(!can_afford_split(60_000, 59_999));
+        // The first split of the largest slice allowed must always be
+        // affordable, or the repair would never start at all.
+        assert!(can_afford_split(MAX_SPLIT_SPAN_MS, MAX_RECOVERY_AUDIO_MS));
     }
 
     #[test]
