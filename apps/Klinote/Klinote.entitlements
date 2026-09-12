@@ -3,10 +3,30 @@
 <plist version="1.0">
 <dict>
 	<!--
-	  M1 ships unsandboxed so the Rust core can read its own database path
-	  without a container dance, matching the sibling apps' shipping posture.
-	  Before Mac App Store distribution: enable the sandbox and move the
-	  database under the container. Tracked in docs/compliance/PRIVACY.md.
+	  Unsandboxed, deliberately — but not for the reason this comment used to
+	  give. It claimed the Rust core needs the database path without "a
+	  container dance". It does not: every path is derived from
+	  `.applicationSupportDirectory` and `.temporaryDirectory` and handed to
+	  the engine as an absolute path, and both of those resolve inside the
+	  container for a sandboxed app. A container is an ordinary writable
+	  directory, so the engine would not change at all.
+
+	  The sandbox is required only for the Mac App Store. Klinote is
+	  distributed directly with a Developer ID, where it is optional and
+	  shipping without it is unremarkable.
+
+	  What enabling it would actually take, so the next person does not have to
+	  work it out again:
+	    · the database, the models and the learned terms move to
+	      ~/Library/Containers/one.klinote.mac/Data, so existing installs need
+	      a migration — get it wrong and the notes are unreadable;
+	    · the Keychain item may need re-authorising, because the sandbox scopes
+	      keychain access to the app;
+	    · the model downloader needs `com.apple.security.network.client`;
+	    · the `scribe-llm` helper has to be re-verified under the sandbox.
+
+	  It is the cheapest it will ever be while there are no installs to
+	  migrate. Tracked in docs/compliance/PRIVACY.md.
 	-->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>

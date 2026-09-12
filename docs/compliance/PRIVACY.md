@@ -54,7 +54,7 @@ repository or in the app database.
 | **No access control beyond the key** | Any process running as the user can read the database once the Keychain has released the key. | Consider per-practice database files, and a review of the Keychain access policy. |
 | **No export/portability story** | Clinicians have a right to their data. | Documented export format and a one-command backup. |
 | **No BAA/DPA position** | Even though no data is processed by us, some practices require paperwork. | Written data-handling statement; counsel review before enterprise sales. |
-| **Not sandboxed** | The app runs unsandboxed so the Rust core can read its own database path. | Enable the sandbox and move the database into the container before any Mac App Store distribution. |
+| **Not sandboxed** | The app can read and write anything the user can. The sandbox is what would contain a memory-safety bug in the C++ that parses untrusted input — Whisper reading audio, llama.cpp reading a downloaded model — and hospital IT review asks about it. | Enable the sandbox and migrate the database, models and Keychain item into the container. Mandatory for the Mac App Store; optional for direct distribution, which is what 0.1.x is. Cheapest before there are installs to migrate. |
 | **Not notarized** | A downloaded copy is refused by Gatekeeper until the clinician works around it. | Store notarization credentials and run `NOTARY_PROFILE=klinote scripts/release.sh`. See [`RELEASING.md`](../engineering/RELEASING.md). |
 
 ## Concierge-sprint rules
