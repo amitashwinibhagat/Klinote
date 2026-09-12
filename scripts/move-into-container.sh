@@ -23,7 +23,6 @@ src_prefs="$HOME/Library/Preferences/$bundle_id.plist"
 dst_prefs="$container/Library/Preferences/$bundle_id.plist"
 
 copied=0
-skipped=0
 
 if [ ! -d "$src_support" ] && [ ! -f "$src_prefs" ]; then
   echo "nothing to move: no $src_support and no $src_prefs"
@@ -36,7 +35,6 @@ if [ -d "$src_support" ]; then
   if [ -d "$dst_support" ] && [ -n "$(ls -A "$dst_support" 2>/dev/null)" ]; then
     echo "skipped: the container already has notes and models"
     echo "         $dst_support"
-    skipped=$((skipped + 1))
   else
     echo "copying notes, models and templates"
     echo "  from $src_support"
@@ -54,7 +52,6 @@ fi
 if [ -f "$src_prefs" ]; then
   if [ -f "$dst_prefs" ]; then
     echo "skipped: settings already present in the container"
-    skipped=$((skipped + 1))
   else
     echo "copying settings ($bundle_id.plist)"
     mkdir -p "$(dirname "$dst_prefs")"
@@ -64,16 +61,26 @@ if [ -f "$src_prefs" ]; then
 fi
 
 echo
-if [ "$skipped" -gt 0 ]; then
-  echo "Nothing was overwritten. If a skip is wrong, move the container copy"
-  echo "aside yourself and run this again — but do that knowing it replaces"
-  echo "whatever the app has written since."
+if [ "$copied" -eq 0 ]; then
+  # Nothing moved, so there is nothing to confirm and nothing to reclaim. The
+  # first version printed the deletion command here too, which told anyone whose
+  # copy was skipped to delete the only copy of whatever was in the old
+  # location — the exact loss this script exists to prevent.
+  echo "Nothing was copied, so nothing changed and nothing should be deleted."
+  echo "Your data is still at:"
+  echo "  $src_support"
+  echo "  $src_prefs"
   echo
+  echo "The container already has its own copy. If that copy is the newer one,"
+  echo "leave both alone. If the old one is what you want, move the container's"
+  echo "aside yourself first, then run this again."
+  exit 0
 fi
-echo "The originals are still in place:"
+
+echo "Copied $copied item(s). The originals are still in place:"
 echo "  $src_support"
 echo "  $src_prefs"
 echo
-echo "Open Klinote, confirm your notes and name are there, then reclaim the"
-echo "space:"
+echo "Open Klinote, confirm your notes and name are there — and only then —"
+echo "reclaim the space:"
 echo "  rm -rf \"$src_support\" \"$src_prefs\""

@@ -161,8 +161,15 @@ final class AppModel: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.selectedNoteIsRuleBased else { return }
-                await self.redraftWithNoteModel(announceFailure: true)
+                // Rewrite the consult the download was asked for, not whatever
+                // is selected by the time it lands. A 1.9 GB download takes long
+                // enough to move to the next patient, and this used to rewrite
+                // that note instead — a record the clinician never asked to
+                // change, silently rewritten under a banner that said so.
+                guard let self, let id = self.pendingRewriteID else { return }
+                self.pendingRewriteID = nil
+                guard self.noteIsWrittenByRules(id) else { return }
+                await self.redraftWithNoteModel(id, announceFailure: true)
             }
         }
     }
@@ -1040,6 +1047,22 @@ final class AppModel: ObservableObject {
         return true
     }
 
+    /// Which consult the clinician asked to have written again, if a download
+    /// is on its way. Nil when nothing has been asked for.
+    private var pendingRewriteID: String?
+
+    /// The prompt's download button. Records the consult before the download
+    /// starts, because by the time it finishes the selection may be somebody
+    /// else entirely.
+    func requestRewriteWithNoteModel() {
+        pendingRewriteID = selectedEncounter?.id
+        ModelDownloader.shared.startNote()
+    }
+
+    private func noteIsWrittenByRules(_ encounterID: String) -> Bool {
+        encounters.first { $0.id == encounterID }?.note?.wasWrittenByRules ?? false
+    }
+
     /// A model that can write a note is present, so the only thing missing is
     /// the writing.
     var noteModelReady: Bool {
@@ -1068,8 +1091,7 @@ final class AppModel: ObservableObject {
               let transcript = stored.transcript,
               let existing = stored.note
         else { return false }
-        var encounter = stored
-        let template = templates.first { $0.id == encounter.templateId } ?? templates.first
+        let template = templates.first { $0.id == stored.templateId } ?? templates.first
         guard let template else { return false }
 
         isRedrafting = true
@@ -1089,7 +1111,7 @@ final class AppModel: ObservableObject {
             return false
         }
 
-        var updated = encounter
+        var updated = stored
         updated.note = note
         if updated.state == .draft {
             updated.state = .edited

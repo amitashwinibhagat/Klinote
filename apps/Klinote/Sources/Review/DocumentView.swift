@@ -280,7 +280,7 @@ struct NoteModelPrompt: View {
                     .buttonStyle(KlinotePrimaryButtonStyle())
                 default:
                     Button("Download Quire (1.9 GB) and write this note again") {
-                        downloader.startNote()
+                        model.requestRewriteWithNoteModel()
                     }
                     .buttonStyle(KlinotePrimaryButtonStyle())
                 }
