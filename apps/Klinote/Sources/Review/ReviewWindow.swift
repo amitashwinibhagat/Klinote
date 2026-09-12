@@ -115,35 +115,83 @@ struct ReviewWindow: View {
     @State private var showMargin = true
 
     var body: some View {
-        NavigationSplitView {
-            EncounterSidebar(model: model)
-                .background(KlinoteColor.desk, ignoresSafeAreaEdges: .all)
-                .navigationSplitViewColumnWidth(
-                    min: 200,
-                    ideal: KlinoteMetrics.sidebarWidth,
-                    max: 260
-                )
-        } detail: {
-            DocumentView(model: model)
+        // The banner sits above the split view in a VStack rather than in a
+        // `safeAreaInset`. On macOS the sidebar column ignores that inset, so
+        // the banner was drawn over the Encounters header and swallowed clicks
+        // meant for the paste and record buttons there. It was not limited to
+        // a store that failed to open: the copy receipt shows often enough to
+        // block those buttons in ordinary use.
+        VStack(spacing: 0) {
+            banner
+            NavigationSplitView {
+                EncounterSidebar(model: model)
+                    .background(KlinoteColor.desk, ignoresSafeAreaEdges: .all)
+                    .navigationSplitViewColumnWidth(
+                        min: 200,
+                        ideal: KlinoteMetrics.sidebarWidth,
+                        max: 260
+                    )
+            } detail: {
+                DocumentView(model: model)
+            }
+            .inspector(isPresented: $showMargin) {
+                MarginView(model: model)
+                    .background(KlinoteColor.margin, ignoresSafeAreaEdges: .all)
+                    // OPEN DEFECT: utterance text is still clipped at the right
+                    // edge of this column. Measured: the panel lays its content out
+                    // at ~340 pt while ~305 pt is visible, so the split view is
+                    // overflowing the window rather than compressing — the detail
+                    // pane takes ~890 pt for a 624 pt document. Pinning this column
+                    // to a single width did not change it, so it is not the
+                    // column's requested width that is wrong. Reverted to a range
+                    // rather than leave a change that fixed nothing.
+                    .inspectorColumnWidth(
+                        min: 300,
+                        ideal: KlinoteMetrics.marginColumnWidth,
+                        max: 420
+                    )
+            }
         }
-        .inspector(isPresented: $showMargin) {
-            MarginView(model: model)
-                .background(KlinoteColor.margin, ignoresSafeAreaEdges: .all)
-                // OPEN DEFECT: utterance text is still clipped at the right
-                // edge of this column. Measured: the panel lays its content out
-                // at ~340 pt while ~305 pt is visible, so the split view is
-                // overflowing the window rather than compressing — the detail
-                // pane takes ~890 pt for a 624 pt document. Pinning this column
-                // to a single width did not change it, so it is not the
-                // column's requested width that is wrong. Reverted to a range
-                // rather than leave a change that fixed nothing.
-                .inspectorColumnWidth(
-                    min: 300,
-                    ideal: KlinoteMetrics.marginColumnWidth,
-                    max: 420
-                )
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    withAnimation(.easeInOut(duration: KlinoteMetrics.motionLayout)) {
+                        showMargin.toggle()
+                    }
+                } label: {
+                    Label("Evidence", systemImage: "sidebar.right")
+                }
+                .help("Show or hide the evidence margin")
+            }
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    model.startRecording()
+                } label: {
+                    Label("Record", systemImage: "record.circle")
+                }
+                .help("Record this consult (⌥⌘R)")
+                Button {
+                    model.copySelectedNote()
+                } label: {
+                    Label(model.isCopying ? "Copied" : "Copy note", systemImage: model.isCopying ? "checkmark" : "doc.on.doc")
+                }
+                .disabled(model.selectedEncounter?.note == nil)
+                .help("Copy the note to paste into the record (⌘⇧C)")
+                SettingsLink {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .help("Settings")
+            }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
+        .environment(\.klinoteReduceMotion, NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        .background(KlinoteColor.desk)
+        .frame(minWidth: 1040, minHeight: 640)
+    }
+
+    /// What the window can say above the columns. At most one shows.
+    @ViewBuilder
+    private var banner: some View {
+        Group {
             if let storeError = model.storeError {
                 // A denied Keychain key would otherwise look like lost history.
                 HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
@@ -188,40 +236,6 @@ struct ReviewWindow: View {
                 .overlay(alignment: .bottom) { Hairline() }
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    withAnimation(.easeInOut(duration: KlinoteMetrics.motionLayout)) {
-                        showMargin.toggle()
-                    }
-                } label: {
-                    Label("Evidence", systemImage: "sidebar.right")
-                }
-                .help("Show or hide the evidence margin")
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    model.startRecording()
-                } label: {
-                    Label("Record", systemImage: "record.circle")
-                }
-                .help("Record this consult (⌥⌘R)")
-                Button {
-                    model.copySelectedNote()
-                } label: {
-                    Label(model.isCopying ? "Copied" : "Copy note", systemImage: model.isCopying ? "checkmark" : "doc.on.doc")
-                }
-                .disabled(model.selectedEncounter?.note == nil)
-                .help("Copy the note to paste into the record (⌘⇧C)")
-                SettingsLink {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .help("Settings")
-            }
-        }
-        .environment(\.klinoteReduceMotion, NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
-        .background(KlinoteColor.desk)
-        .frame(minWidth: 1040, minHeight: 640)
     }
 }
 
