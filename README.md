@@ -133,6 +133,7 @@ Rationale and rejected alternatives: [`docs/engineering/ADR/0001`](docs/engineer
 | `docs/design/` | UX plan, direction contract, states, keyboard map. |
 | `PRODUCT.md` · `DESIGN.md` | Product truth and the visual system. |
 | `docs/engineering/RELEASING.md` | Who signs a release (DataDab LLP), and how. |
+| `scripts/gate.sh` | Every check in one command, locally. Fails loudly. |
 | `docs/` | Product, engineering, compliance. Start at `AGENTS.md`. |
 
 ## Privacy

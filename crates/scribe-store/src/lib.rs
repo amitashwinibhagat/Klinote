@@ -517,10 +517,12 @@ impl Store {
     /// and the obvious alternative — reclaim later, on the next open — trades
     /// away the guarantee for nothing:
     ///
+    /// ```text
     ///     100 notes    0.5 MB    2.2 ms
     ///   1,000 notes    4.7 MB   15.6 ms
     ///   5,000 notes   23.5 MB   67.0 ms
     ///  20,000 notes   93.8 MB  246.6 ms
+    /// ```
     ///
     /// Twenty thousand consults is decades of a busy practice, and the cost
     /// lands on a delete the clinician asked for. Unencrypted, so an encrypted
