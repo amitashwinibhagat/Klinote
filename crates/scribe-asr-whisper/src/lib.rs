@@ -85,6 +85,233 @@ impl AsrEngine for WhisperAsrEngine {
         // whisper.cpp wants monophonic 16 kHz f32 samples.
         let samples = audio.resample_to(16_000);
 
+        // One pass over the recording, then repair it if the transcript does
+        // not account for all of the audio (see `recover`).
+        let (segments, _, detected_lang) =
+            self.recover(&samples.samples, options, SpeakerId::CLINICIAN, 0)?;
+
+        let segments = merge_same_speaker(segments);
+
+        Ok(AsrOutput {
+            segments,
+            language: language_name(detected_lang, options),
+            engine: self.name().to_owned(),
+        })
+    }
+}
+
+impl WhisperAsrEngine {
+    /// Transcribe `samples`, then repair a transcript that does not account for
+    /// all of it. Two different failures, one shape:
+    ///
+    ///  1. The transcript stops short of the audio — a discarded chunk.
+    ///  2. The transcript claims to cover the audio but holds far too little
+    ///     text, because the segment's end timestamp was stretched over the
+    ///     discarded span. Density is the only signal left, so a window that
+    ///     is implausibly sparse is halved and each half transcribed on its
+    ///     own — a fresh window starting mid-speech does not see the end of a
+    ///     turn and so does not give up early.
+    ///
+    /// This runs only when the result looks wrong, so an ordinary recording
+    /// still costs exactly one pass.
+    fn recover(
+        &self,
+        samples: &[f32],
+        options: &AsrOptions,
+        start_speaker: SpeakerId,
+        depth: u32,
+    ) -> Result<(Vec<AsrSegment>, SpeakerId, i32)> {
+        let (segments, speaker, lang) = self.pass(samples, options, start_speaker)?;
+        let span_ms = samples.len() as u64 / SAMPLES_PER_MS;
+
+        if !is_sparse(spoken_chars(&segments), span_ms)
+            || !is_splittable(span_ms)
+            || depth >= MAX_SPLIT_DEPTH
+        {
+            return Ok((segments, speaker, lang));
+        }
+
+        let mid = samples.len() / 2;
+        if mid == 0 {
+            return Ok((segments, speaker, lang));
+        }
+        let mid_ms = mid as u64 / SAMPLES_PER_MS;
+        let (mut first, mid_speaker, first_lang) =
+            self.recover(&samples[..mid], options, start_speaker, depth + 1)?;
+        let (mut second, end_speaker, _) =
+            self.recover(&samples[mid..], options, mid_speaker, depth + 1)?;
+        for segment in second.iter_mut() {
+            segment.start_ms += mid_ms;
+            segment.end_ms += mid_ms;
+        }
+        first.append(&mut second);
+
+        // Keep the split only if it found substantially more. A marginal gain
+        // is more likely to be a hallucination on silence than recovered
+        // speech, so the bar is a doubling: the failures this repairs came back
+        // at six and thirteen times their original. On audio that is genuinely
+        // mostly silence the extra work is wasted, but nothing is lost.
+        if split_wins(spoken_chars(&first), spoken_chars(&segments)) {
+            Ok((first, end_speaker, first_lang))
+        } else {
+            Ok((segments, speaker, lang))
+        }
+    }
+
+    /// One decode, plus a second pass over any audio it left untranscribed.
+    fn pass(
+        &self,
+        samples: &[f32],
+        options: &AsrOptions,
+        start_speaker: SpeakerId,
+    ) -> Result<(Vec<AsrSegment>, SpeakerId, i32)> {
+        let total_ms = samples.len() as u64 / SAMPLES_PER_MS;
+        let (mut segments, mut speaker, detected_lang) =
+            self.decode(samples, options, start_speaker)?;
+
+        for _ in 0..MAX_RECOVERY_PASSES {
+            let covered_ms = segments.last().map(|s| s.end_ms).unwrap_or(0);
+            if !tail_is_uncovered(total_ms, covered_ms) {
+                break;
+            }
+            let from = (covered_ms * SAMPLES_PER_MS) as usize;
+            if from >= samples.len() {
+                break;
+            }
+            let rest = &samples[from..];
+            if rest.len() < MIN_TAIL_SAMPLES {
+                break;
+            }
+
+            // The discarded audio begins where the decoder decided a turn had
+            // ended, so the answer that follows belongs to the other voice.
+            // Continuing the same speaker instead merged the patient's only
+            // words into the clinician's greeting, which misroutes the note.
+            // It is still a guess, and it is recoverable: the margin offers
+            // Swap for exactly this.
+            let (mut more, next_speaker, _) = self.decode(rest, options, other_voice(speaker))?;
+            if more.is_empty() {
+                break;
+            }
+            // The recovery pass decodes a slice, so its timestamps start at
+            // zero. Shift them back onto the recording's clock.
+            for segment in more.iter_mut() {
+                segment.start_ms += covered_ms;
+                segment.end_ms += covered_ms;
+            }
+
+            let recovered_to = more.last().map(|s| s.end_ms).unwrap_or(covered_ms);
+            if recovered_to < covered_ms + MIN_PROGRESS_MS {
+                // No real progress: stop rather than loop on the same audio.
+                break;
+            }
+            speaker = next_speaker;
+            segments.append(&mut more);
+        }
+
+        Ok((segments, speaker, detected_lang))
+    }
+}
+
+/// whisper.cpp discards the remainder of a 30-second chunk when a segment ends
+/// on a lone trailing timestamp token (`single timestamp ending - skip entire
+/// chunk`, whisper.cpp §2629). The model emits that token when it decides the
+/// audio has ended — which it does prematurely after a short opening turn, so a
+/// fifteen-second consult can come back with only its first four seconds
+/// transcribed and nothing anywhere saying so.
+///
+/// The discarded audio is still in the recording, so transcribe it again.
+fn tail_is_uncovered(total_ms: u64, covered_ms: u64) -> bool {
+    total_ms.saturating_sub(covered_ms) >= MIN_UNCOVERED_MS
+}
+
+/// The voice a turn boundary lands on.
+fn other_voice(speaker: SpeakerId) -> SpeakerId {
+    SpeakerId::new(if speaker.0 == 0 { 1 } else { 0 })
+}
+
+/// Characters of transcript text, which is all the density check needs.
+fn spoken_chars(segments: &[AsrSegment]) -> usize {
+    segments.iter().map(|s| s.text.chars().count()).sum()
+}
+
+/// Conversational speech runs around fifteen characters a second. Well under
+/// half of that, over audio long enough to hold a sentence, means the decoder
+/// stopped early however the timestamps read.
+fn is_sparse(chars: usize, span_ms: u64) -> bool {
+    if span_ms == 0 {
+        return false;
+    }
+    (chars as f64) / (span_ms as f64 / 1000.0) < MIN_PLAUSIBLE_CHARS_PER_SEC
+}
+
+/// Does the split hold substantially more text than the pass it replaces?
+///
+/// A marginal gain is more likely to be a hallucination on silence than
+/// recovered speech, so the bar is a doubling: the failures this repairs came
+/// back at six and thirteen times their original.
+/// Even a doubling means little when both totals are near zero, so the split
+/// must also have found at least this much. A few words is the least that
+/// could be a sentence the decoder skipped.
+const MIN_SPLIT_GAIN_CHARS: usize = 40;
+
+fn split_wins(recovered: usize, original: usize) -> bool {
+    recovered >= MIN_SPLIT_GAIN_CHARS && recovered > original.saturating_mul(2)
+}
+
+/// Halving costs up to one extra decode per level, so the extra work is bounded
+/// by the depth — but only if the recording is short. A long quiet consult
+/// would otherwise pay several times over to be told it is quiet, and the
+/// failures worth repairing are short: the observed ones were thirteen to
+/// fifty-one seconds. A sparse transcript longer than this is left as it is.
+fn is_splittable(span_ms: u64) -> bool {
+    (MIN_SPLIT_SPAN_MS..=MAX_SPLIT_SPAN_MS).contains(&span_ms)
+}
+
+fn language_name(detected_lang: i32, options: &AsrOptions) -> String {
+    if detected_lang < 0 {
+        return options.language.clone().unwrap_or_else(|| "en".to_owned());
+    }
+    let langs = [
+        "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar", "sv",
+        "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta", "no",
+        "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa", "lv", "bn", "sr",
+    ];
+    langs
+        .get(detected_lang as usize)
+        .copied()
+        .unwrap_or("en")
+        .to_owned()
+}
+
+/// Audio is resampled to 16 kHz, so there are 16 samples in a millisecond.
+const SAMPLES_PER_MS: u64 = 16;
+/// Half a second of audio is the least worth a second pass.
+const MIN_TAIL_SAMPLES: usize = 8_000;
+/// A gap smaller than this is a normal pause, not a discarded chunk.
+const MIN_UNCOVERED_MS: u64 = 1_000;
+/// Each pass must move the end of the transcript forward by this much.
+const MIN_PROGRESS_MS: u64 = 500;
+/// Bounded: a pathological file must not turn one transcription into many.
+const MAX_RECOVERY_PASSES: usize = 4;
+/// Below this the transcript is not plausible speech and is worth splitting.
+const MIN_PLAUSIBLE_CHARS_PER_SEC: f64 = 6.0;
+/// Shorter than this is not worth halving; the tail pass already covers it.
+const MIN_SPLIT_SPAN_MS: u64 = 8_000;
+/// Longer than this is not halved: the extra work stops being worth it.
+const MAX_SPLIT_SPAN_MS: u64 = 120_000;
+/// Halving ends around four seconds, which is shorter than any turn.
+const MAX_SPLIT_DEPTH: u32 = 3;
+
+impl WhisperAsrEngine {
+    /// One `whisper_full` over `samples`, returning segments, the speaker the
+    /// next call should continue from, and whisper's detected language id.
+    fn decode(
+        &self,
+        samples: &[f32],
+        options: &AsrOptions,
+        start_speaker: SpeakerId,
+    ) -> Result<(Vec<AsrSegment>, SpeakerId, i32)> {
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 5 });
         // no_context=true keeps an encounter self-contained (no leakage from a
         // previous patient's words into the current transcript).
@@ -129,7 +356,7 @@ impl AsrEngine for WhisperAsrEngine {
             .create_state()
             .map_err(|err| ScribeError::Transcription(format!("whisper state: {err}")))?;
 
-        state.full(params, &samples.samples).map_err(|err| {
+        state.full(params, samples).map_err(|err| {
             ScribeError::Transcription(format!("whisper transcription failed: {err}"))
         })?;
 
@@ -137,7 +364,9 @@ impl AsrEngine for WhisperAsrEngine {
         let detected_lang = state.full_lang_id_from_state();
 
         let mut segments: Vec<AsrSegment> = Vec::with_capacity(n_segments.max(0) as usize);
-        let mut current_speaker = SpeakerId::CLINICIAN;
+        // Continues from the previous pass, so a recovered tail does not
+        // restart the voice labels and relabel Voice A as Voice B.
+        let mut current_speaker = start_speaker;
 
         for index in 0..n_segments {
             let segment = state.get_segment(index).ok_or_else(|| {
@@ -166,37 +395,13 @@ impl AsrEngine for WhisperAsrEngine {
             // off by one and mislabelled whole turns.
             asr_segment.speaker = Some(current_speaker);
             if segment.next_segment_speaker_turn() {
-                current_speaker = SpeakerId::new(if current_speaker.0 == 0 { 1 } else { 0 });
+                current_speaker = other_voice(current_speaker);
             }
 
             segments.push(asr_segment);
         }
 
-        // Merge consecutive segments from the same speaker so one continuous
-        // turn doesn't fragment into many rows (the note generator works on
-        // utterances; high fragmentation would misroute evidence).
-        segments = merge_same_speaker(segments);
-
-        Ok(AsrOutput {
-            segments,
-            language: if detected_lang >= 0 {
-                // whisper language ids: 0 = en, ... map crudely by id.
-                let langs = [
-                    "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl",
-                    "ar", "sv", "it", "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro",
-                    "da", "hu", "ta", "no", "th", "ur", "hr", "bg", "lt", "la", "mi", "ml", "cy",
-                    "sk", "te", "fa", "lv", "bn", "sr",
-                ];
-                langs
-                    .get(detected_lang as usize)
-                    .copied()
-                    .unwrap_or("en")
-                    .to_owned()
-            } else {
-                options.language.clone().unwrap_or_else(|| "en".to_owned())
-            },
-            engine: self.name().to_owned(),
-        })
+        Ok((segments, current_speaker, detected_lang))
     }
 }
 
@@ -217,11 +422,72 @@ fn merge_same_speaker(mut segments: Vec<AsrSegment>) -> Vec<AsrSegment> {
     merged
 }
 
-const _: () = ();
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_short_tail_is_left_alone() {
+        // Ordinary pauses are not discarded chunks.
+        assert!(!tail_is_uncovered(20_000, 20_000));
+        assert!(!tail_is_uncovered(20_000, 19_500));
+        assert!(tail_is_uncovered(20_000, 19_000));
+    }
+
+    #[test]
+    fn a_transcript_that_stops_early_is_spotted() {
+        // Half a second of a thirty-second recording.
+        assert!(tail_is_uncovered(30_000, 500));
+        // The end is claimed but only a greeting is there — the case the
+        // timestamps hide, which is why density is checked as well.
+        assert!(is_sparse(67, 13_470));
+        assert!(is_sparse(81, 51_250));
+        assert!(is_sparse(114, 32_360));
+    }
+
+    #[test]
+    fn ordinary_speech_is_not_sparse() {
+        // Conversational speech is roughly fifteen characters a second.
+        assert!(!is_sparse(247, 13_470));
+        assert!(!is_sparse(1_028, 51_250));
+        assert!(!is_sparse(1_708, 108_000));
+        // Silence has no text; it must not be mistaken for a failed decode,
+        // or every quiet recording would be transcribed four times over.
+        assert!(!is_sparse(0, 0));
+    }
+
+    #[test]
+    fn only_short_recordings_are_worth_halving() {
+        assert!(!is_splittable(4_000));
+        assert!(is_splittable(13_470));
+        assert!(is_splittable(51_250));
+        assert!(is_splittable(120_000));
+        // A fifteen-minute consult must not pay four passes to be told it is
+        // quiet; it is left sparse instead.
+        assert!(!is_splittable(900_000));
+    }
+
+    #[test]
+    fn a_marginal_split_is_not_believed() {
+        // The observed recoveries, in the order they were measured.
+        assert!(split_wins(660, 114));
+        assert!(split_wins(1_027, 81));
+        // A couple of extra characters is not recovered speech, and on silence
+        // both totals are near zero, where a doubling means nothing.
+        assert!(!split_wins(70, 67));
+        assert!(!split_wins(12, 8));
+        // Doubling from nothing is not evidence: silence hallucinates a word
+        // or two, and that must not replace a transcript that was merely thin.
+        assert!(!split_wins(1, 0));
+        assert!(!split_wins(39, 0));
+        assert!(split_wins(40, 0));
+    }
+
+    #[test]
+    fn the_recovered_voice_is_the_other_one() {
+        assert_eq!(other_voice(SpeakerId::new(0)).0, 1);
+        assert_eq!(other_voice(SpeakerId::new(1)).0, 0);
+    }
 
     #[test]
     fn missing_model_is_reported_cleanly() {

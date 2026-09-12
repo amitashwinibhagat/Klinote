@@ -42,6 +42,45 @@ once by the Swift shell into `~/Library/Application Support/Klinote/Models/`.
 - **Do not let the ASR engine decide roles.** It returns text and timing;
   diarisation and `RoleMap` assign roles.
 
+## A discarded chunk is a silent failure
+
+whisper.cpp throws away the rest of a 30-second chunk when a segment ends on a
+lone trailing timestamp token — `single timestamp ending - skip entire chunk`,
+whisper.cpp §2629. The model emits that token when it decides the audio has
+ended, and it decides that prematurely after a short opening turn. A
+fifteen-second consult can come back with only its first four seconds
+transcribed.
+
+Nothing downstream can tell. The transcript is short but well formed, the note
+that follows is thin but plausible, and the clinician has no reason to suspect
+that most of the consultation was dropped. Measured on a two-turn clip:
+
+| clip | before | after |
+| --- | --- | --- |
+| greeting then patient, 13.5 s | 67 chars | 246 |
+| three turns, 22.9 s | 67 | 426 |
+| 32.4 s | 114 | 660 |
+| 51.3 s | 81 | 1,027 |
+
+Two repairs, both in `scribe-asr-whisper`, both only when the result looks
+wrong so an ordinary recording still costs one pass:
+
+1. **The transcript stops short of the audio.** Transcribe the uncovered tail
+   again and splice it, continuing the clock. The audio after a discarded chunk
+   begins where the decoder thought a turn had ended, so the tail starts on the
+   other voice — otherwise the patient's only words merge into the clinician's
+   greeting.
+2. **The transcript claims to cover the audio but holds almost no text**,
+   because the end timestamp was stretched over the discarded span. Density is
+   the only signal left, so an implausibly sparse recording is halved and each
+   half transcribed on its own; a window starting mid-speech does not see the
+   end of a turn and does not give up. Kept only if it finds at least double the
+   text and at least 40 characters, and only for recordings under two minutes,
+   so the extra work stays bounded.
+
+A recovered voice label is still a guess. The margin offers Swap for exactly
+that.
+
 ## Medical vocabulary
 
 Generic models mis-hear clinical terms — drug names, anatomy, abbreviations.
