@@ -1,0 +1,13 @@
+[package]
+name = "scribe-store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Local SQLite store with an append-only audit trail."
+
+[dependencies]
+scribe-core.workspace = true
+rusqlite.workspace = true
+serde_json.workspace = true
+chrono.workspace = true

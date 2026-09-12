@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Klinote — marks, round 2</title>
+  <style>
+    :root { --ink: #16324F; --paper: #F4F1EA; --desk: #D8D2C6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.45 -apple-system, BlinkMacSystemFont, sans-serif; color: var(--ink); background: var(--desk); }
+    main { max-width: 880px; margin: 40px auto 96px; padding: 0 24px; }
+    h1 { font-size: 22px; font-weight: 600; margin: 0; }
+    .url { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #6a7a88; margin: 6px 0 28px; }
+    h2 { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #6a7a88; margin: 40px 0 8px; }
+    .why { max-width: 60ch; color: #3d4d5c; margin: 0 0 16px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    figure { margin: 0; background: var(--paper); padding: 36px 28px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+    figure.ink { background: var(--ink); }
+    figure.wide { grid-column: 1 / -1; }
+    figcaption { font-size: 11px; letter-spacing: 0.04em; color: #6a7a88; }
+    figure.ink figcaption { color: #9CC3E5; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Klinote</h1>
+  <p class="url">klinote.one · round 2 — not a letterhead</p>
+
+  <h2>1 · Block</h2>
+  <p class="why">An ink tile. White K. This is a Mac app in the dock, not a law firm. Works at 16px and 1024px.</p>
+  <div class="row">
+    <figure>
+      <img src="klinote-block-icon.svg" width="112" height="112" alt="Klinote block"/>
+      <figcaption>App icon</figcaption>
+    </figure>
+    <figure class="ink">
+      <img src="klinote-block-icon.svg" width="112" height="112" alt="" style="opacity:0.95"/>
+      <figcaption>On ink</figcaption>
+    </figure>
+    <figure class="wide">
+      <img src="klinote-block-horizontal.svg" width="380" height="68" alt="Klinote lockup"/>
+      <figcaption>Lockup</figcaption>
+    </figure>
+  </div>
+
+  <h2>2 · Wordmark</h2>
+  <p class="why">Lowercase, tight, SF Pro. No rule, no serif, no domain line. The name is the mark.</p>
+  <div class="row">
+    <figure class="wide">
+      <img src="klinote-wordmark.svg" width="360" height="68" alt="klinote"/>
+      <figcaption>klinote</figcaption>
+    </figure>
+  </div>
+
+  <h2>3 · Stamp</h2>
+  <p class="why">A filing stamp on the letter — ready to copy, not a hospital cross. Double ring so it holds when small.</p>
+  <div class="row">
+    <figure>
+      <img src="klinote-stamp-icon.svg" width="112" height="112" alt="Klinote stamp"/>
+      <figcaption>Stamp</figcaption>
+    </figure>
+    <figure class="ink">
+      <img src="klinote-stamp-icon.svg" width="112" height="112" alt="" style="filter: invert(1) sepia(1) saturate(0) brightness(2)"/>
+      <figcaption>Reversed</figcaption>
+    </figure>
+  </div>
+
+  <h2>4 · Insert</h2>
+  <p class="why">A caret. The job is paste into the record. Almost too clever. Included because the last round was not clever enough.</p>
+  <div class="row">
+    <figure>
+      <img src="klinote-insert-icon.svg" width="112" height="112" alt="Insert caret"/>
+      <figcaption>Caret</figcaption>
+    </figure>
+    <figure>
+      <img src="klinote-insert-horizontal.svg" width="340" height="62" alt="Klinote insert lockup"/>
+      <figcaption>Lockup</figcaption>
+    </figure>
+  </div>
+
+  <h2>5 · Gutter</h2>
+  <p class="why">Two rules and one block. Note column, margin, evidence. The most abstract. The one designers pick and clients don’t.</p>
+  <div class="row">
+    <figure>
+      <img src="klinote-gutter-icon.svg" width="112" height="112" alt="Gutter"/>
+      <figcaption>Gutter</figcaption>
+    </figure>
+    <figure class="ink">
+      <img src="klinote-gutter-icon.svg" width="112" height="112" alt="" style="filter: invert(1) brightness(2)"/>
+      <figcaption>Reversed</figcaption>
+    </figure>
+  </div>
+</main>
+</body>
+</html>

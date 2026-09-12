@@ -1,0 +1,19 @@
+[package]
+name = "scribe-llm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Local GGUF note drafter (llama.cpp). Separate binary so ggml does not clash with whisper.cpp."
+
+[[bin]]
+name = "scribe-llm"
+path = "src/main.rs"
+
+[dependencies]
+scribe-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+llama-cpp-2 = { version = "0.1", features = ["metal"] }
+encoding_rs = "0.8"

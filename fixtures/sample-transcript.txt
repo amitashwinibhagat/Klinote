@@ -1,0 +1,18 @@
+CLINICIAN: Good morning, come on in and take a seat. What brings you in today?
+PATIENT: I've had a sore throat for about four days now and it really hurts when I swallow.
+CLINICIAN: Any fever or cough?
+PATIENT: No fever that I've noticed, but I have been feeling very tired and a bit run down.
+CLINICIAN: Any shortness of breath or chest pain?
+PATIENT: No, nothing like that. Just the throat and feeling tired.
+CLINICIAN: Do you have any history of tonsillitis or recurrent throat infections?
+PATIENT: I used to get it a lot as a child but not for years.
+CLINICIAN: Are you on any regular medication or do you have any allergies?
+PATIENT: I take cetirizine for hay fever and I'm not allergic to anything that I know of.
+CLINICIAN: On examination today your temperature is 37.4, pulse 88 and regular, and your throat shows marked erythema with enlarged tonsils but no exudate.
+CLINICIAN: Chest is clear on auscultation and there are no palpable cervical lymph nodes.
+CLINICIAN: My impression is a viral upper respiratory tract infection, most likely viral tonsillopharyngitis.
+CLINICIAN: Plan: rest and plenty of fluids, paracetamol 1g four times a day as needed for pain, and ibuprofen 400mg three times a day with food if the pain is severe.
+CLINICIAN: I'll arrange a throat swab only if you're not improving, and I want you to come back in one week if things are getting worse rather than better.
+CLINICIAN: Safety net: if you develop difficulty breathing, difficulty swallowing your own saliva, or a high fever, please seek urgent care the same day.
+CLINICIAN: I'll also send you a link about self-care for sore throats.
+CLINICIAN: Anyway, the parking situation outside has been a nightmare all week, hasn't it.

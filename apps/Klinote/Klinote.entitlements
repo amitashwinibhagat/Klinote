@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Sandboxed.
+
+	  The reason is containment, not compliance. Klinote takes input from three
+	  places it does not control — a microphone, an audio file, and a GGUF model
+	  downloaded over the network — and reads all three with large C++ parsers:
+	  whisper.cpp and llama.cpp. The sandbox is what limits what a memory-safety
+	  bug in either of them can reach. For an app holding clinical records that
+	  is worth having even though the Mac App Store, the only place it is
+	  mandatory, is not where this ships.
+
+	  What it changes:
+	    · the database, the models and the learned terms live in
+	      ~/Library/Containers/one.klinote.mac/Data/Library/Application Support/Klinote
+	      rather than ~/Library/Application Support/Klinote;
+	    · a sandboxed build cannot read the old location — that is the point of
+	      it — so an install from 0.1.x has to be moved once from outside the
+	      app: scripts/move-into-container.sh;
+	    · `device.audio-input` is the microphone, and is why the app asks.
+	-->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!--
+	  The model download is the only network use: downloads, never uploads. It
+	  lives in exactly one file, which scripts/check-network-surface.sh enforces.
+	-->
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>

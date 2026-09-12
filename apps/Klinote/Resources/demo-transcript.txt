@@ -1,0 +1,8 @@
+CLINICIAN: Thanks for coming in. How has this week been?
+PATIENT: I've been feeling anxious most days, especially at work. Sleep has been poor — maybe four hours.
+CLINICIAN: When you say anxious, what do you notice?
+PATIENT: Tight chest, and my thoughts race. I talked about it with my partner. No thoughts of suicide. I don't want to die.
+CLINICIAN: Any plan or intent to harm yourself or anyone else?
+PATIENT: No. None. My sister and the dog are reasons I wouldn't.
+CLINICIAN: Mood today is low, affect restricted, good eye contact, engaged. We explored the thought that you have to get everything right at work, using a thought record.
+CLINICIAN: Plan: continue weekly sessions, practice the thought record as homework, and we review sleep next week. If those thoughts return, you use the safety plan from last month.

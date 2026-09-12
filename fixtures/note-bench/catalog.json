@@ -1,0 +1,14 @@
+{
+  "description": "Production note engine for Klinote. Same Phlox extract→refine SOAP job.",
+  "models": [
+    {
+      "id": "quire",
+      "band": "1-2gb",
+      "name": "Qwen3-4B Instruct 2507 Q3_K_S",
+      "file": "quire.gguf",
+      "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q3_K_S.gguf",
+      "bytes": 1886997600,
+      "why": "Production baseline. Full S/O/A/P including safety-net on the sample consult."
+    }
+  ]
+}

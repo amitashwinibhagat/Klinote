@@ -1,0 +1,57 @@
+# Veterinary consultation note
+id = "veterinary"
+name = "Veterinary Consultation Note"
+discipline = "veterinary"
+version = "1"
+description = "History / Examination / Assessment / Plan. The 'patient' role is the animal; the caregiver is the owner."
+
+[[sections]]
+key = "history"
+title = "History"
+required = true
+guidance = "Owner-reported history, duration, appetite, behaviour, vaccinations."
+cues = [
+  "owner reports", "owner says", "reports", "since", "started", "vomiting", "vomited",
+  "diarrhoea", "diarrhea", "not eating", "appetite", "off food", "lethargic", "lethargy",
+  "coughing", "sneezing", "discharge", "scratching", "itchy", "lame", "limping",
+  "weight", "drinking", "urinating", "vaccinated", "vaccination", "neutered", "spayed",
+  "history", "previous", "last seen", "age", "months old", "years old"
+]
+
+[[sections]]
+key = "examination"
+title = "Examination"
+required = true
+guidance = "Physical examination findings, temperature, weight, body condition."
+cues = [
+  "temperature", "temp", "rectal", "weight", "kg", "body condition", "bcs",
+  "mucous membranes", "mm", "crt", "capillary refill", "heart rate", "pulse",
+  "respiratory rate", "auscultation", "heart", "lungs", "abdomen", "palpation",
+  "lymph nodes", "hydration", "dehydrated", "gait", "lameness", "orthopaedic",
+  "neurological", "eyes", "ears", "teeth", "dental", "skin", "coat", "on examination"
+]
+
+[[sections]]
+key = "assessment"
+title = "Assessment"
+required = true
+guidance = "Differential diagnoses, clinical impression, problem list."
+cues = [
+  "assessment", "impression", "differential", "differentials", "likely", "suspected",
+  "consistent with", "rule out", "gastroenteritis", "pancreatitis", "foreign body",
+  "infection", "parasite", "allergy", "dermatitis", "arthritis", "fracture",
+  "stable", "critical", "guarded", "favourable", "favorable", "prognosis"
+]
+
+[[sections]]
+key = "plan"
+title = "Plan"
+required = true
+guidance = "Treatment, medications with doses, diagnostics, recheck, cost estimate discussed."
+cues = [
+  "plan", "prescribe", "prescribed", "dose", "dosage", "mg", "ml", "mg/kg", "sid", "bid",
+  "once daily", "twice daily", "antibiotic", "amoxicillin", "metronidazole", "meloxicam",
+  "anti-inflammatory", "pain relief", "vaccination", "bloods", "blood test", "x-ray",
+  "radiograph", "ultrasound", "scan", "recheck", "review in", "monitor", "hospitalise",
+  "hospitalize", "fluids", "estimate", "cost", "consent", "euthanasia"
+]

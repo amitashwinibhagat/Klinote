@@ -1,0 +1,40 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.85"
+license = "LicenseRef-Proprietary"
+authors = ["Amit Ashwini Bhagat"]
+repository = "https://github.com/amitashwinibhagat/local-clinical-scribe"
+description = "On-device ambient clinical documentation for macOS. Nothing leaves the Mac."
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+toml = "1"
+hound = "3.5"
+rusqlite = { version = "0.40", features = ["bundled-sqlcipher-vendored-openssl"] }
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Internal crates
+scribe-core = { path = "crates/scribe-core" }
+scribe-audio = { path = "crates/scribe-audio" }
+scribe-asr = { path = "crates/scribe-asr" }
+scribe-diarize = { path = "crates/scribe-diarize" }
+scribe-note = { path = "crates/scribe-note" }
+scribe-store = { path = "crates/scribe-store" }
+scribe-pipeline = { path = "crates/scribe-pipeline" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

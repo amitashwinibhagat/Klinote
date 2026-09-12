@@ -1,0 +1,14 @@
+[package]
+name = "scribe-pipeline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "End-to-end orchestration: audio -> transcript -> note."
+
+[dependencies]
+scribe-core.workspace = true
+scribe-audio.workspace = true
+scribe-asr.workspace = true
+scribe-diarize.workspace = true
+scribe-note.workspace = true

@@ -1,0 +1,90 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    # macos-26, not macos-15: the app uses Apple's Foundation Models, which
+    # ships with the macOS 26 SDK. On an older image the Swift job fails with
+    # "No such module 'FoundationModels'" before it can run a single test. The
+    # import is conditionally compiled now, so older SDKs build too — but the
+    # point of this job is to test the app that actually ships, including that
+    # path, and that needs the newer SDK.
+    #
+    # It must also be an arm64 runner: cargo builds the Rust engine for the
+    # host, so an Intel runner cannot produce the arm64-only app.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # No model, no network, no audio device required.
+      - name: Test
+        run: cargo test --workspace
+
+      - name: No networking dependencies
+        run: |
+          if cargo tree --workspace | grep -Ei 'reqwest|hyper|ureq|isahc|surf|attohttpc|curl'; then
+            echo "::error::A networking crate entered the dependency graph. See ADR 0002."
+            exit 1
+          fi
+          echo "dependency graph is network-free"
+
+      # The product claim is that nothing recorded leaves the Mac. Enforced,
+      # not asserted: one file may touch the network, and only to download.
+      - name: Network surface
+        run: ./scripts/check-network-surface.sh
+
+      # DESIGN.md is the source of truth for the visual system. This keeps the
+      # mechanical half of it honest: no font by number, no radius or spacing
+      # off the scale, one width for the sheet family.
+      - name: Design tokens
+        run: ./scripts/check-design-tokens.sh
+
+      # A Domain type that Tests mention and the app never calls is a decision
+      # the product does not take. Nine green tests of Readiness did not mean
+      # the letterhead used it.
+      - name: Wired domain
+        run: ./scripts/check-wired.sh
+
+      # The shell's decision logic, headless. Sources/Domain has no FFI and no
+      # UI, so the bundle needs no test host — and a test host would launch the
+      # app, open the encrypted store and read the Keychain, which is not
+      # something a test run should do.
+      - name: Install XcodeGen
+        # The project file is generated from apps/Klinote/project.yml and is not
+        # committed, so the runner has to have the generator. It is present on
+        # GitHub's macOS images today; this keeps the job working when it is not.
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+
+      - name: Swift tests
+        run: |
+          cd apps/Klinote
+          xcodegen generate
+          xcodebuild test \
+            -project Klinote.xcodeproj \
+            -scheme Klinote \
+            -destination 'platform=macOS' \
+            -derivedDataPath /tmp/klinote-tests \
+            CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=YES

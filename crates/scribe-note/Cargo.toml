@@ -1,0 +1,16 @@
+[package]
+name = "scribe-note"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Template loading and note generation for Local Clinical Scribe."
+
+[dependencies]
+scribe-core.workspace = true
+serde.workspace = true
+toml.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
