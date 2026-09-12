@@ -46,6 +46,13 @@ struct SetupSheet: View {
                         ? "The 465 MB speech model is already on this Mac. You can record a consult straight away."
                         : "Speech recognition needs a 465 MB model. It downloads once and stays on this Mac. You can skip it and paste a transcript instead."
                 )
+                Point(
+                    symbol: "text.alignleft",
+                    title: noteReady ? "Writing is ready" : "Writing the note takes a model too",
+                    detail: noteReady
+                        ? "Quire is on this Mac. It reads the transcript and writes the note."
+                        : "Reading the words is not the same as writing the note. Quire does that — 1.9 GB, once, on this Mac. Without it the built-in rules write a thinner draft, and nothing on screen would tell you which you got. Add it now or later; if it arrives later it writes the note again from the saved words."
+                )
             }
 
             Rule()
@@ -92,28 +99,33 @@ struct SetupSheet: View {
     }
 
     private var listeningReady: Bool { downloader.state == .ready }
+    private var noteReady: Bool { downloader.noteState == .ready }
 
     /// There must always be an action here that finishes setup. The first
     /// version turned the primary button into a disabled *label* — "Listening
     /// is ready" — once the model was already on disk, which left a clinician
     /// who wanted to record with no way past this screen except the paste
     /// button, which is the wrong thing to press.
+    /// One button for both models.
+    ///
+    /// "Which model do I want" is not a question to put to a clinician on first
+    /// run. Both are needed before the first note is worth reading, and the
+    /// second is the one people would have skipped — leaving them with the
+    /// thinner draft and no way to know.
     private var primaryTitle: String {
-        switch downloader.state {
-        case .ready: "Start using Klinote"
-        case .downloading(let fraction): "Continue · listening \(Int(fraction * 100))%"
-        default: "Download listening (465 MB)"
+        switch (downloader.state, noteReady) {
+        case (.ready, true): "Start using Klinote"
+        case (.ready, false): "Download Quire (1.9 GB)"
+        case (.downloading(let fraction), _): "Continue · listening \(Int(fraction * 100))%"
+        case (_, true): "Download listening (465 MB)"
+        default: "Download both (2.3 GB)"
         }
     }
 
     private func primaryAction() {
-        switch downloader.state {
-        case .ready, .downloading:
-            // Already handled, or already running in the background.
-            break
-        case .missing, .failed:
-            downloader.start()
-        }
+        // startAll sequences them: listening first, Quire when it lands. They
+        // cannot run at once — there is one task and one progress observation.
+        downloader.startAll()
         finish()
     }
 

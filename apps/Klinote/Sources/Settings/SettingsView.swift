@@ -250,7 +250,7 @@ private struct RecordingSettings: View {
                     Button("Download Quire (1.9 GB, once)") {
                         downloader.startNote()
                     }
-                    Text("Writes the note from the consult. Stays on this Mac. Optional — a draft is written without it.")
+                    Text("Writes the note from the transcript. Stays on this Mac. Without it the built-in rules write a thinner draft, and the note says so. It can be added later — a note already written is written again from its saved transcript.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 case .downloading(let fraction):

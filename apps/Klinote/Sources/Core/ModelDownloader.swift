@@ -15,6 +15,11 @@ import Foundation
 extension Notification.Name {
     /// Posted on the main thread when the speech model finishes downloading.
     static let klinoteModelDownloadFinished = Notification.Name("one.klinote.mac.model-download-finished")
+    /// Quire arriving is separate from listening arriving: a note that was
+    /// written by the built-in rules can be rewritten from its stored
+    /// transcript the moment the model lands. Nothing else can use the
+    /// listening notification for that — by then the recording is long gone.
+    static let klinoteNoteModelDownloadFinished = Notification.Name("one.klinote.mac.note-model-download-finished")
 }
 
 enum ModelState: Equatable {
@@ -71,6 +76,9 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
     /// there is — see `scripts/check-network-surface.sh`.
     @Published var bytesReceived: Int64 = 0
     @Published var downloadsCompleted: Int = 0
+
+    /// Set when setup asked for both models, so the second starts itself.
+    private var queueNoteAfterListening = false
 
     private var session: URLSession!
     private var task: URLSessionDownloadTask?
@@ -157,6 +165,34 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
         downloadTask.resume()
     }
 
+    /// Listening first, then Quire, one after the other.
+    ///
+    /// Setup offers one button, because "which model do I want" is not a
+    /// question a clinician should have to answer on first run — and both are
+    /// needed before the first note is worth reading. They cannot run at once:
+    /// there is one task and one progress observation.
+    func startAll() {
+        refresh()
+        if noteState != .ready {
+            queueNoteAfterListening = true
+        }
+        start()
+        startNoteIfQueued()
+    }
+
+    private func startNoteIfQueued() {
+        guard queueNoteAfterListening else { return }
+        guard noteState != .ready else {
+            queueNoteAfterListening = false
+            return
+        }
+        // Wait for listening to finish so the two downloads do not fight over
+        // the single task slot.
+        if case .downloading = state { return }
+        queueNoteAfterListening = false
+        startNote()
+    }
+
     func startNote() {
         refresh()
         switch noteState {
@@ -209,13 +245,13 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
+        let isNote = downloadTask.taskDescription == "note"
         do {
             let directory = Self.modelsDirectory
             try FileManager.default.createDirectory(
                 at: directory,
                 withIntermediateDirectories: true
             )
-            let isNote = downloadTask.taskDescription == "note"
             let destination = isNote ? Self.noteFile : Self.modelFile
             if FileManager.default.fileExists(atPath: destination.path) {
                 try FileManager.default.removeItem(at: destination)
@@ -224,9 +260,14 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
             Task { @MainActor in
                 if isNote {
                     self.noteState = .ready
+                    NotificationCenter.default.post(
+                        name: .klinoteNoteModelDownloadFinished, object: nil
+                    )
+                    self.startNoteIfQueued()
                 } else {
                     self.state = .ready
                     NotificationCenter.default.post(name: .klinoteModelDownloadFinished, object: nil)
+                    self.startNoteIfQueued()
                 }
                 self.downloadsCompleted += 1
                 self.task = nil
@@ -234,7 +275,15 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
             }
         } catch {
             Task { @MainActor in
-                self.state = .failed(error.localizedDescription)
+                // Which model failed matters. This set `state` unconditionally,
+                // so a failed Quire download marked *listening* as failed — and
+                // the app refuses to record when listening is not ready, so a
+                // note-model failure stopped consultations entirely.
+                if isNote {
+                    self.noteState = .failed(error.localizedDescription)
+                } else {
+                    self.state = .failed(error.localizedDescription)
+                }
                 self.task = nil
                 self.progressObservation = nil
             }
@@ -247,10 +296,14 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
         didCompleteWithError error: Error?
     ) {
         guard let error else { return }
+        let isNote = task.taskDescription == "note"
         Task { @MainActor in
-            // Cancellation is a missing state, not a failure.
+            // Cancellation is a missing state, not a failure. Same correction as
+            // above: a note-model failure is not a listening failure.
             if (error as NSError).code == NSURLErrorCancelled {
-                self.state = .missing
+                if isNote { self.noteState = .missing } else { self.state = .missing }
+            } else if isNote {
+                self.noteState = .failed(error.localizedDescription)
             } else {
                 self.state = .failed(error.localizedDescription)
             }

@@ -20,6 +20,9 @@ struct DocumentView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         Letterhead(model: model, encounter: encounter, note: note)
+                        if model.showsNoteModelPrompt {
+                            NoteModelPrompt(model: model)
+                        }
                         ForEach(note.sections) { section in
                             SectionBlock(section: section, model: model)
                         }
@@ -182,8 +185,18 @@ struct ProvisionanceLine: View {
     /// A letter written by the built-in rules is a rough draft, and saying so
     /// is more useful than letting the clinician discover it.
     private var engineLine: String {
-        if note.engine.hasPrefix("rule-based") && isDocument {
-            return "Rough draft from the built-in rules. The language model writes this document better."
+        if note.wasWrittenByRules {
+            // A rule-based *note* used to read exactly like a model-written one:
+            // only documents admitted it. So the note a clinician actually signs
+            // was the one place the app did not say it had been written the
+            // cheap way.
+            // It must not say *why* the model did not write it. The first
+            // version read "Quire is not installed", which was wrong the moment
+            // the prompt learned to offer a rewrite on a machine that has Quire
+            // — the paste path reaches here with the model sitting on disk.
+            return isDocument
+                ? "Rough draft from the built-in rules. Quire writes this document better."
+                : "Written on this Mac by the built-in rules. Quire did not write this one."
         }
         return "Written on this Mac. Nothing left the device."
     }
@@ -193,7 +206,7 @@ struct ProvisionanceLine: View {
             Text(engineLine)
                 .font(KlinoteFont.label())
                 .foregroundStyle(
-                    note.engine.hasPrefix("rule-based") && isDocument
+                    note.wasWrittenByRules && isDocument
                         ? KlinoteColor.caution
                         : KlinoteColor.tertiary
                 )
@@ -212,6 +225,90 @@ struct ProvisionanceLine: View {
 }
 
 // MARK: - Sections
+
+/// Ask for the note model at the moment it matters.
+///
+/// Not in Settings, which is where it lived: a clinician has to go looking, and
+/// nothing tells them the note in front of them would have been better. Here it
+/// is offered next to the note it is about, with the size, what it changes, and
+/// what happens to the consultation they have already recorded.
+///
+/// It rewrites the note in place. The audio is long gone — it is discarded as
+/// soon as it is transcribed — but the transcript is kept, and the transcript is
+/// all the model ever needed.
+struct NoteModelPrompt: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject private var downloader = ModelDownloader.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space8) {
+            Text("This note was written without the note model")
+                .font(KlinoteFont.emphasis())
+                .foregroundStyle(KlinoteColor.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(detail)
+                .font(KlinoteFont.caption())
+                .foregroundStyle(KlinoteColor.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if model.isRedrafting {
+                HStack(spacing: KlinoteMetrics.space8) {
+                    ProgressView().controlSize(.small)
+                    Text("Writing this note again…")
+                        .font(KlinoteFont.label())
+                        .foregroundStyle(KlinoteColor.secondary)
+                }
+            } else {
+                switch downloader.noteState {
+                case .downloading(let fraction):
+                    ProgressView(value: fraction)
+                        .frame(maxWidth: 260)
+                case .failed(let message):
+                    Text(message)
+                        .font(KlinoteFont.label())
+                        .foregroundStyle(KlinoteColor.caution)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Try the download again") { downloader.startNote() }
+                        .controlSize(.small)
+                case .ready:
+                    // The model is here; it simply was not asked. The paste path
+                    // used to be the one way in that never asked it.
+                    Button("Write this note again with Quire") {
+                        Task { await model.redraftWithNoteModel(announceFailure: true) }
+                    }
+                    .buttonStyle(KlinotePrimaryButtonStyle())
+                default:
+                    Button("Download Quire (1.9 GB) and write this note again") {
+                        downloader.startNote()
+                    }
+                    .buttonStyle(KlinotePrimaryButtonStyle())
+                }
+            }
+        }
+        .padding(KlinoteMetrics.space12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(KlinoteColor.caution.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: KlinoteMetrics.radiusModule, style: .continuous))
+        .padding(.bottom, KlinoteMetrics.space24)
+    }
+
+    private var detail: String {
+        if model.isRedrafting {
+            return "Quire is writing this note again from the transcript. The words are already saved — nothing has to be recorded again."
+        }
+        switch downloader.noteState {
+        case .downloading:
+            return "Downloading once, and it stays on this Mac. This note will be written again from the saved transcript the moment it arrives."
+        case .failed:
+            return "The download did not finish. This note is unchanged and still safe to copy."
+        case .ready:
+            return "Quire is already on this Mac — it just was not asked to write this one, because a pasted transcript is written by the built-in rules. It reads the same saved words."
+        default:
+            return "Quire writes a fuller note from the same recording. It downloads once, stays on this Mac, and costs nothing per note. The transcript is already saved, so this note is written again from it — you do not have to record the consultation again."
+        }
+    }
+}
 
 struct SectionBlock: View {
     let section: NoteSection

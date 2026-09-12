@@ -40,6 +40,27 @@ extension DecisionsTests {
         )
     }
 
+    func testANoteKnowsWhetherTheRulesWroteIt() {
+        // The letterhead, the prompt and the redraft all key off this. A note
+        // written by the rules used to read exactly like a model-written one,
+        // which is how a clinician ends up trusting the worse draft.
+        var note = partiallyFilledNote()
+        XCTAssertFalse(note.wasWrittenByRules, "the fixture is written by a model")
+        note = ClinicalNote(
+            id: note.id,
+            encounterId: note.encounterId,
+            templateId: note.templateId,
+            sections: note.sections,
+            unassigned: note.unassigned,
+            generatedAt: note.generatedAt,
+            engine: "rule-based-v1",
+            reviewState: note.reviewState,
+            missingRequired: note.missingRequired,
+            machineGenerated: note.machineGenerated
+        )
+        XCTAssertTrue(note.wasWrittenByRules)
+    }
+
     func testAddingALineFillsTheSectionAndClearsItFromMissing() {
         let note = partiallyFilledNote()
         let updated = NoteEditing.adding(

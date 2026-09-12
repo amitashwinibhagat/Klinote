@@ -81,6 +81,7 @@ final class AppModel: ObservableObject {
     @Published var templateId = "soap"
     @Published var lastError: String?
     @Published var isFiling = false
+    @Published var isRedrafting = false
     @Published var isCopying = false
     @Published var copyBanner: String?
     @Published var isSwapping = false
@@ -134,6 +135,7 @@ final class AppModel: ObservableObject {
     private var heldMs: UInt64 = 0
 
     private var downloadObserver: NSObjectProtocol?
+    private var noteDownloadObserver: NSObjectProtocol?
     private var ticker: Timer?
 
     private init() {
@@ -147,6 +149,20 @@ final class AppModel: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.handleDownloadFinished()
+            }
+        }
+
+        // And when Quire arrives, rewrite the note on screen if the rules wrote
+        // it. Quietly: the clinician pressed download, and the note improving
+        // underneath them is the answer, not a dialogue.
+        noteDownloadObserver = NotificationCenter.default.addObserver(
+            forName: .klinoteNoteModelDownloadFinished,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.selectedNoteIsRuleBased else { return }
+                await self.redraftWithNoteModel(announceFailure: true)
             }
         }
     }
@@ -331,6 +347,16 @@ final class AppModel: ObservableObject {
             persist(encounter)
             selectFirstEvidence()
             syncTasks(for: encounter)
+            // A pasted consult was written by the rules and never offered to a
+            // model, so a clinician who pasted rather than recorded got the
+            // thin draft even with Quire installed. The note appears at once —
+            // nobody should wait on a model to see their own words — and is
+            // written again when the model has finished with it.
+            if aModelCouldWriteThis {
+                Task { @MainActor in
+                    await self.redraftWithNoteModel(encounter.id)
+                }
+            }
             if learned > 0 {
                 copyBanner = learned == 1
                     ? "1 learned correction applied."
@@ -980,6 +1006,102 @@ final class AppModel: ObservableObject {
         let startedAt = recordingStart ?? Date()
         self.pendingRecording = nil
         transcribe(pendingRecording, startedAt: startedAt)
+    }
+
+    // MARK: - Rewriting a note the rules wrote
+
+    /// Whether the note on screen was written without the model, and could be
+    /// written again now that the model exists.
+    ///
+    /// This is the honest half of the fallback. The rules produce a real note
+    /// from the transcript, so nothing breaks without Quire — but it is a
+    /// thinner note, and it looked exactly like a model-written one, which is
+    /// how a clinician ends up trusting a worse draft without knowing there was
+    /// a choice.
+    var selectedNoteIsRuleBased: Bool {
+        guard let encounter = selectedEncounter,
+              let note = encounter.note,
+              encounter.transcript != nil
+        else { return false }
+        return note.wasWrittenByRules
+    }
+
+    /// Show it whenever the note on screen was written by the rules, whether or
+    /// not Quire is installed.
+    ///
+    /// It first appeared only when Quire was missing, which had a hole in it: a
+    /// pasted transcript is written by the rules even on a machine that has
+    /// Quire, because the paste path never asked it. That note stayed thin with
+    /// nothing offering to improve it. The prompt now covers both — download
+    /// the model, or just use the one that is already here.
+    var showsNoteModelPrompt: Bool {
+        guard selectedNoteIsRuleBased else { return false }
+        guard selectedEncounter?.isSyntheticDemo != true else { return false }
+        return true
+    }
+
+    /// A model that can write a note is present, so the only thing missing is
+    /// the writing.
+    var noteModelReady: Bool {
+        if case .ready = ModelDownloader.shared.noteState { return true }
+        return false
+    }
+
+    /// Whether anything at all could write a better note than the rules: Quire
+    /// on disk, or Apple's model on a Mac that has it.
+    private var aModelCouldWriteThis: Bool {
+        noteModelReady || NoteDrafter.isAvailable
+    }
+
+    /// Write the note again from the stored transcript, now that Quire is here.
+    ///
+    /// The recording is gone by the time the download finishes — audio is
+    /// discarded as soon as it is transcribed — but the transcript is kept, and
+    /// the transcript is all the model ever needed. So a model that arrives
+    /// late upgrades the note that is already on screen instead of asking the
+    /// clinician to record the consultation again.
+    @discardableResult
+    func redraftWithNoteModel(_ encounterID: String? = nil, announceFailure: Bool = false) async -> Bool {
+        guard !isRedrafting else { return false }
+        guard let id = encounterID ?? selection,
+              let stored = encounters.first(where: { $0.id == id }),
+              let transcript = stored.transcript,
+              let existing = stored.note
+        else { return false }
+        var encounter = stored
+        let template = templates.first { $0.id == encounter.templateId } ?? templates.first
+        guard let template else { return false }
+
+        isRedrafting = true
+        defer { isRedrafting = false }
+
+        let note = await Self.preferLocalDraft(
+            transcript: transcript,
+            template: template,
+            fallback: existing
+        )
+        // The model may still have failed; if the result is the note we already
+        // had, say so by doing nothing rather than pretending it improved.
+        guard !note.wasWrittenByRules else {
+            if announceFailure {
+                lastError = "Quire could not write this note. The draft is unchanged."
+            }
+            return false
+        }
+
+        var updated = encounter
+        updated.note = note
+        if updated.state == .draft {
+            updated.state = .edited
+        }
+        if let index = encounters.firstIndex(where: { $0.id == updated.id }) {
+            encounters[index] = updated
+        }
+        persist(updated)
+        syncTasks(for: updated)
+        promptPasteIfReady()
+        copyBanner = "Quire wrote this note again from the transcript."
+        return true
     }
 
     func applyNameCheck(heard: String, suggest: String) {

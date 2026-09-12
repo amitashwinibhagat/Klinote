@@ -48,6 +48,15 @@ struct ClinicalNote: Codable, Identifiable, Hashable {
 
     static func == (lhs: ClinicalNote, rhs: ClinicalNote) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
+    /// The built-in rules wrote this, not a model.
+    ///
+    /// One definition, because four places ask: the letterhead says so, the
+    /// prompt offers the model, the redraft refuses to claim an improvement
+    /// that did not happen, and the review window checks before rewriting.
+    /// A string prefix duplicated four times is how one of them comes to
+    /// disagree with the others.
+    var wasWrittenByRules: Bool { engine.hasPrefix("rule-based") }
 }
 
 struct NoteSection: Codable, Identifiable, Hashable {
