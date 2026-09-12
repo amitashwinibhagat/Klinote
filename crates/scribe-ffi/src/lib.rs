@@ -720,6 +720,17 @@ fn into_c_string(value: &str) -> *mut c_char {
 
 #[cfg(test)]
 mod tests {
+    /// Template tests share one process, one `HOME` and one
+    /// `KLINOTE_TEMPLATES_DIR` — and that variable is process-global, not
+    /// per-test. They cannot run beside each other: one saves an override and
+    /// sets the variable, another lists templates and reads it. On CI that
+    /// raced and `templates_are_listed` saw a single template instead of five,
+    /// on a commit whose other run had just passed.
+    ///
+    /// The comment in the save test used to say it "owns the variable". Nothing
+    /// in Rust makes that true; the lock does.
+    static TEMPLATES: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     use super::*;
     use scribe_core::{EncounterId, Speaker, SpeakerId, SpeakerRole};
 
@@ -740,11 +751,14 @@ mod tests {
     /// the engine must accept it, persist it, and use it.
     #[test]
     fn template_save_accepts_listed_json_and_takes_effect() {
+        let _templates = TEMPLATES.lock().unwrap_or_else(|err| err.into_inner());
+
         let dir =
             std::env::temp_dir().join(format!("klinote-ffi-templates-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        // SAFETY: this test owns the variable.
+        // SAFETY: the value is not a pointer, and every test that reads
+        // it holds TEMPLATES, so no other thread is looking.
         unsafe { std::env::set_var("KLINOTE_TEMPLATES_DIR", &dir) };
 
         let listed = unsafe { cstr_to_string(scribe_list_templates()) }.unwrap();
@@ -801,6 +815,7 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&dir);
         // SAFETY: as above.
+        // SAFETY: as above.
         unsafe { std::env::remove_var("KLINOTE_TEMPLATES_DIR") };
     }
 
@@ -841,6 +856,8 @@ mod tests {
 
     #[test]
     fn templates_are_listed() {
+        let _templates = TEMPLATES.lock().unwrap_or_else(|err| err.into_inner());
+
         let output = scribe_list_templates();
         let json: Value =
             serde_json::from_str(&unsafe { cstr_to_string(output) }.unwrap()).unwrap();

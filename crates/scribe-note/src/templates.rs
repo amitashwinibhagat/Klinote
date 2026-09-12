@@ -201,15 +201,29 @@ impl TemplateLibrary {
 
 #[cfg(test)]
 mod tests {
+    /// Template tests share one process, one `HOME` and one
+    /// `KLINOTE_TEMPLATES_DIR` — and that variable is process-global, not
+    /// per-test. They cannot run beside each other: one saves an override and
+    /// sets the variable, another lists templates and reads it. On CI that
+    /// raced and `templates_are_listed` saw a single template instead of five,
+    /// on a commit whose other run had just passed.
+    ///
+    /// The comment in the save test used to say it "owns the variable". Nothing
+    /// in Rust makes that true; the lock does.
+    static TEMPLATES: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     use super::*;
 
     /// An override must survive a round trip through TOML and replace the
     /// built-in, and reverting must bring the built-in back.
     #[test]
     fn practise_override_round_trips() {
+        let _templates = TEMPLATES.lock().unwrap_or_else(|err| err.into_inner());
+
         let dir = std::env::temp_dir().join(format!("klinote-templates-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        // SAFETY: this test owns the variable; others do not read it.
+        // SAFETY: the value is not a pointer, and every test that reads
+        // it holds TEMPLATES, so no other thread is looking.
         unsafe { std::env::set_var("KLINOTE_TEMPLATES_DIR", &dir) };
 
         let mut soap = TemplateLibrary::builtin()
