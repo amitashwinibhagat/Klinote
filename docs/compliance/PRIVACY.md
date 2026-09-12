@@ -39,19 +39,23 @@ repository or in the app database.
 
 `clinician_ref` and `site_ref` are treated the same way: opaque codes.
 
+## In place
+
+| Property | How |
+|---|---|
+| **Encryption at rest** | SQLCipher. Key in the Keychain (`one.klinote.mac` / `sqlite-key`). Teaching-era plaintext files are renamed `*.unencrypted-bak` and a new ciphertext database is created. |
+| **Retention policy** | Per practice: keep forever, or 3 / 12 / 36 months. Expired notes are purged at launch, and the setting says which. |
+| **Real delete** | Hard `DELETE`, then `VACUUM`, so the freed pages are not left in the database file, plus an audit entry recording the count and the cutoff and never the content. The app tells the clinician "this is a real delete, not a flag", and a test reads the database file to check that the text is actually gone. |
+
 ## What is missing, and blocks real patient data
 
 | Gap | Why it matters | Fix |
 |---|---|---|
-| **Encryption at rest** | SQLCipher. Key in the Keychain (`one.klinote.mac` / `sqlite-key`). | Done. Teaching-era plaintext files are renamed `*.unencrypted-bak` and a new ciphertext db is created. |
-| **No retention policy** | Rows are never deleted. Clinical data has statutory retention and deletion obligations. | Per-practice policy (retain N months/years), automated purge, `VACUUM`. |
-| **No real delete** | A delete must be verifiable, not a soft flag. | Hard delete + vacuum + an audit entry recording the deletion (without the content). |
-| **No access control** | Any process running as the user can read the database. | Keychain-gated key; consider per-practice database files. |
+| **No access control beyond the key** | Any process running as the user can read the database once the Keychain has released the key. | Consider per-practice database files, and a review of the Keychain access policy. |
 | **No export/portability story** | Clinicians have a right to their data. | Documented export format and a one-command backup. |
 | **No BAA/DPA position** | Even though no data is processed by us, some practices require paperwork. | Written data-handling statement; counsel review before enterprise sales. |
-
-**Retention is still missing.** Notes are encrypted, but they are never deleted.
-Practices still need a retention policy before long-running real-patient use.
+| **Not sandboxed** | The app runs unsandboxed so the Rust core can read its own database path. | Enable the sandbox and move the database into the container before any Mac App Store distribution. |
+| **Not notarized** | A downloaded copy is refused by Gatekeeper until the clinician works around it. | Store notarization credentials and run `NOTARY_PROFILE=klinote scripts/release.sh`. See [`RELEASING.md`](../engineering/RELEASING.md). |
 
 ## Concierge-sprint rules
 
@@ -85,8 +89,9 @@ If a device holding pilot data is lost or compromised:
 
 ## Before any enterprise or practice-level sale
 
-- [ ] Encryption at rest implemented and verified.
-- [ ] Retention and deletion implemented with a documented policy.
+- [x] Encryption at rest implemented and verified.
+- [x] Retention and deletion implemented. The *policy wording* for practices —
+      what to choose and why — is still to write.
 - [ ] Written data-handling statement reviewed by counsel.
 - [ ] Security review of the app's entitlements, update mechanism and signing.
 - [ ] A clear answer to "who can see the data?" — which must be "nobody but the

@@ -25,16 +25,25 @@ if [ -z "$version" ]; then
   exit 1
 fi
 
-# Pick the Developer ID, unless one was named.
+# Klinote ships from DataDab LLP. The team is pinned rather than "whichever
+# Developer ID happens to be first in the keychain", because the keychain lists
+# identities in no particular order and a second Developer ID — a personal one,
+# or another company's — would silently sign a release as the wrong legal
+# entity. Override with RELEASE_TEAM_ID only when the product really does move.
+expected_team="${RELEASE_TEAM_ID:-THC77ZVYVB}"
+
 identity="${CODE_SIGN_IDENTITY:-}"
 if [ -z "$identity" ]; then
   identity="$(security find-identity -v -p codesigning \
-    | sed -n 's/.*"\(Developer ID Application: [^"]*\)"/\1/p' | head -1)"
+    | sed -n 's/.*"\(Developer ID Application: [^"]*\)"/\1/p' \
+    | grep "($expected_team)" | head -1)"
 fi
 if [ -z "$identity" ]; then
-  echo "::error::no 'Developer ID Application' certificate in the keychain."
-  echo "          Build with CODE_SIGN_IDENTITY=- only for local use; a"
-  echo "          release that other people can open needs a Developer ID."
+  echo "::error::no 'Developer ID Application' certificate for team $expected_team."
+  echo "          Klinote is signed as DataDab LLP; a release from another"
+  echo "          team would be attributed to the wrong entity. If the product"
+  echo "          really has moved, set RELEASE_TEAM_ID and update"
+  echo "          docs/engineering/RELEASING.md."
   exit 1
 fi
 

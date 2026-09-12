@@ -47,12 +47,20 @@ impl Store {
                 std::fs::create_dir_all(parent)?;
             }
         }
-        retire_plaintext_sqlite(path)?;
-        let conn = Connection::open(path).map_err(storage_error)?;
+        // Only when a key is about to be used. This is the migration from the
+        // teaching-era plaintext database to an encrypted one, and it renames
+        // whatever it finds. Running it for a keyless open — the CLI's own
+        // path — moved a perfectly good database aside on the second command,
+        // so `scribe record` twice in a row wrote to a fresh empty file and
+        // appeared to have lost the first one.
         if let Some(key) = key {
             if key.is_empty() {
                 return Err(ScribeError::Storage("store key must not be empty".into()));
             }
+            retire_plaintext_sqlite(path)?;
+        }
+        let conn = Connection::open(path).map_err(storage_error)?;
+        if let Some(key) = key {
             conn.pragma_update(None, "key", key)
                 .map_err(storage_error)?;
         }
@@ -316,6 +324,7 @@ impl Store {
             return Err(ScribeError::Storage(format!("no encounter {id}")));
         }
         self.audit("shell", "encounter.deleted", Some(id), None)?;
+        self.reclaim_freed_pages()?;
         Ok(())
     }
 
@@ -487,8 +496,27 @@ impl Store {
                     cutoff.to_rfc3339()
                 )),
             )?;
+            self.reclaim_freed_pages()?;
         }
         Ok(ids.len())
+    }
+
+    /// Give the deleted rows' space back.
+    ///
+    /// `DELETE` frees pages and leaves their contents in the file: the note is
+    /// gone from every query, and still sitting in the database bytes. The
+    /// clinician is told this is "a real delete, not a flag", so the pages have
+    /// to be gone too. `VACUUM` rebuilds the database, and the freed pages are
+    /// not carried across.
+    ///
+    /// It rewrites the whole file, so it runs only when something was actually
+    /// deleted — not on every launch. It cannot run inside a transaction, which
+    /// is why it is a separate step after the delete has been committed.
+    fn reclaim_freed_pages(&self) -> Result<()> {
+        self.conn
+            .execute_batch("VACUUM")
+            .map_err(storage_error)
+            .map(|_| ())
     }
 
     /// Latest transcript and note for every encounter, newest first.
@@ -740,6 +768,100 @@ mod tests {
         assert_eq!(store.encounter_count().unwrap(), 1);
         let remaining = store.list_sessions().unwrap();
         assert_eq!(remaining[0].encounter.id, fresh.id);
+    }
+
+    #[test]
+    fn purging_gives_the_space_back() {
+        // DELETE frees pages and leaves their contents in the file. The app
+        // tells the clinician "this is a real delete, not a flag", so the test
+        // is about bytes on disk rather than rows in a query.
+        //
+        // Unencrypted on purpose: under SQLCipher the plaintext is absent from
+        // the file whether or not the pages were reclaimed, so searching for
+        // the text could never fail and the test would prove nothing.
+        const MARKER: &str = "sore-throat-marker-that-must-not-survive";
+        let path =
+            std::env::temp_dir().join(format!("scribe-vacuum-{}.sqlite", std::process::id()));
+        for suffix in ["", "-wal", "-shm", ".unencrypted-bak"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+        // Reading the main file as well as the write-ahead log, because a row
+        // that has not been checkpointed yet lives in the log.
+        let find = |needle: &str| -> bool {
+            ["", "-wal"].iter().any(|suffix| {
+                std::fs::read(format!("{}{suffix}", path.display()))
+                    .map(|bytes| {
+                        bytes
+                            .windows(needle.len())
+                            .any(|window| window == needle.as_bytes())
+                    })
+                    .unwrap_or(false)
+            })
+        };
+
+        {
+            let store = Store::open_with_key(&path, None).unwrap();
+            let mut bulky = encounter();
+            bulky.started_at = Utc::now() - chrono::Duration::days(400);
+            store.save_encounter(&bulky).unwrap();
+
+            let mut note = scribe_pipeline_stub_note(&bulky);
+            let mut section = scribe_core::NoteSection::empty("subjective", "Subjective");
+            section.body = format!("{MARKER} {}", "sore throat for four days. ".repeat(4_000));
+            section.complete = true;
+            note.sections.push(section);
+            store.save_note(&note).unwrap();
+
+            assert!(
+                find(MARKER),
+                "the marker is not in the file before the purge, so this test cannot detect anything"
+            );
+
+            let cutoff = Utc::now() - chrono::Duration::days(365);
+            assert_eq!(store.delete_older_than(cutoff).unwrap(), 1);
+            assert_eq!(store.encounter_count().unwrap(), 0);
+        }
+
+        // The connection is closed here, which checkpoints the log, so what
+        // remains is the database file itself.
+        assert!(
+            !find(MARKER),
+            "the note is gone from every query and still readable in the database file"
+        );
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+    }
+
+    #[test]
+    fn a_keyless_store_survives_being_reopened() {
+        // The CLI opens without a key. Retiring the plaintext database is the
+        // migration to encryption, and it must not run on that path: it renamed
+        // the file aside and the next command started from nothing.
+        let path =
+            std::env::temp_dir().join(format!("scribe-keyless-{}.sqlite", std::process::id()));
+        for suffix in ["", "-wal", "-shm", ".unencrypted-bak"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+        {
+            let store = Store::open_with_key(&path, None).unwrap();
+            store.save_encounter(&encounter()).unwrap();
+        }
+        {
+            let reopened = Store::open_with_key(&path, None).unwrap();
+            assert_eq!(
+                reopened.encounter_count().unwrap(),
+                1,
+                "the second open lost the first command's data"
+            );
+        }
+        assert!(
+            !std::path::Path::new(&format!("{}.unencrypted-bak", path.display())).exists(),
+            "a keyless store was retired as if it were a plaintext one"
+        );
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
     }
 
     #[test]

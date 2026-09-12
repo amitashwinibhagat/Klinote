@@ -132,6 +132,7 @@ Rationale and rejected alternatives: [`docs/engineering/ADR/0001`](docs/engineer
 | `fixtures/` | Synthetic transcripts. **Never real patient data.** |
 | `docs/design/` | UX plan, direction contract, states, keyboard map. |
 | `PRODUCT.md` · `DESIGN.md` | Product truth and the visual system. |
+| `docs/engineering/RELEASING.md` | Who signs a release (DataDab LLP), and how. |
 | `docs/` | Product, engineering, compliance. Start at `AGENTS.md`. |
 
 ## Privacy
@@ -140,9 +141,13 @@ The workspace contains **no networking code**. Audio, transcripts and notes
 exist only on the machine. Transcripts are stored as opaque, pseudonymous
 references — a `patient_ref` is never a name, an MRN or a date of birth.
 
-Encryption at rest and retention/deletion are **not yet implemented** and must
-be before any real patient data is processed. See
-[`docs/compliance/PRIVACY.md`](docs/compliance/PRIVACY.md).
+Encryption at rest (SQLCipher, key in the Keychain), a per-practice retention
+policy, and a real delete — hard `DELETE` followed by `VACUUM`, so the pages do
+not linger in the file — are implemented. What is still missing before real
+patient use is the paperwork and the hardening, not the storage:
+[`docs/compliance/PRIVACY.md`](docs/compliance/PRIVACY.md) lists exactly what,
+and releases are covered in
+[`docs/engineering/RELEASING.md`](docs/engineering/RELEASING.md).
 
 ## Licence
 
