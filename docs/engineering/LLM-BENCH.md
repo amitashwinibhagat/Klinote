@@ -180,6 +180,20 @@ frequency are now compared as **doses per day**, and `qNh` no longer contributes
 its digits as a quantity. `q8h` → 3 doses matches "three times a day" → 3;
 `q4h` → 6 doses does not match "four times a day" → 4, and is flagged.
 
+**The drug-name net works, and this file said otherwise for a while.** The
+transcript for this run carries the recogniser's mangling of *cetirizine* — the
+synthetic voice produced a non-word — and `suggest_names` catches it, suggesting
+**cetirizine** through the vowel-skeleton distance rather than a plain edit
+distance. The claim that no check fired was wrong: name checks live on the
+**transcript**, and the note is what had been inspected. It is now pinned by
+tests in `crates/scribe-core`, including the limit — a short mangling sharing
+almost no letters ("kyrazine") falls through, because flagging it would be
+guessing at a word that could be anything.
+
+Both engines score `evidence 1.00`: every citation resolves to a real utterance.
+That is the floor, not a compliment — it says the sentences are traceable, not
+that they are in the right place or that anyone said them.
+
 On the same consultation afterwards, Quire's two flagged sentences are both
 **correctly** flagged: one cites only the temperature while asserting the pulse
 too, and one writes `q4h` for "four times a day", which is the wrong interval.

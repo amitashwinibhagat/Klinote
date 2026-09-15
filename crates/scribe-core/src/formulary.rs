@@ -459,3 +459,46 @@ mod tests {
         assert!(checks.is_empty(), "{checks:?}");
     }
 }
+
+#[cfg(test)]
+mod mishearings {
+    use super::*;
+    use crate::ids::{EncounterId, SpeakerId};
+    use crate::transcript::{Segment, Transcript};
+
+    fn heard(text: &str) -> Transcript {
+        let mut t = Transcript::new(EncounterId::new(), "heard");
+        t.push_segment(Segment::new(SpeakerId::CLINICIAN, 0, 1000, text));
+        t
+    }
+
+    /// The word the recogniser really produced for "cetirizine" on the E2E run,
+    /// where the synthetic voice mangled it and `SpeechAnalyzer` rendered a
+    /// non-word. It is not in the formulary and it is not close to anything: it
+    /// is caught by the vowel-skeleton distance, which is the whole reason that
+    /// exists.
+    #[test]
+    fn a_mishearing_that_is_not_a_word_is_still_caught() {
+        let checks = suggest(&heard("I take satirazine for hay fever"));
+        assert!(
+            checks
+                .iter()
+                .any(|check| check.heard == "satirazine" && check.suggest == "cetirizine"),
+            "expected a cetirizine suggestion, got {checks:?}"
+        );
+    }
+
+    /// And the correct name is left alone, which is the other half of the job.
+    #[test]
+    fn the_right_name_raises_nothing() {
+        assert!(suggest(&heard("I take cetirizine for hay fever")).is_empty());
+    }
+
+    /// The limit, written down rather than discovered later: a short mangling
+    /// that shares almost no letters with the real name falls through. Flagging
+    /// it would mean guessing at a word that could be anything.
+    #[test]
+    fn a_distant_short_mangling_falls_through() {
+        assert!(suggest(&heard("I take kyrazine for hay fever")).is_empty());
+    }
+}
