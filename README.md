@@ -2,6 +2,8 @@
 
 **The session stays in the room. The note still gets written.**
 
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/amitash)
+
 Klinote is a local-only clinical scribe for macOS, free and open source. It turns a
 consultation into a structured note **on the clinician's own Mac**, and links every
 sentence in that note back to the words that were actually said. Nothing is uploaded.
@@ -47,6 +49,7 @@ build if anyone quietly breaks it.
 - [What is done, and what is not](#what-is-done-and-what-is-not)
 - [The privacy model](#the-privacy-model)
 - [Contributing](#contributing)
+- [Support](#support)
 - [Documentation](#documentation)
 
 ---
@@ -418,6 +421,17 @@ The two most valuable contributions available right now are both in the list abo
 separation that does not require a download, and a harness that scores a generated note
 against a clinician-signed one. The second one is the difference between a project with good
 engineering and a product anyone can believe.
+
+## Support
+
+Klinote is free and Apache-2.0, with no paid tier behind it. The work that most needs doing —
+scoring a draft against a note a clinician actually signed, and separating two voices that sound
+alike — is the work nobody is paying for.
+
+If it earned you an evening, you can buy me a coffee. It buys no features and no support
+promise; the licence already granted you those.
+
+[![Buy Me a Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/amitash)
 
 ## Documentation
 
