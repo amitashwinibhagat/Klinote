@@ -15,7 +15,13 @@ jobs:
     #
     # It must also be an arm64 runner: cargo builds the Rust engine for the
     # host, so an Intel runner cannot produce the arm64-only app.
-    runs-on: macos-26
+    #
+    # The label is spelled `-arm64` deliberately. Bare `macos-26` has produced a
+    # job that fails in ~10 seconds with no steps at all — "a runner could not be
+    # found", which reads as a broken workflow when it is a label that never
+    # resolved. `macos-26-arm64` is the image GitHub actually publishes, and it
+    # states the architecture this job requires anyway.
+    runs-on: macos-26-arm64
     steps:
       - uses: actions/checkout@v4
 
