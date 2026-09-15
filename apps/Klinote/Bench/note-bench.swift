@@ -117,6 +117,58 @@ enum Bench {
             }
         )
     }
+
+    /// Ground the note through the core, exactly as the app does.
+    ///
+    /// `AppModel.preferLocalDraft` sends the on-device draft back through
+    /// `scribe_verify_note` before a clinician sees it. This bench used to stop
+    /// at the model's own output, so it scored `support` values that never reach
+    /// anyone — and it would have gone on reporting them after the app changed.
+    /// A bench that measures a path the product does not take is worse than no
+    /// bench, because it is trusted.
+    static func ground(note: ClinicalNote, transcript: Transcript) -> ClinicalNote? {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+
+        var transcript = transcript
+        if transcript.createdAt == nil {
+            transcript.createdAt = ISO8601DateFormatter().string(from: Date())
+        }
+
+        guard
+            let noteObject = try? JSONSerialization.jsonObject(with: encoder.encode(note)) as? [String: Any],
+            let transcriptObject = try? JSONSerialization.jsonObject(with: encoder.encode(transcript)) as? [String: Any],
+            let requestData = try? JSONSerialization.data(
+                withJSONObject: ["note": noteObject, "transcript": transcriptObject]
+            ),
+            let requestJSON = String(data: requestData, encoding: .utf8)
+        else {
+            FileHandle.standardError.write(Data("  warning: could not build the grounding request\n".utf8))
+            return nil
+        }
+
+        guard let raw = requestJSON.withCString({ scribe_verify_note($0) }) else { return nil }
+        defer { scribe_string_free(raw) }
+
+        struct Envelope: Decodable {
+            let ok: Bool
+            let note: ClinicalNote?
+        }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        guard
+            let data = String(cString: raw).data(using: .utf8),
+            let envelope = try? decoder.decode(Envelope.self, from: data),
+            envelope.ok
+        else {
+            FileHandle.standardError.write(
+                Data("  warning: the grounding check refused the draft\n".utf8)
+            )
+            return nil
+        }
+        return envelope.note
+    }
 }
 
 @main
@@ -147,15 +199,24 @@ struct NoteBench {
             Bench.fail("template '\(template.id)' arrived with no cues — the run would not measure the product")
         }
 
-        let note = await NoteDrafter.draft(
+        let drafted = await NoteDrafter.draft(
             transcript: request.transcript,
             template: template,
             encounterId: request.transcript.encounterId
         )
 
-        guard let note else {
+        guard let drafted else {
             Bench.fail("the model returned no note")
         }
+
+        // Through the core's grounding check, as the app does. Without this the
+        // bench would report `support` values that no clinician ever sees.
+        let note = Bench.ground(note: drafted, transcript: request.transcript) ?? drafted
+        let sentences = note.sections.flatMap { $0.sentences }
+        let flagged = sentences.filter { $0.support != "supported" }.count
+        FileHandle.standardError.write(
+            Data("  grounded: \(flagged) of \(sentences.count) flagged for review\n".utf8)
+        )
 
         guard let data = try? Bench.encoder.encode(note),
               let object = try? JSONSerialization.jsonObject(with: data),

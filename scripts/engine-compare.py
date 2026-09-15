@@ -137,6 +137,10 @@ def transcript_from_audio(wav: Path, timeout: int) -> dict:
         "segments": segments,
         "language": "en",
         "engine": heard.get("engine", "apple-speechanalyzer"),
+        # The core's drug-name checks travel with the transcript, and the app's
+        # do too. Dropping them here would compare the engines on a transcript
+        # with less safety net than the product has.
+        "name_checks": heard.get("name_checks") or [],
         "created_at": "2026-09-15T12:00:00Z",
         "human_supplied": False,
     }

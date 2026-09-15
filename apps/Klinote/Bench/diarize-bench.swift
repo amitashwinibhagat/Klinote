@@ -111,9 +111,16 @@ struct DiarizeBench {
             ]
         }
 
+        // Carried through rather than dropped: these are the drug-name checks
+        // the core made on the transcript, and a comparison transcript without
+        // them understates the safety net the app actually has.
+        let nameChecks = (transcript["name_checks"] as? [[String: Any]]) ?? []
+        log("  \(nameChecks.count) name check(s) on the transcript")
+
         emit([
             "ok": true,
             "engine": transcript["engine"] ?? "",
+            "name_checks": nameChecks,
             "speakers": speakers,
             "segments": outSegments,
         ])

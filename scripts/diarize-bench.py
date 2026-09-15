@@ -52,6 +52,9 @@ def duration_ms(path: Path) -> int:
     return int(float(out) * 1000)
 
 
+REFRESH_AUDIO = False
+
+
 def build_voice_track(source: Path, voices: dict[str, str], name: str) -> tuple[Path, list[dict]]:
     """Speak the lines with the given voices, recording who said what, when.
 
@@ -61,8 +64,18 @@ def build_voice_track(source: Path, voices: dict[str, str], name: str) -> tuple[
     `voices` maps a role to a macOS voice. Passing the *same* voice for both
     roles is the dictation case — one person, and the diariser must not invent a
     second speaker out of their ordinary variation in pitch.
+
+    The audio and its turn timings are **cached and reused**, because `say`
+    renders differently every time: a fresh synthesis each run means the
+    recogniser hears slightly different words, the numbers move, and two runs
+    cannot be compared. Pass `--refresh-audio` to re-synthesise deliberately.
     """
     OUT.mkdir(parents=True, exist_ok=True)
+    combined = OUT / f"{name}.wav"
+    truth_file = OUT / f"{name}.truth.json"
+
+    if not REFRESH_AUDIO and combined.exists() and truth_file.exists():
+        return combined, json.loads(truth_file.read_text())
     pieces: list[Path] = []
     truth: list[dict] = []
     cursor_ms = 0
@@ -100,9 +113,9 @@ def build_voice_track(source: Path, voices: dict[str, str], name: str) -> tuple[
         )
         cursor_ms += ms
 
+    truth_file.write_text(json.dumps(truth))
     listing = OUT / f"{name}-concat.txt"
     listing.write_text("".join(f"file '{p}'\n" for p in pieces))
-    combined = OUT / f"{name}.wav"
     run(
         [
             "ffmpeg", "-y", "-loglevel", "error",
@@ -205,7 +218,15 @@ def score(result: dict, truth: list[dict]) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transcript", type=Path, default=TRANSCRIPT)
+    parser.add_argument(
+        "--refresh-audio",
+        action="store_true",
+        help="re-synthesise the audio instead of reusing the cached render",
+    )
     args = parser.parse_args()
+
+    global REFRESH_AUDIO
+    REFRESH_AUDIO = args.refresh_audio
 
     print("building the bench…")
     build_bench()
