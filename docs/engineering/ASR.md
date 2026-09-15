@@ -185,15 +185,50 @@ the *safe* failure — it does not invent a turn nobody made — but it means ro
 attribution is inert for a same-sex pair, and every utterance is filed as the
 clinician. About half of two-person consultations will be like this.
 
-Per-pitch separation is a heuristic standing in for speaker identity. It works
-when the voices differ enough and does nothing when they do not, and it has been
-tuned against synthetic TTS, which is cleaner than a room. The real fix is
-speaker **embeddings** — the upgrade path is pyannote segmentation + embeddings
-over ONNX, behind the existing `Diarizer` trait. Until then the shell **must**
-keep offering one-click role correction ("this was the patient"), because the
-heuristic will be wrong in noisy rooms and for similar voices, and a wrong role
-is worse than an unfiled sentence. Treat same-sex separation as the thing to work
-on next, not as solved.
+### Why pitch cannot fix it, in one table
+
+The diariser prints the log-pitch distance it measured, which is the number the
+guard tests. Instrumenting it once, over the three bench scenarios:
+
+| Scenario | log-pitch distance | Guard | Outcome |
+|---|---|---|---|
+| Male + female | **0.4386** | 0.14 | split, correctly |
+| One voice (dictation) | **0.0909** | 0.14 | not split, correctly |
+| **Two male voices** | **0.1017** | 0.14 | not split — **wrong, there are two** |
+
+The two men differ by 0.1017. One man's ordinary variation across a consultation
+is 0.0909. **The signal and the noise are the same size**, so no threshold can
+divide them: any guard low enough to catch the two men also splits a solo
+dictation, and inventing speaker changes in a one-person note is worse than
+leaving two voices joined. This is not a tuning problem to come back to.
+
+### A timbre-based attempt, and why it was reverted
+
+Since pitch is exhausted, the second, independent feature is timbre — the shape of
+the spectral envelope, which two people can differ in while holding the same note.
+A mel-filterbank cepstral extractor (`spectral.rs`) was written for it, with no
+dependency: windowed DFT, 24 mel bands, log, DCT-II, 12 coefficients per utterance,
+then k-means over the standardised vectors with a silhouette guard.
+
+On the bench it was **worse, and reverted**: all three scenarios reported one
+speaker, including the male/female pair that pitch gets at 100%. Segment-length
+cepstra did not separate the voices, and the silhouette guard then rejected every
+split. Lowering the threshold until the bench passed would have been fitting a
+number to synthetic TTS, which is the mistake this file keeps warning about. The
+module was deleted rather than left wired to nothing.
+
+It is written down because the negative result is the useful part: **more DSP is
+not the way out.** What was tried is in this section, so it does not need to be
+tried again.
+
+The real fix is speaker **embeddings** — the upgrade path is pyannote
+segmentation + embeddings over ONNX, behind the existing `Diarizer` trait. That
+means a model, which means reviewing the download decision in `ADR/0002` and
+`LLM-BENCH.md`, so it is a product choice rather than a refactor. Until then the
+shell **must** keep offering one-click role correction ("this was the patient"),
+because the heuristic will be wrong in noisy rooms and for similar voices, and a
+wrong role is worse than an unfiled sentence. Treat same-sex separation as an
+open, well-characterised problem, not as solved.
 
 ## Adding an engine
 

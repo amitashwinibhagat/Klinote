@@ -211,26 +211,25 @@ def main() -> int:
     build_bench()
 
     scenarios = [
-        # (label, voices, what the answer has to be)
-        ("two voices", VOICE, "two"),
+        # (label, voices, expectation, slug)
+        ("two voices", VOICE, "two", "two"),
         # The dictation path: one person, one voice. Inventing a second speaker
         # here would alternate a solo note's roles arbitrarily, which is worse
         # than not guessing at all.
-        ("one voice (dictation)", {"clinician": "Daniel", "patient": "Daniel"}, "one"),
+        ("one voice (dictation)", {"clinician": "Daniel", "patient": "Daniel"}, "one", "dictation"),
         # The hard case, and the honest limit of separating voices by pitch: two
         # speakers of the same sex, close in fundamental frequency. Reported, not
         # asserted — "it works on a man and a woman" is not evidence that it
-        # works in a room, and pretending otherwise is how a heuristic gets
-        # trusted further than it should.
-        ("two male voices (harder)", {"clinician": "Daniel", "patient": "Rishi"}, "report"),
+        # works in a room.
+        ("two male voices (harder)", {"clinician": "Daniel", "patient": "Rishi"}, "report", "male"),
     ]
 
     failures: list[str] = []
     report: dict[str, Any] = {}
 
-    for label, voices, expectation in scenarios:
+    for label, voices, expectation, slug in scenarios:
         print(f"\n=== {label} ===")
-        audio, truth = build_voice_track(args.transcript, voices, label.split()[0])
+        audio, truth = build_voice_track(args.transcript, voices, slug)
         print(f"  {audio.name}: {duration_ms(audio) / 1000:.1f}s, {len(truth)} turns")
 
         proc = subprocess.run(
