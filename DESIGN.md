@@ -47,13 +47,23 @@ without a second palette.
 | **`ink`** | `#16324F` | `#9CC3E5` | Letterhead rule, section tabs, document headings |
 | `ink.rule` | `#16324F` @ 22% | `#9CC3E5` @ 28% | The 2 pt letterhead rule |
 | **`record`** | `#C0392B` | `#FF6B5E` | The act of recording — lamp, trace, strip border. Nothing else, ever |
-| **`caution`** | `#B26A00` | `#FFB340` | A missing required section. Nothing else, ever |
+| **`caution`** | `#A86400` | `#FFB340` | Something a clinician must look at before the note is signed — a missing required section, a sentence whose figures were not heard, shorthand the client would decode. One meaning, several sites; the word beside it says which |
 | `verified` | `#1E7A4B` | `#5FD08A` | Evidence present. Only as a margin mark, never as text colour alone |
 
 **Contrast.** All text meets WCAG AA against its own ground in both
-appearances. `ink` on `ground.document` is ≥ 9:1. `record` and `caution` are
-never used for body text — only for marks, rules and filled chips, each paired
-with a word.
+appearances. `ink` on `ground.document` is 13.1:1. `caution` is **4.68:1** on
+`ground.document` in light mode and ≥ 9.3:1 in dark — it is used as *text* on the
+sentence flags, so it has to clear the body-text bar, not the 3:1 mark bar. It
+was `#B26A00`, which computes to **4.24:1**: the promise in this paragraph was
+false wherever a flag chip rendered, and nothing but the arithmetic noticed,
+because a 2.6% shortfall is invisible to the eye at 10.5 pt.
+
+**Flags are outlined chips, not filled ones.** The sentence flags ("check
+wording", "check source") sit inside a letter set in 14 pt serif; a filled amber
+pill there turns a clinical record into a dashboard. The row already carries a
+rule, a weight and a number, so the chip only has to catch the eye once. Both
+kinds can appear on one sentence — they are independent, never `else if`, because
+the weaker signal used to hide the stronger one.
 
 **Colour is never the only signal.** Missing sections carry the word "missing"
 and a dashed rule. Recording carries the words "Recording consultation".
@@ -75,7 +85,8 @@ first, not a number typed at a call site.
 | Tagline | `tagline()` | New York | 16 pt / medium | The line under the wordmark |
 | Section tab | `tab()` | SF Pro | 11 pt / semibold | Uppercase, `+0.6` tracking, `text.secondary` |
 | Field label | `label()` | SF Pro | 11 pt / medium | `text.secondary` |
-| Micro label | `micro()` | SF Pro | 9 pt / semibold | Chip text. The smallest step in the product |
+| Micro label | `micro()` | SF Pro | 9 pt / semibold | The smallest step in the product. Not for flags — a warning cannot be the smallest thing on the page |
+| **Flag** | `flag()` | SF Pro | 10.5 pt / semibold | The word on a sentence that needs the clinician's eye: "check source", "check wording". One half-step under `label()`, and deliberately above `micro()`: the sentence number is navigation, the flag is a warning |
 | Body / control | `ui()` | SF Pro | 13 pt / regular | All interface text |
 | Emphasis | `emphasis()` | SF Pro | 13 pt / semibold | Button labels, a selected sentence |
 | Panel heading | `panelHeading()` | SF Pro | 15 pt / semibold | A heading inside a sheet or an empty state |

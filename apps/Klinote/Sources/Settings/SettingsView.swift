@@ -55,24 +55,24 @@ private struct GeneralSettings: View {
 
                 if !model.documentTemplates.isEmpty {
                     Text("Referral letters and the client's copy are made from a session, on the Session menu.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(KlinoteFont.caption())
+                        .foregroundStyle(KlinoteColor.secondary)
                 }
             }
 
             Section("Starting up") {
                 Toggle("Open the letter when Klinote starts", isOn: $model.openWindowAtLaunch)
                 Text("Klinote is a menu-bar app. With this off it starts silently and waits for ⌥⌘R or the menu-bar icon.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
             }
 
             Section("Who is at the desk") {
                 TextField("Your name", text: $model.clinicianName)
                 TextField("Registration or professional number", text: $model.clinicianRegistration)
                 Text("Appears in the signature block, and identifies your sessions on a shared Mac. Not a login — Klinote still has no account.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
                 Toggle("Show other clinicians' sessions", isOn: $model.showAllClinicians)
                     .disabled(model.clinicianName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
@@ -80,8 +80,8 @@ private struct GeneralSettings: View {
             Section("Review window") {
                 Toggle("Show the evidence margin", isOn: $showMarginByDefault)
                 Text("Click a sentence to see the words that produced it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
             }
         }
         .formStyle(.grouped)
@@ -105,7 +105,7 @@ private struct TemplateSettings: View {
             if model.templates.isEmpty {
                 Section {
                     Text("No templates loaded.")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(KlinoteColor.secondary)
                 }
             } else {
                 Section("Template") {
@@ -130,7 +130,7 @@ private struct TemplateSettings: View {
                             axis: .vertical
                         )
                         LabeledContent("Id", value: draft.wrappedValue.id)
-                            .font(.caption)
+                            .font(KlinoteFont.caption())
                     }
 
                     ForEach(draft.sections) { section in
@@ -145,8 +145,8 @@ private struct TemplateSettings: View {
                                     ? "No cues: the rule-based engine will not route anything here."
                                     : "\(section.wrappedValue.cues.count) cues"
                             )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(KlinoteFont.caption())
+                            .foregroundStyle(KlinoteColor.secondary)
                         }
                     }
 
@@ -158,13 +158,13 @@ private struct TemplateSettings: View {
                             Spacer()
                             if let status {
                                 Text(status)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .font(KlinoteFont.caption())
+                                    .foregroundStyle(KlinoteColor.secondary)
                             }
                         }
                         Text("Saved to \(KlinoteCore.templatesDirectory.path). A practice template survives an app update and can be read, diffed or shared. Deleting it restores the built-in.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(KlinoteFont.caption())
+                            .foregroundStyle(KlinoteColor.secondary)
                     }
                 }
             }
@@ -220,12 +220,12 @@ private struct RecordingSettings: View {
                 )
                 if let reason = Transcriber.unavailableReason {
                     Text(reason)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                        .font(KlinoteFont.caption())
+                        .foregroundStyle(KlinoteColor.caution)
                 } else {
                     Text("Speech is transcribed on this Mac by the system's own speech model. There is nothing to download, and the audio is never uploaded.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(KlinoteFont.caption())
+                        .foregroundStyle(KlinoteColor.secondary)
                 }
             }
             Section("Shortcuts") {
@@ -244,23 +244,23 @@ private struct RecordingSettings: View {
                         downloader.startNote()
                     }
                     Text("Writes the note from the transcript. Stays on this Mac. Without it the built-in rules write a thinner draft, and the note says so. It can be added later — a note already written is written again from its saved transcript.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(KlinoteFont.caption())
+                        .foregroundStyle(KlinoteColor.secondary)
                 case .downloading(let fraction):
                     ProgressView(value: fraction)
                 case .ready:
                     Text("Ready. Notes are written on this Mac.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(KlinoteFont.caption())
+                        .foregroundStyle(KlinoteColor.secondary)
                 case .failed(let message):
-                    Text(message).font(.caption).foregroundStyle(.orange)
+                    Text(message).font(KlinoteFont.caption()).foregroundStyle(KlinoteColor.caution)
                     Button("Retry download") { downloader.startNote() }
                 }
             }
             Section("Audio") {
                 Text("Audio is used to write the note, then discarded. It is not uploaded.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
             }
         }
         .formStyle(.grouped)
@@ -289,7 +289,7 @@ private struct PrivacySettings: View {
                 Text(model.retentionMonths == 0
                      ? "Nothing is deleted automatically. Check what your jurisdiction and college require."
                      : "Notes older than \(model.retentionMonths) months are deleted at launch. This is a real delete, not a flag.")
-                    .font(.caption)
+                    .font(KlinoteFont.caption())
                     .foregroundStyle(model.retentionMonths == 0 ? .secondary : .primary)
                 Button("Delete expired notes now") {
                     model.purgeExpiredNotes()
@@ -301,16 +301,16 @@ private struct PrivacySettings: View {
 
             Section("Where it lives") {
                 Text("Notes stay on this Mac, encrypted. There is no account, no sync, and no server. Audio and notes are never uploaded.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
             }
 
             LearnedVocabulary()
 
             Section("Names") {
                 Text("Klinote stores a code for the session, never a name, record number, or date of birth.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
             }
         }
         .formStyle(.grouped)
@@ -333,8 +333,8 @@ private struct PrivacyReceipt: View {
             LabeledContent("Received", value: "\(received) (models only)")
             LabeledContent("Model downloads", value: "\(downloader.downloadsCompleted)")
             Text("Klinote has no server, no account and no telemetry. The app can only issue downloads — never uploads — and that is checked on every build by scripts/check-network-surface.sh. The Rust engine contains no networking code at all.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(KlinoteFont.caption())
+                .foregroundStyle(KlinoteColor.secondary)
         }
     }
 }
@@ -350,8 +350,8 @@ private struct LearnedVocabulary: View {
         Section("Your vocabulary") {
             if terms.isEmpty {
                 Text("Accept a name suggestion in a note and it is remembered here.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
             } else {
                 ForEach(terms.sorted(by: { $0.key < $1.key }), id: \.key) { heard, replacement in
                     HStack {
@@ -388,7 +388,7 @@ private struct AboutSettings: View {
         VStack(spacing: KlinoteMetrics.space12) {
             BrandMark(size: 28)
             Text("The session stays in the room. The note still gets written.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(KlinoteColor.secondary)
             Text(AppVersion.display)
                 .font(.system(size: KlinoteMetrics.iconSmall))
                 .foregroundStyle(.tertiary)

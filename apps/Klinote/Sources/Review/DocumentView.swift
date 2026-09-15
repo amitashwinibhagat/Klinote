@@ -18,7 +18,10 @@ struct DocumentView: View {
                let note = encounter.note,
                let transcript = encounter.transcript {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
+                    // Lazy, like the evidence margin. Every section and sentence
+                    // in the note used to be built eagerly inside the scroll view,
+                    // so a long consult paid for rows nobody had scrolled to.
+                    LazyVStack(alignment: .leading, spacing: 0) {
                         Letterhead(model: model, encounter: encounter, note: note)
                         if model.showsNoteModelPrompt {
                             NoteModelPrompt(model: model)
@@ -354,7 +357,7 @@ struct SectionBlock: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
-                VStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
+                LazyVStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
                     ForEach(Array(section.sentences.enumerated()), id: \.element.id) { index, sentence in
                         if model.editingSentenceID == sentence.id {
                             SentenceEditor(sentence: sentence, model: model)
@@ -528,30 +531,22 @@ struct SentenceRow: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
+            // Independent, not `else if`. A sentence can carry shorthand the
+            // client would have to decode *and* a figure nobody said, and the
+            // old pair hid the second one: the flag whose whole job is "this
+            // number did not come from the room" vanished from exactly the
+            // sentences with most to look at.
             if sentence.isJargon {
-                Text("check wording")
-                    .font(KlinoteFont.micro())
-                    .foregroundStyle(KlinoteColor.caution)
-                    .padding(.horizontal, KlinoteMetrics.radiusChip)
-                    .padding(.vertical, KlinoteMetrics.inline2)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: KlinoteMetrics.radiusChip, style: .continuous)
-                            .strokeBorder(KlinoteColor.caution.opacity(0.5), lineWidth: 1)
-                    )
-                    .help("Clinical shorthand the client would have to decode. Expanding it here could change an instruction.")
-                    .fixedSize()
-            } else if sentence.isUnverified {
-                Text("check source")
-                    .font(KlinoteFont.micro())
-                    .foregroundStyle(KlinoteColor.caution)
-                    .padding(.horizontal, KlinoteMetrics.radiusChip)
-                    .padding(.vertical, KlinoteMetrics.inline2)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: KlinoteMetrics.radiusChip, style: .continuous)
-                            .strokeBorder(KlinoteColor.caution.opacity(0.5), lineWidth: 1)
-                    )
-                    .help("A figure or drug name here is not in the words that were heard.")
-                    .fixedSize()
+                FlagChip(
+                    label: "check wording",
+                    help: "Clinical shorthand the client would have to decode. Expanding it here could change an instruction."
+                )
+            }
+            if sentence.isUnverified {
+                FlagChip(
+                    label: "check source",
+                    help: "A figure or drug name here is not in the words that were heard."
+                )
             }
         }
         .padding(.vertical, KlinoteMetrics.inline2)
@@ -577,11 +572,71 @@ struct SentenceRow: View {
         .animation(.easeOut(duration: KlinoteMetrics.motionState), value: isSelected)
         .animation(.easeOut(duration: 0.12), value: hovering)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "Sentence \(number)\(sentence.ambiguous ? ", source unclear" : "")"
-        )
+        .accessibilityLabel(spokenSentenceText(number: number, sentence: sentence))
         .accessibilityHint("Shows the words this sentence came from. Double-click to correct it.")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+}
+
+/// What a VoiceOver user hears for one sentence.
+///
+/// An explicit label *replaces* whatever `.accessibilityElement(children:
+/// .combine)` gathered from the row, so it has to carry the row's whole meaning
+/// itself. It used to say only "Sentence 3" — a clinician who cannot see the note
+/// heard a number where they should have heard the line they are about to sign,
+/// and no flag at all: ambiguity was announced, a failed source check was not.
+///
+/// A free function rather than an inline expression because the chained string
+/// this began as is something the type-checker cannot resolve in reasonable time
+/// on a row this wide, and a build that does not compile is not an accessibility
+/// improvement.
+private func spokenSentenceText(number: Int, sentence: NoteSentence) -> String {
+    var parts = ["Sentence \(number).", sentence.text]
+    if sentence.ambiguous {
+        parts.append("Source unclear: this cites more than one thing that was said.")
+    }
+    if sentence.isJargon {
+        parts.append("Check wording.")
+    }
+    if sentence.isUnverified {
+        parts.append("Check source: a figure or drug name here is not in the words that were heard.")
+    }
+    return parts.joined(separator: " ")
+}
+
+// MARK: - Sentence flags
+
+/// One word telling the clinician to look at this sentence before they sign.
+///
+/// Its own view because there are two kinds and they must not drift, and because
+/// they now render together: a sentence can be both shorthand and ungrounded.
+///
+/// Deliberately an *outlined* chip, not a filled one. DESIGN.md specified filled
+/// chips, and filled amber pills inside a 14 pt serif letter turn a clinical
+/// record into a dashboard; the row already carries a rule, a weight and a
+/// number, so the chip only has to catch the eye once. That is a spec change,
+/// made here rather than discovered later — DESIGN.md now says outlined.
+///
+/// The word carries the meaning and the colour only draws attention, which is
+/// what keeps the state legible to a colour-blind clinician and on a printed
+/// page. `help` is the tooltip; the sentence's `accessibilityLabel` repeats it,
+/// because tooltips are not reliably spoken.
+private struct FlagChip: View {
+    let label: String
+    let help: String
+
+    var body: some View {
+        Text(label)
+            .font(KlinoteFont.flag())
+            .foregroundStyle(KlinoteColor.caution)
+            .padding(.horizontal, KlinoteMetrics.radiusChip)
+            .padding(.vertical, KlinoteMetrics.inline2)
+            .overlay(
+                RoundedRectangle(cornerRadius: KlinoteMetrics.radiusChip, style: .continuous)
+                    .strokeBorder(KlinoteColor.caution.opacity(0.55), lineWidth: 1)
+            )
+            .help(help)
+            .fixedSize()
     }
 }
 

@@ -46,9 +46,18 @@ enum KlinoteColor {
         dark: NSColor(srgbRed: 1.000, green: 0.420, blue: 0.369, alpha: 1)
     )
 
-    /// A missing required section. Nothing else, ever.
+    /// Something a clinician must look at before the note is signed: a missing
+    /// required section, a sentence whose figures were not heard, a phrase the
+    /// client would have to decode. **One meaning, several sites** — which of
+    /// them it is comes from the word beside it, never from the colour.
+    ///
+    /// Was `#B26A00` (0.698, 0.416), which computes to **4.24:1** on the document
+    /// ground. DESIGN.md promises AA for all text, and this colour's only life as
+    /// *text* is a small chip, so the promise was false wherever the chip appears.
+    /// Darkened to `#A86400` = **4.68:1**, which clears AA in light mode. The dark
+    /// variant already sits at ~9.5:1 and is unchanged.
     static let caution = dynamic(
-        light: NSColor(srgbRed: 0.698, green: 0.416, blue: 0.000, alpha: 1),
+        light: NSColor(srgbRed: 0.659, green: 0.392, blue: 0.000, alpha: 1),
         dark: NSColor(srgbRed: 1.000, green: 0.702, blue: 0.251, alpha: 1)
     )
 
@@ -113,9 +122,23 @@ enum KlinoteFont {
         .system(size: 16, weight: .medium, design: .serif)
     }
 
-    /// Chip text and sentence numbers: the smallest step in the product.
+    /// The smallest step in the product. Not for flags — see `flag()`.
     static func micro(_ weight: Font.Weight = .semibold) -> Font {
         .system(size: 9, weight: weight)
+    }
+
+    /// The word on a sentence that needs the clinician's eye.
+    ///
+    /// This used to be `micro()`, at 9 pt — which meant the one word in the
+    /// product that says *"a number here did not come from the room"* was the
+    /// smallest thing on the page, set in amber, beside 14 pt serif, read at
+    /// arm's length in three minutes with a patient waiting. 10.5 pt is the
+    /// half-step up that still fits inside a chip without shouting in a letter.
+    ///
+    /// The number column keeps `microNumber()`: it is navigation, not a warning,
+    /// and it has no business competing with the flags.
+    static func flag(_ weight: Font.Weight = .semibold) -> Font {
+        .system(size: 10.5, weight: weight)
     }
 
     /// Counts and row metadata in the margins. 10 pt, tabular.

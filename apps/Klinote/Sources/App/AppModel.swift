@@ -1328,7 +1328,16 @@ final class AppModel: ObservableObject {
                     return
                 }
                 note.sections[sectionIndex].sentences[sentenceIndex].text = trimmed
-                note.sections[sectionIndex].sentences[sentenceIndex].support = "supported"
+                // A human correction *clears* the machine's verdict; it does not
+                // replace it with a pass. "supported" means "we checked this
+                // against the words heard and its figures and drug names were
+                // there", and re-typing the line did not re-run that check — so
+                // writing it here would store a claim that never happened, in the
+                // record, about the one sentence nobody had caught. `nil` is also
+                // what a clinician-authored line carries when it is appended
+                // (`NoteEditing`), so the two ways a sentence becomes the
+                // clinician's own now agree.
+                note.sections[sectionIndex].sentences[sentenceIndex].support = nil
                 note.sections[sectionIndex].sentences[sentenceIndex].wording = "plain"
                 note.sections[sectionIndex].body = note.sections[sectionIndex]
                     .sentences
