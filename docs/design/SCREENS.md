@@ -1,6 +1,6 @@
 # Screens from the jobs
 
-Jobs: `docs/product/JTBD.md`. Sequence: `docs/design/UX-FLOW.md`.
+Sequence: `docs/design/UX-FLOW.md`.
 This file is the screen list. If a surface does not serve a named job, it
 does not ship.
 

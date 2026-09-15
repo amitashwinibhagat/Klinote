@@ -18,7 +18,7 @@ traceable to what was said. Nothing leaves the Mac.
 - **Status:** speech recognition is the system's `SpeechAnalyzer` (no model
   download), SQLCipher at rest, Quire on device, sandboxed and notarized. Latest
   release is v0.1.6. Concierge validation is still outstanding, now recast to
-  therapists (`docs/product/POSITIONING.md`, `docs/product/VALIDATION-PLAN.md`).
+  therapists (`docs/product/PRODUCT-TRUTH.md`).
 
 **Design first.** Before changing anything visual, read `PRODUCT.md`,
 `DESIGN.md` and `docs/design/UX-PLAN.md`. They are the source of truth; if code
@@ -146,7 +146,7 @@ Rules, mechanical:
 | `templates/` | TOML note templates | Add a discipline here, then register it in `TemplateLibrary::BUILTIN`. |
 | `fixtures/` | Synthetic transcripts | **Never real patient data.** |
 | `docs/design/` | UX-PLAN (shape brief + direction contract) | Read before any UI change. |
-| `docs/product/` | PRODUCT-TRUTH, VALIDATION-PLAN, ROADMAP | |
+| `docs/product/` | PRODUCT-TRUTH, ROADMAP | |
 | `docs/engineering/` | ARCHITECTURE, ASR, ADR/ | |
 | `docs/compliance/` | PRIVACY | Encryption-at-rest and retention gaps are tracked here. |
 | `PRODUCT.md`, `DESIGN.md` | Product truth and the visual system | `DESIGN.md` wins over code. |
@@ -222,7 +222,6 @@ Rules, mechanical:
 | `DESIGN.md` | You are changing anything visual. It wins over code. |
 | `docs/design/UX-PLAN.md` | You are working on a surface: direction contract, states, keyboard map, anti-goals. |
 | `docs/product/PRODUCT-TRUTH.md` | You need to know what may and may not be claimed externally. |
-| `docs/product/VALIDATION-PLAN.md` | You are doing the 10-clinic concierge sprint. |
 | `docs/product/ROADMAP.md` | You are deciding what to build next. |
 | `docs/engineering/ARCHITECTURE.md` | You are touching crate boundaries or the Swift boundary. |
 | `docs/engineering/ASR.md` | You are wiring a real speech engine. |

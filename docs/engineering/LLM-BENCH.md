@@ -226,7 +226,7 @@ read that way. Three things it does not say:
 
 1. **Nothing about real consultations.** Both fixtures are synthetic. The one
    question that matters — whether a clinician would sign the draft — is a
-   person, not a number, and `VALIDATION-PLAN.md` is how it gets answered.
+   person, not a number, and a clinician's judgement of a real note is how it gets answered.
 2. **Nothing about polish.** The bar is completeness, grounding and a leak. It
    says nothing about how the prose reads next to Quire's, and polish is exactly
    what Quire is kept for.

@@ -40,7 +40,7 @@ was said and every draft requiring human review before it enters the record.
 
 ## Positioning
 
-Canonical write-up: `docs/product/POSITIONING.md` (2026-09-12 recast).
+Stated in full below; it was recast on 2026-09-12 from a GP framing to a therapy one.
 
 **For** a therapist, psychologist, or psychiatrist in a small room **who**
 cannot let a session exist on a vendor's disk **our product** is a local

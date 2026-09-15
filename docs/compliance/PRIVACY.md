@@ -76,7 +76,7 @@ originals are left in place.
 
 ## Concierge-sprint rules
 
-During validation (`docs/product/VALIDATION-PLAN.md`) we handle real
+During validation we handle real
 consultations, so:
 
 1. Mint a fresh random `patient_ref` per encounter; keep the mapping in an

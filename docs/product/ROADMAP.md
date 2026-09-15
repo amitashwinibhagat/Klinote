@@ -2,7 +2,7 @@
 
 Ordering principle: **who it is for, then whether they will capture a
 session, then the smallest change that serves that job.** Canonical
-positioning: `docs/product/POSITIONING.md`.
+positioning: `PRODUCT-TRUTH.md`.
 
 The previous roadmap gated “build the shell” on 3 paying GPs. The shell
 exists. The GPs were never asked. That gate is retired. The new gate is
@@ -20,7 +20,7 @@ to kill the microphone.
 
 ## This month — conversations, not code
 
-From `VALIDATION-PLAN.md` and `POSITIONING.md`:
+From `PRODUCT-TRUTH.md`:
 
 - [ ] 10 conversations with therapists, psychologists, psychiatrists
 - [ ] The kill question: **would you record a session if it never left this Mac?**

@@ -29,7 +29,7 @@ not allowed to leave the building (some EU, forensic, high-profile).
 **Not:** GPs who are fine with Heidi Free. Dentists, vets, physios as a product
 line. Anyone whose objection to a cloud scribe was the editor.
 
-Canonical recast: `docs/product/POSITIONING.md`.
+Canonical statement: the positioning block in `docs/product/PRODUCT-TRUTH.md`.
 
 ## Product Purpose
 
