@@ -13,13 +13,13 @@ use scribe_audio::{AudioBuffer, SpeechSpan, VadConfig, detect_speech};
 
 /// Re-exported so callers (CLI, FFI, Swift) do not need to depend on the
 /// individual engine crates.
-pub use scribe_asr::AsrOptions;
+pub use scribe_asr::{AsrOptions, AsrSegment};
 pub use scribe_audio::AudioBuffer as Audio;
 use scribe_core::{
     ClinicalNote, Discipline, Encounter, EncounterId, Result, Speaker, SpeakerId, SpeakerRole,
     Transcript, parse_transcript_text,
 };
-use scribe_diarize::{Diarization, Diarizer, TurnTakingDiarizer};
+use scribe_diarize::{AcousticDiarizer, Diarization, Diarizer};
 use scribe_note::{GenerationRequest, NoteGenerator, RuleBasedGenerator, TemplateLibrary};
 
 /// Which diarisation speaker maps to which clinical role.
@@ -80,7 +80,10 @@ impl ScribePipeline {
         Ok(Self {
             templates: TemplateLibrary::for_this_machine()?,
             asr: Box::new(MockAsrEngine),
-            diarizer: Box::new(TurnTakingDiarizer::default()),
+            // Acoustic, not turn-taking. With a real recording the diarizer is
+            // given the waveform and separates the two voices by pitch; the
+            // silence heuristic is only its fallback when there is no audio.
+            diarizer: Box::new(AcousticDiarizer::default()),
             generator: Box::new(RuleBasedGenerator),
             role_map: RoleMap::default(),
             vad: VadConfig::default(),
@@ -156,6 +159,80 @@ impl ScribePipeline {
         })
     }
 
+    /// Recognised words in, note out. No audio, no ASR engine.
+    ///
+    /// Recognition is the shell's job on macOS: `SpeechAnalyzer` is a Swift API
+    /// and cannot be called from Rust. What the pipeline still owns is
+    /// everything *after* the words — diarisation, role mapping, the grounding
+    /// check, completeness — so the shell recognises, hands over timed
+    /// segments, and gets back the same [`PipelineOutput`] the audio path
+    /// produces. Do not let a caller assemble those stages itself.
+    ///
+    /// `audio` is where the two speakers come from, and it is not optional in
+    /// practice. `SpeechTranscriber` reports **contiguous** ranges — one result
+    /// ends exactly where the next begins — so the silence between turns is not
+    /// present in the segment timings, and the spaces it finds are usually the
+    /// same length whether or not the speaker changed. Hand over the recording
+    /// and the pipeline runs the VAD and hands the spans to the diarizer, which
+    /// is why this takes an `AudioBuffer` rather than a ready-made span list:
+    /// an acoustic diarizer needs the waveform, not just the timings.
+    ///
+    /// Without audio the pipeline still answers, from the segment timings. That
+    /// is a real step down — one speaker, or arbitrary alternation — and it
+    /// exists for the CLI and the tests, not for the app.
+    pub fn process_segments(
+        &self,
+        encounter: &Encounter,
+        segments: &[AsrSegment],
+        audio: Option<&AudioBuffer>,
+        language: &str,
+        engine: &str,
+    ) -> Result<PipelineOutput> {
+        let from_segments: Vec<SpeechSpan> = segments
+            .iter()
+            .map(|segment| SpeechSpan {
+                start_ms: segment.start_ms,
+                end_ms: segment.end_ms,
+            })
+            .collect();
+
+        let (spans, diarization) = match audio {
+            Some(audio) => {
+                // Diarise the *segments*, not the VAD's spans.
+                //
+                // The VAD's job is to find where speech is; it is not the right
+                // unit for attribution. It merges everything between two
+                // silences into one span, so two people talking back to back —
+                // which is most of a consultation — arrive as a single span with
+                // a single voice and nothing left to separate. On the two-voice
+                // bench it found 7 spans for 18 turns.
+                //
+                // A segment is one utterance with its own audio, so measuring
+                // pitch per segment gives one decision per utterance and lines
+                // up exactly with what the evidence margin points at.
+                let prepared = audio.resample_to(self.asr_sample_rate);
+                let diarization = self.diarizer.diarize(&prepared, &from_segments)?;
+                (from_segments, diarization)
+            }
+            None => {
+                let diarization = self.diarizer.diarize_segments(&from_segments)?;
+                (from_segments, diarization)
+            }
+        };
+
+        let mut transcript =
+            self.assemble_transcript(encounter.id, segments, &diarization, language, engine);
+        transcript.name_checks = scribe_core::suggest_names(&transcript);
+
+        let note = self.generate(encounter, &transcript)?;
+
+        Ok(PipelineOutput {
+            transcript,
+            note,
+            speech_spans: spans,
+        })
+    }
+
     /// Human transcript in, note out. No model, no audio.
     pub fn process_text(&self, encounter: &Encounter, text: &str) -> Result<PipelineOutput> {
         let mut transcript = parse_transcript_text(text, encounter.id, "en")?;
@@ -168,7 +245,14 @@ impl ScribePipeline {
         })
     }
 
-    fn generate(&self, encounter: &Encounter, transcript: &Transcript) -> Result<ClinicalNote> {
+    /// Build a note from an already-assembled transcript.
+    ///
+    /// Public so the FFI stops hand-assembling a generator and silently skipping
+    /// the grounding check: `scribe_note_from_transcript` called
+    /// `RuleBasedGenerator` directly, so a note rebuilt from a stored transcript
+    /// — after a speaker swap, say — never had `verify_support` run on it. Every
+    /// path that produces a note goes through here.
+    pub fn generate(&self, encounter: &Encounter, transcript: &Transcript) -> Result<ClinicalNote> {
         let template = self.templates.get(encounter.template_id.as_str())?;
         let mut note = self.generator.generate(&GenerationRequest {
             encounter,
@@ -288,6 +372,92 @@ mod tests {
         assert_eq!(output.note.engine, "rule-based-v1");
         // Two speakers were inferred from the silence gap.
         assert_eq!(output.transcript.speakers.len(), 2);
+    }
+
+    /// The shell recognises, the pipeline files. This is the path the macOS app
+    /// takes now: `SpeechAnalyzer` produces the words, and there is no audio on
+    /// this side of the boundary.
+    #[test]
+    fn segments_pipeline_diarises_from_timings_alone() {
+        let pipeline = ScribePipeline::new().unwrap();
+        let encounter = Encounter::new("p-4", Discipline::GeneralPractice);
+
+        // ~1 s of silence between each turn, which is what TurnTakingDiarizer
+        // reads. The clinician asks, the patient answers, the clinician
+        // examines and plans.
+        let segments = vec![
+            AsrSegment::new(0, 4000, "Good morning, what brings you in today?"),
+            AsrSegment::new(5000, 9000, "I have had a sore throat for four days."),
+            AsrSegment::new(10_000, 14_000, "On examination the throat shows erythema."),
+            AsrSegment::new(
+                15_000,
+                19_000,
+                "Plan: rest and fluids, follow up in one week.",
+            ),
+        ];
+
+        let output = pipeline
+            .process_segments(&encounter, &segments, None, "en", "apple-speechanalyzer")
+            .unwrap();
+
+        assert_eq!(output.transcript.engine, "apple-speechanalyzer");
+        assert_eq!(output.transcript.segments.len(), 4);
+        assert_eq!(output.transcript.speakers.len(), 2);
+        assert_eq!(output.speech_spans.len(), 4);
+
+        // The clinician's examination and plan must land in their sections,
+        // which also proves the roles were assigned the right way round.
+        assert!(!output.note.section("objective").unwrap().is_empty());
+        assert!(!output.note.section("plan").unwrap().is_empty());
+    }
+
+    /// The regression the acoustic diarizer exists for.
+    ///
+    /// `SpeechTranscriber` reports contiguous ranges — each segment starts where
+    /// the last ended — and the pauses it leaves are the same length whether or
+    /// not the speaker changed. So two voices have to be told apart by how they
+    /// *sound*. Here the segments butt against each other with a 1.5 s gap in
+    /// the middle that a gap-based heuristic cannot use, because the gap is not
+    /// where the speaker changed.
+    #[test]
+    fn two_voices_are_separated_by_pitch_not_by_gaps() {
+        let pipeline = ScribePipeline::new().unwrap();
+        let encounter = Encounter::new("p-5", Discipline::GeneralPractice);
+
+        // A low voice, then a high one. Sample rate 16 kHz because that is what
+        // the pipeline resamples to.
+        let rate = 16_000;
+        let mut samples = tone(110.0, 3000, rate);
+        samples.extend(tone(230.0, 3000, rate));
+        let audio = AudioBuffer::new(samples, rate);
+
+        // Contiguous, exactly as the recogniser reports them.
+        let segments = vec![
+            AsrSegment::new(0, 3000, "On examination the throat shows erythema."),
+            AsrSegment::new(3000, 6000, "I have had a sore throat for four days."),
+        ];
+
+        // Without the recording there is nothing to hear, and the honest answer
+        // is one speaker — not an invented turn.
+        let without = pipeline
+            .process_segments(&encounter, &segments, None, "en", "shell")
+            .unwrap();
+        assert_eq!(
+            without.transcript.speakers.len(),
+            1,
+            "contiguous ranges cannot show a turn change — this is the bug"
+        );
+
+        let with = pipeline
+            .process_segments(&encounter, &segments, Some(&audio), "en", "shell")
+            .unwrap();
+        assert_eq!(with.transcript.speakers.len(), 2);
+        // And the roles come out the right way round: the clinician examines,
+        // the patient reports the symptom.
+        assert_eq!(with.transcript.segments[0].speaker, SpeakerId::new(0));
+        assert_eq!(with.transcript.segments[1].speaker, SpeakerId::new(1));
+        assert_eq!(with.transcript.speakers[0].role, SpeakerRole::Clinician);
+        assert_eq!(with.transcript.speakers[1].role, SpeakerRole::Patient);
     }
 
     #[test]

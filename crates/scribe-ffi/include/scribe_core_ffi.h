@@ -89,19 +89,48 @@ char *scribe_note_to_record_text(const char *note_json);
 char *scribe_note_from_text(const char *request_json);
 
 /*
- * The audio path: a recorded .wav in, a note out, via whisper.cpp with
- * speaker diarisation. The model must already be on disk (the shell owns the
- * first-use download).
+ * Ground a note that was drafted outside the core.
+ *
+ * Every Rust path runs the grounding check inside the pipeline. A note drafted in
+ * the shell (the system on-device model, via `NoteDrafter`) is built there and
+ * never passes through it, so its per-sentence `support` was an assumption. This
+ * is the same check, across the boundary. Deterministic and local: it marks
+ * sentences and never rewrites, blocks or invents.
+ *
+ * Input:  {"note":{...},"transcript":{...}}
+ * Output: {"ok":true,"note":{...}}   (the note, with `support` set)
+ *         | {"ok":false,"error":"..."}
+ */
+char *scribe_verify_note(const char *request_json);
+
+/*
+ * The recognition path: the shell recognises the speech, and this files the
+ * words into a note.
+ *
+ * SpeechAnalyzer is a Swift API, so recognition cannot happen on this side of
+ * the boundary. The shell produces timed segments and hands them over; the
+ * engine still owns diarisation, role mapping, grounding and completeness, so
+ * the shell must not assemble those itself.
+ *
+ * `audio_path` is strongly advised, and is not there to transcribe anything: the
+ * system recogniser reports *contiguous* ranges, so the silence between turns is
+ * absent from the timings and the two-speaker heuristic has nothing to alternate
+ * on. Given the recording, the engine's energy VAD finds the gaps. Without it,
+ * every segment is attributed to one speaker.
+ *
+ * There is no speech engine here. The entry point this replaced
+ * (`scribe_note_from_audio`) fell back to a synthetic mock engine when it was
+ * given no model, which would put invented clinical text in a record.
  *
  * Input:  {"template_id":"soap","patient_ref":"opaque",
- *          "discipline":"general_practice",
+ *          "discipline":"general_practice","language":"en",
+ *          "engine":"apple-speechanalyzer",
  *          "audio_path":"/path/to/recording.wav",
- *          "model_path":"/path/to/ggml-small.en-tdrz.bin"}
- *         Pass `model_path: null` to fall back to the mock engine.
+ *          "segments":[{"start_ms":0,"end_ms":4000,"text":"...","confidence":0.9}]}
  * Output: {"ok":true,"note":{...},"transcript":{...},"speech_spans":[...]}
  *         | {"ok":false,"error":"..."}
  */
-char *scribe_note_from_audio(const char *request_json);
+char *scribe_note_from_segments(const char *request_json);
 
 /*
  * Persist a note and transcript to a local SQLite file.

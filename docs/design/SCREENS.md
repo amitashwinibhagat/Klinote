@@ -78,7 +78,7 @@ That is the only inbox.
 that only records.
 
 **States.** Empty day / one uncopied / dictating / typing. Opening S1
-never requires Whisper.
+never waits on a download.
 
 **Kills.** Encounter sidebar as the default home.
 
@@ -117,7 +117,7 @@ in the room. Stop → S4.
 
 **Not.** A second product. Not a paste sheet with `CLINICIAN:`.
 
-**Kills.** Treating dictate as a consolation for a failed Whisper download.
+**Kills.** Treating dictate as a consolation for a failed download.
 
 ---
 

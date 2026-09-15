@@ -212,27 +212,20 @@ private struct RecordingSettings: View {
     var body: some View {
         Form {
             Section("Listening") {
-                LabeledContent("Status", value: downloader.state.word)
-                switch downloader.state {
-                case .missing:
-                    Button("Download listening (465 MB, once)") {
-                        downloader.start()
-                    }
-                    Text("Turns speech into text on this Mac. Download before a session, not during one.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                case .downloading(let fraction):
-                    ProgressView(value: fraction)
-                    Button("Cancel") { downloader.cancel() }
-                case .ready:
-                    Text("Ready. Speech is transcribed on this Mac.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                case .failed(let message):
-                    Text(message)
+                // Not a download any more, and not a one-off decision: this is a
+                // capability of the Mac. See Transcriber.swift.
+                LabeledContent(
+                    "Status",
+                    value: Transcriber.isAvailable ? "Ready on this Mac" : "Not available"
+                )
+                if let reason = Transcriber.unavailableReason {
+                    Text(reason)
                         .font(.caption)
                         .foregroundStyle(.orange)
-                    Button("Retry download") { downloader.start() }
+                } else {
+                    Text("Speech is transcribed on this Mac by the system's own speech model. There is nothing to download, and the audio is never uploaded.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             Section("Shortcuts") {

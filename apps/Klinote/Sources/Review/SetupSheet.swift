@@ -41,10 +41,11 @@ struct SetupSheet: View {
                 )
                 Point(
                     symbol: "waveform",
-                    title: listeningReady ? "Listening is ready" : "Listening downloads once",
+                    title: listeningReady ? "Listening is ready" : "Listening is not available",
                     detail: listeningReady
-                        ? "The 465 MB speech model is already on this Mac. You can record a session straight away."
-                        : "Speech recognition needs a 465 MB model. It downloads once and stays on this Mac. You can skip it and paste what was said instead."
+                        ? "Speech recognition is part of macOS, so there is nothing to download before your first session. You can record straight away."
+                        : Transcriber.unavailableReason
+                            ?? "This Mac cannot transcribe on device. You can still paste a transcript you already have."
                 )
                 Point(
                     symbol: "text.alignleft",
@@ -111,38 +112,32 @@ struct SetupSheet: View {
         .background(KlinoteColor.document)
     }
 
-    private var listeningReady: Bool { downloader.state == .ready }
+    /// Listening is a capability of the Mac now, not something this app has on
+    /// disk. See `Transcriber`.
+    private var listeningReady: Bool { Transcriber.isAvailable }
     private var noteReady: Bool { downloader.noteState == .ready }
 
-    /// There must always be an action here that finishes setup. The first
-    /// version turned the primary button into a disabled *label* — "Listening
-    /// is ready" — once the model was already on disk, which left a clinician
-    /// who wanted to record with no way past this screen except the paste
-    /// button, which is the wrong thing to press.
-    /// One button for both models.
+    /// There must always be an action here that finishes setup. An earlier
+    /// version turned the primary button into a disabled *label* — "Listening is
+    /// ready" — once the model was already on disk, which left a clinician who
+    /// wanted to record with no way past this screen except the paste button,
+    /// which is the wrong thing to press.
     ///
-    /// "Which model do I want" is not a question to put to a clinician on first
-    /// run. Both are needed before the first note is worth reading, and the
-    /// second is the one people would have skipped — leaving them with the
-    /// thinner draft and no way to know.
+    /// One download is left, so one button. It used to sequence two and label
+    /// itself from both, which read "Download Quire (1.9 GB)" while that
+    /// download was already running. Recording no longer depends on it at all —
+    /// Quire is an upgrade to the draft, not a ticket to the microphone.
     private var primaryTitle: String {
-        switch (downloader.state, downloader.noteState) {
-        case (.ready, .ready): "Start using Klinote"
-        // Quire is the larger download by far, and this read "Download Quire
-        // (1.9 GB)" while it was already downloading — as if nothing had
-        // started.
-        case (.ready, .downloading(let fraction)): "Continue · writing \(Int(fraction * 100))%"
-        case (.ready, _): "Download Quire (1.9 GB)"
-        case (.downloading(let fraction), _): "Continue · listening \(Int(fraction * 100))%"
-        case (_, .ready): "Download listening (465 MB)"
-        default: "Download both (2.3 GB)"
+        switch downloader.noteState {
+        case .ready: "Start using Klinote"
+        case .downloading(let fraction): "Continue · writing \(Int(fraction * 100))%"
+        case .failed: "Try the writing download again"
+        case .missing: "Download Quire (1.9 GB) and record"
         }
     }
 
     private func primaryAction() {
-        // startAll sequences them: listening first, Quire when it lands. They
-        // cannot run at once — there is one task and one progress observation.
-        downloader.startAll()
+        downloader.startNote()
         model.completeSetupThenRecord()
     }
 }

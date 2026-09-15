@@ -2,17 +2,27 @@
 //!
 //! The strongest trust a local scribe can offer is a mechanical check: does the
 //! sentence's own evidence actually contain what the sentence claims? Prose
-//! overlap is a bad test — every useful note paraphrases. Two things are not
+//! overlap is a bad test — every useful note paraphrases. Three things are not
 //! paraphrase, and those are what we check:
 //!
 //! 1. **Numbers.** `37.4`, `88`, `400mg`, `1g`, `4 days`. If a figure appears in
 //!    the note and not in the words that were heard, a clinician must look.
-//! 2. **Drug names.** A medicine in the note that nobody said is the exact
+//! 2. **Dose frequency.** `q8h` and "three times a day" are one instruction
+//!    written two ways, so they have to compare equal. `q4h` and "four times a
+//!    day" are **not** the same instruction — every four hours is six doses and
+//!    four times a day is every six — so they must not.
+//! 3. **Drug names.** A medicine in the note that nobody said is the exact
 //!    failure mode that makes clinicians refuse these tools.
 //!
 //! A sentence with no evidence at all is unverified by definition. Everything
 //! else passes. This is a review prompt, not an error: it never blocks, never
 //! rewrites, and never claims the sentence is wrong.
+//!
+//! Why dose frequency is its own comparison rather than arithmetic on digits:
+//! it used to be neither. `q8h` contributed the number 8 and "three times a day"
+//! contributed 3, so a correct line was flagged; `q4h` contributed 4 and "four
+//! times a day" contributed 4, so a wrong line passed. The check was matching
+//! digits that happened to coincide, and the tests recorded the coincidences.
 
 use std::collections::HashSet;
 
@@ -27,6 +37,12 @@ pub fn judge(sentence: &str, cited: &str) -> Support {
     let cited_numbers = numbers(cited);
     for number in numbers(sentence) {
         if !cited_numbers.contains(&number) {
+            return Support::Unverified;
+        }
+    }
+    let cited_doses = doses_per_day(cited);
+    for doses in doses_per_day(sentence) {
+        if !cited_doses.contains(&doses) {
             return Support::Unverified;
         }
     }
@@ -50,6 +66,87 @@ pub fn drugs(text: &str) -> Vec<String> {
     out
 }
 
+/// Doses per day, however the instruction was written.
+///
+/// One instruction, several spellings: `q8h`, `tds` and "three times a day" all
+/// mean three doses a day and must compare equal. The conversion is the point —
+/// comparing the digits gives 8 against 3 for the same instruction.
+pub fn doses_per_day(text: &str) -> HashSet<u64> {
+    let tokens = formulary::tokens_of(text);
+    let mut out = HashSet::new();
+
+    for (index, token) in tokens.iter().enumerate() {
+        if let Some(doses) = interval_as_doses(token) {
+            out.insert(doses);
+            continue;
+        }
+        if let Some(doses) = latin_frequency(token) {
+            out.insert(doses);
+            continue;
+        }
+        // "four times a day", "three times daily"
+        if tokens.get(index + 1).map(String::as_str) == Some("times") {
+            if let Some(value) = unit_value(token) {
+                out.insert(value);
+            }
+        }
+        if token == "twice" {
+            out.insert(2);
+        }
+        if token == "once" {
+            out.insert(1);
+        }
+    }
+
+    out
+}
+
+/// `q8h`, `q12h` — a dosing *interval*, not a quantity.
+///
+/// Separated from [`interval_as_doses`] on purpose: `q5h` is an interval whose
+/// frequency does not divide a day cleanly, so it is not a frequency we can
+/// state — but it is still an interval, and reading its digits as the quantity
+/// "5" would compare something nobody said.
+fn is_interval(token: &str) -> bool {
+    let Some(rest) = token.strip_prefix('q') else {
+        return false;
+    };
+    let Some(hours) = rest.strip_suffix('h') else {
+        return false;
+    };
+    !hours.is_empty() && hours.chars().all(|c| c.is_ascii_digit())
+}
+
+/// `q8h` — every eight hours — is three doses a day.
+///
+/// Returns `None` for an interval that does not divide a day cleanly (`q5h`):
+/// that is not a frequency anybody stated, so it is not something this check
+/// can hold a note to.
+fn interval_as_doses(token: &str) -> Option<u64> {
+    if !is_interval(token) {
+        return None;
+    }
+    let hours: u64 = token.strip_prefix('q')?.strip_suffix('h')?.parse().ok()?;
+    if hours == 0 || 24 % hours != 0 {
+        return None;
+    }
+    Some(24 / hours)
+}
+
+/// Frequency written in Latin shorthand.
+///
+/// `od` is deliberately absent. It is ambiguous — once daily, or the right eye —
+/// and `register.rs` already flags it for the clinician rather than reading it.
+/// Guessing here would let a sentence about an eye satisfy a dosing check.
+fn latin_frequency(token: &str) -> Option<u64> {
+    Some(match token {
+        "bd" | "bid" => 2,
+        "tds" | "tid" => 3,
+        "qds" | "qid" => 4,
+        _ => return None,
+    })
+}
+
 /// Numeric values in `text`, with spoken forms folded to digits so that
 /// "thirty seven point four" and "37.4" compare equal, and "four times" and
 /// "q4h" agree.
@@ -57,6 +154,10 @@ pub fn drugs(text: &str) -> Vec<String> {
 /// Speech recognition writes numbers as words ("eighty eight", "four hundred
 /// milligrams"), while a drafted note writes digits ("88", "400mg"). Comparing
 /// the two requires reading the words as numbers, not just extracting digits.
+///
+/// Dose intervals are the exception: `q8h` is not the quantity eight, it is a
+/// frequency, and it is compared by [`doses_per_day`] instead. Counting its
+/// digits here is what made an 8 sit against a spoken 3.
 pub fn numbers(text: &str) -> HashSet<String> {
     let tokens = formulary::tokens_of(text);
     let mut out = HashSet::new();
@@ -64,8 +165,10 @@ pub fn numbers(text: &str) -> HashSet<String> {
     while index < tokens.len() {
         let token = &tokens[index];
         if token.chars().any(|c| c.is_ascii_digit()) {
-            for value in digits_in(token) {
-                out.insert(value);
+            if !is_interval(token) {
+                for value in digits_in(token) {
+                    out.insert(value);
+                }
             }
             index += 1;
         } else if let Some((value, next)) = spoken_number(&tokens, index) {
@@ -245,13 +348,60 @@ mod tests {
             judge("Temp 37.4°C, HR 88 bpm, regular.", heard),
             Support::Supported
         );
+        // `q6h` is four doses a day, which is what "four times a day" means —
+        // `q4h` is six. This assertion used to say `q4h` and pass, because both
+        // sides happened to contain a 4.
         assert_eq!(
             judge(
-                "Paracetamol 1g q4h. Ibuprofen 400mg tds.",
+                "Paracetamol 1g q6h. Ibuprofen 400mg tds.",
                 "paracetamol one gram four times a day and ibuprofen four hundred milligrams three times a day"
             ),
             Support::Supported
         );
+    }
+
+    /// One instruction written two ways must compare equal. This is the false
+    /// positive that started it: a correct line flagged as unverified.
+    #[test]
+    fn an_interval_and_a_frequency_are_the_same_instruction() {
+        assert_eq!(
+            judge(
+                "Ibuprofen 400mg q8h with food.",
+                "ibuprofen four hundred milligrams three times a day with food"
+            ),
+            Support::Supported,
+            "q8h is three doses a day"
+        );
+        assert_eq!(
+            judge(
+                "Paracetamol 1g qds.",
+                "paracetamol one gram four times a day as needed"
+            ),
+            Support::Supported
+        );
+    }
+
+    /// And the one that passed while being wrong. Every four hours is six doses
+    /// a day; four times a day is every six. The digits agree and the
+    /// instruction does not, which is exactly the case digits cannot see.
+    #[test]
+    fn a_wrong_interval_is_caught_even_when_the_digits_agree() {
+        assert_eq!(
+            judge(
+                "Paracetamol 1g q4h.",
+                "paracetamol one gram four times a day"
+            ),
+            Support::Unverified
+        );
+    }
+
+    /// An interval that does not divide a day is not a frequency, so it is not
+    /// compared as one — and its digits are not read as a quantity either.
+    #[test]
+    fn an_odd_interval_is_not_read_as_a_quantity() {
+        assert!(!doses_per_day("q5h").contains(&0));
+        assert!(doses_per_day("q5h").is_empty());
+        assert!(numbers("q5h").is_empty(), "an interval is not a quantity");
     }
 
     #[test]

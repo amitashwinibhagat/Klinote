@@ -26,7 +26,7 @@ use std::ffi::{CStr, CString, c_char};
 
 use scribe_core::{ClinicalNote, Discipline, Encounter, SCHEMA_VERSION, Template, Transcript};
 use scribe_note::TemplateLibrary;
-use scribe_pipeline::ScribePipeline;
+use scribe_pipeline::{AsrSegment, ScribePipeline};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -112,21 +112,14 @@ pub unsafe extern "C" fn scribe_note_from_transcript(request_json: *const c_char
         };
 
         let pipeline = ScribePipeline::new().map_err(|err| err.to_string())?;
-        let template = pipeline
-            .templates()
-            .get(encounter.template_id.as_str())
-            .map_err(|err| err.to_string())?;
 
-        let generator = scribe_note::RuleBasedGenerator;
-        let note: ClinicalNote = scribe_note::NoteGenerator::generate(
-            &generator,
-            &scribe_note::GenerationRequest {
-                encounter: &encounter,
-                transcript: &request.transcript,
-                template,
-            },
-        )
-        .map_err(|err| err.to_string())?;
+        // Through the pipeline, not around it. This used to build a
+        // `RuleBasedGenerator` by hand and look up the template itself, which
+        // meant `verify_support` never ran and the note carried no grounding at
+        // all — see `ScribePipeline::generate`.
+        let note = pipeline
+            .generate(&encounter, &request.transcript)
+            .map_err(|err| err.to_string())?;
 
         Ok(json!({ "ok": true, "note": note }))
     })()
@@ -270,32 +263,110 @@ pub unsafe extern "C" fn scribe_note_from_text(request_json: *const c_char) -> *
 }
 
 #[derive(Debug, Deserialize)]
-struct AudioRequest {
+struct VerifyRequest {
+    note: ClinicalNote,
+    transcript: Transcript,
+}
+
+/// Ground a note that was drafted outside the core.
+///
+/// Every Rust path runs `verify_support` inside `ScribePipeline::generate`. A note
+/// drafted in the shell — `NoteDrafter`, on the system model — is built there and
+/// never passes through the pipeline, so its `support` was an assumption rather
+/// than a finding. This is that check, offered across the boundary.
+///
+/// Deterministic and local: it reads the transcript it is given, marks sentences,
+/// and never rewrites, blocks or invents.
+///
+/// Input:  {"note":{...},"transcript":{...}}
+/// Output: {"ok":true,"note":{...}}   (the note with `support` set)
+///         | {"ok":false,"error":"..."}
+///
+/// # Safety
+/// `request_json` must be null or a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_verify_note(request_json: *const c_char) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let raw = unsafe { cstr_to_string(request_json) }?;
+        let request: VerifyRequest =
+            serde_json::from_str(&raw).map_err(|err| format!("invalid request json: {err}"))?;
+
+        let mut note = request.note;
+        note.verify_support(&request.transcript);
+
+        Ok(json!({ "ok": true, "note": note }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+struct SegmentsRequest {
     #[serde(default)]
     template_id: Option<String>,
     #[serde(default)]
     patient_ref: Option<String>,
     #[serde(default)]
     discipline: Option<String>,
-    /// Path to a WAV file (16-bit PCM supported; anything hound can read).
-    audio_path: String,
-    /// Path to the whisper GGUF model (or `null` to use mock).
+    /// BCP-47 language the recogniser used, recorded on the transcript.
     #[serde(default)]
-    model_path: Option<String>,
+    language: Option<String>,
+    /// Which recogniser produced these words — `"apple-speechanalyzer"` from the
+    /// macOS shell. Recorded on the transcript, because a note that says how it
+    /// was heard is a note a clinician can judge.
+    #[serde(default)]
+    engine: Option<String>,
+    /// Path to the recording the segments came from.
+    ///
+    /// Needed for the two speakers, and not merely nice to have: the system
+    /// recogniser reports *contiguous* ranges, so the silence between turns is
+    /// not in the timings and the turn-taking heuristic has nothing to alternate
+    /// on. The engine already owns a tested energy VAD, so the audio comes back
+    /// here to be **measured**, never re-transcribed. Optional, so a caller with
+    /// no audio still works — at the cost of one speaker, which the caller
+    /// should know it is choosing.
+    #[serde(default)]
+    audio_path: Option<String>,
+    segments: Vec<SegmentRequest>,
 }
 
-/// The audio path: a recorded .wav in, a note out, via whisper.cpp with
-/// speaker diarisation. The model must already be on disk (the shell owns
-/// the first-use download). Output has the same note+transcript envelope as
-/// the text path.
+#[derive(Debug, Deserialize)]
+struct SegmentRequest {
+    start_ms: u64,
+    end_ms: u64,
+    text: String,
+    #[serde(default)]
+    confidence: Option<f32>,
+}
+
+/// Recognised words in, a note out.
+///
+/// The shell does speech recognition, because `SpeechAnalyzer` is a Swift API.
+/// This is where the words come back across the boundary: the pipeline still
+/// owns diarisation, role mapping, grounding and completeness, so the shell must
+/// not assemble those itself.
+///
+/// Note what is *not* here any more: an engine argument. The Rust core has no
+/// speech engine reachable from this boundary, and that is deliberate — the old
+/// audio entry point fell back to `MockAsrEngine` when no model was supplied,
+/// which is synthetic clinical text arriving in a clinician's record. A missing
+/// recogniser must now be a failure the caller sees.
+///
+/// Input:  {"template_id":"soap","patient_ref":"opaque",
+///          "discipline":"general_practice","language":"en",
+///          "engine":"apple-speechanalyzer",
+///          "segments":[{"start_ms":0,"end_ms":4000,"text":"...","confidence":0.9}]}
+/// Output: {"ok":true,"note":{...},"transcript":{...},"speech_spans":[...]}
+///         | {"ok":false,"error":"..."}
 ///
 /// # Safety
 /// `request_json` must be null or a valid NUL-terminated UTF-8 string.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn scribe_note_from_audio(request_json: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn scribe_note_from_segments(request_json: *const c_char) -> *mut c_char {
     let payload = (|| -> Result<Value, String> {
         let raw = unsafe { cstr_to_string(request_json) }?;
-        let request: AudioRequest =
+        let request: SegmentsRequest =
             serde_json::from_str(&raw).map_err(|err| format!("invalid request json: {err}"))?;
 
         let discipline = request
@@ -312,24 +383,34 @@ pub unsafe extern "C" fn scribe_note_from_audio(request_json: *const c_char) -> 
             encounter.template_id = scribe_core::TemplateId::new(template_id);
         }
 
-        let pipeline = match &request.model_path {
-            Some(path) => {
-                let engine = scribe_asr_whisper::WhisperAsrEngine::new(path, 4)
-                    .map_err(|err| err.to_string())?;
-                ScribePipeline::new()
-                    .map_err(|err| err.to_string())?
-                    .with_asr(Box::new(engine))
-            }
-            None => ScribePipeline::new().map_err(|err| err.to_string())?,
+        let segments: Vec<AsrSegment> = request
+            .segments
+            .into_iter()
+            .map(|segment| AsrSegment {
+                start_ms: segment.start_ms,
+                end_ms: segment.end_ms,
+                text: segment.text,
+                confidence: segment.confidence,
+                // No speaker: the recogniser does not know who is talking.
+                // RoleMap and the diarizer decide, in the pipeline.
+                speaker: None,
+            })
+            .collect();
+
+        let pipeline = ScribePipeline::new().map_err(|err| err.to_string())?;
+        let language = request.language.unwrap_or_else(|| "en".to_owned());
+        let engine = request.engine.unwrap_or_else(|| "shell".to_owned());
+
+        // The recording goes to the pipeline, which runs the VAD and hands the
+        // waveform to the diarizer. Recognition already happened in the shell —
+        // this is measurement, never a second transcription.
+        let audio = match request.audio_path.as_deref() {
+            Some(path) => Some(scribe_audio::load_wav(path).map_err(|err| err.to_string())?),
+            None => None,
         };
 
-        let audio = scribe_audio::load_wav(&request.audio_path).map_err(|err| err.to_string())?;
-        let options = scribe_pipeline::AsrOptions {
-            language: Some("en".to_owned()),
-            translate_to_english: false,
-        };
         let output = pipeline
-            .process_audio(&encounter, &audio, &options)
+            .process_segments(&encounter, &segments, audio.as_ref(), &language, &engine)
             .map_err(|err| err.to_string())?;
 
         let spans: Vec<Value> = output
@@ -909,38 +990,126 @@ mod tests {
     }
 
     #[test]
-    fn audio_path_without_model_uses_mock() {
-        // Writing a tiny valid WAV that the mock engine then ignores.
-        let dir = std::env::temp_dir().join("scribe-ffi-audio-test");
-        std::fs::create_dir_all(&dir).unwrap();
-        let wav = dir.join("silence.wav");
-        let spec = hound::WavSpec {
-            channels: 1,
-            sample_rate: 16_000,
-            bits_per_sample: 16,
-            sample_format: hound::SampleFormat::Int,
-        };
-        let mut writer = hound::WavWriter::create(&wav, spec).unwrap();
-        for _ in 0..16_000 {
-            writer.write_sample::<i16>(0i16).unwrap();
-        }
-        writer.finalize().unwrap();
-
+    fn segments_path_produces_a_note_and_records_its_engine() {
         let request = serde_json::json!({
             "template_id": "soap",
-            "patient_ref": "demo-audio",
-            "audio_path": wav.to_string_lossy(),
-            "model_path": null,
+            "patient_ref": "demo-segments",
+            "discipline": "general_practice",
+            "language": "en",
+            "engine": "apple-speechanalyzer",
+            "segments": [
+                {"start_ms": 0, "end_ms": 4000, "text": "Good morning, what brings you in today?"},
+                {"start_ms": 5000, "end_ms": 9000, "text": "I have had a sore throat for four days."},
+                {"start_ms": 10000, "end_ms": 14000, "text": "On examination the throat shows erythema."},
+                {"start_ms": 15000, "end_ms": 19000, "text": "Plan: rest and fluids, follow up in one week."}
+            ]
         })
         .to_string();
         let input = CString::new(request).unwrap();
-        let output = unsafe { scribe_note_from_audio(input.as_ptr()) };
+        let output = unsafe { scribe_note_from_segments(input.as_ptr()) };
         let json: Value =
             serde_json::from_str(&unsafe { cstr_to_string(output) }.unwrap()).unwrap();
         unsafe { scribe_string_free(output) };
 
         assert_eq!(json["ok"], true, "{json}");
-        assert_eq!(json["transcript"]["engine"], "mock");
+        assert_eq!(json["transcript"]["engine"], "apple-speechanalyzer");
+        assert_eq!(json["transcript"]["segments"].as_array().unwrap().len(), 4);
+        // These fixture segments carry a second of silence between each turn, so
+        // the heuristic finds both voices from the timings alone. Real
+        // `SpeechTranscriber` output does not — its ranges are contiguous — which
+        // is what `segments_with_the_audio_find_both_voices` covers.
+        assert_eq!(json["transcript"]["speakers"].as_array().unwrap().len(), 2);
+        assert_eq!(json["speech_spans"].as_array().unwrap().len(), 4);
+    }
+
+    /// The reason `audio_path` exists.
+    ///
+    /// `SpeechTranscriber` reports contiguous ranges — one result ends exactly
+    /// where the next begins — so the silence that separates two voices is not
+    /// in the timings at all. Measured from the recording, it is.
+    #[test]
+    fn segments_with_the_audio_find_both_voices() {
+        let dir = std::env::temp_dir().join("scribe-ffi-segments-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let wav = dir.join("two-voices.wav");
+
+        let rate = 16_000u32;
+        let tone = |ms: u64, freq: f32| -> Vec<i16> {
+            let count = (rate as u64 * ms / 1000) as usize;
+            (0..count)
+                .map(|i| {
+                    let t = i as f32 / rate as f32;
+                    ((2.0 * std::f32::consts::PI * freq * t).sin() * 0.5 * i16::MAX as f32) as i16
+                })
+                .collect()
+        };
+        let silence = |ms: u64| -> Vec<i16> { vec![0i16; (rate as u64 * ms / 1000) as usize] };
+
+        // One turn, a 1.5 s silent gap, a second turn.
+        let mut samples = silence(500);
+        samples.extend(tone(1500, 220.0));
+        samples.extend(silence(1500));
+        samples.extend(tone(1500, 300.0));
+        samples.extend(silence(500));
+
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: rate,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&wav, spec).unwrap();
+        for sample in samples {
+            writer.write_sample(sample).unwrap();
+        }
+        writer.finalize().unwrap();
+
+        let request = serde_json::json!({
+            "template_id": "soap",
+            "audio_path": wav.to_string_lossy(),
+            "segments": [
+                {"start_ms": 500, "end_ms": 2000, "text": "On examination the throat shows erythema."},
+                {"start_ms": 3500, "end_ms": 5000, "text": "I have had a sore throat for four days."}
+            ]
+        })
+        .to_string();
+        let input = CString::new(request).unwrap();
+        let output = unsafe { scribe_note_from_segments(input.as_ptr()) };
+        let json: Value =
+            serde_json::from_str(&unsafe { cstr_to_string(output) }.unwrap()).unwrap();
+        unsafe { scribe_string_free(output) };
+
+        assert_eq!(json["ok"], true, "{json}");
+        assert_eq!(
+            json["transcript"]["speakers"].as_array().unwrap().len(),
+            2,
+            "the recording carries the silence between the two turns: {json}"
+        );
+    }
+
+    /// Segment timings are the diariser's only input, so a segment missing one
+    /// is nonsense and must be reported rather than defaulted.
+    #[test]
+    fn segments_path_rejects_a_malformed_request() {
+        let request = serde_json::json!({
+            "template_id": "soap",
+            "segments": [{"start_ms": 0, "text": "missing end_ms"}]
+        })
+        .to_string();
+        let input = CString::new(request).unwrap();
+        let output = unsafe { scribe_note_from_segments(input.as_ptr()) };
+        let json: Value =
+            serde_json::from_str(&unsafe { cstr_to_string(output) }.unwrap()).unwrap();
+        unsafe { scribe_string_free(output) };
+
+        assert_eq!(json["ok"], false);
+        assert!(
+            json["error"]
+                .as_str()
+                .unwrap()
+                .contains("invalid request json"),
+            "{json}"
+        );
     }
 
     #[test]

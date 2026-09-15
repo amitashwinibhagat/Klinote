@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Audio → whisper → Quire SOAP. Public/synthetic audio only. Writes to /tmp/klinote-e2e."""
+"""Audio → whisper → transcript. Public/synthetic audio only. Writes to /tmp/klinote-e2e.
+
+This is the ASR and diarisation end-to-end check: synthetic speech, a two-voice
+clip, and a public two-speaker tape.
+
+It used to also score a note against the gold facts, by piping the transcript
+into a downloaded GGUF. That model is gone — notes are written by Apple's
+on-device model, which lives behind the app rather than behind a CLI — so the
+note half of this script has no binary to call. See `docs/engineering/LLM-BENCH.md`.
+"""
 
 from __future__ import annotations
 
@@ -12,10 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path("/tmp/klinote-e2e")
 TRANSCRIPT = ROOT / "fixtures/sample-transcript.txt"
-GOLD = ROOT / "fixtures/note-bench/gold-facts.json"
-QUIRE = Path.home() / "Library/Application Support/Klinote/Models/quire.gguf"
 SCRIBE = ROOT / "target/release/scribe"
-LLM = ROOT / "target/release/scribe-llm"
 
 # Public two-speaker English (1964 Beatles press conference, archive.org).
 BEATLES = (
@@ -72,39 +78,6 @@ def two_voice_consult(dest: Path) -> None:
         p.unlink(missing_ok=True)
 
 
-def soap_template() -> dict:
-    return {
-        "id": "soap",
-        "name": "SOAP Note",
-        "sections": [
-            {"key": "subjective", "title": "Subjective", "required": True},
-            {"key": "objective", "title": "Objective", "required": True},
-            {"key": "assessment", "title": "Assessment", "required": True},
-            {"key": "plan", "title": "Plan", "required": True},
-        ],
-    }
-
-
-def llm_request(transcript: dict) -> dict:
-    return {"transcript": transcript, "template": soap_template()}
-
-
-def score(note: dict, gold: dict) -> dict:
-    blob = " ".join((s.get("body") or "") for s in note.get("sections") or []).lower()
-    must = gold.get("must_appear") or []
-    hits = [f for f in must if f.lower() in blob]
-    leak = "parking" in blob
-    filled = sum(1 for s in note.get("sections") or [] if (s.get("body") or "").strip())
-    return {
-        "required": f"{filled}/4",
-        "gold": round(len(hits) / len(must), 2) if must else 0,
-        "hits": hits,
-        "parking": leak,
-        "unfiled": len(note.get("unassigned") or []),
-        "engine": note.get("engine"),
-    }
-
-
 def transcribe(wav: Path, tag: str) -> dict:
     note_path = OUT / f"{tag}-rules.json"
     tr_path = OUT / f"{tag}-transcript.json"
@@ -121,32 +94,11 @@ def transcribe(wav: Path, tag: str) -> dict:
     return json.loads(tr_path.read_text())
 
 
-def quire(transcript: dict, tag: str) -> dict:
-    req = llm_request(transcript)
-    proc = subprocess.run(
-        [str(LLM), "--model", str(QUIRE)],
-        input=json.dumps(req).encode(),
-        capture_output=True,
-        timeout=180,
-    )
-    if proc.returncode != 0:
-        err = proc.stderr.decode()[-400:]
-        print("QUIRE FAIL", err)
-        return {}
-    payload = json.loads(proc.stdout.decode())
-    (OUT / f"{tag}-quire.json").write_text(json.dumps(payload, indent=2))
-    if not payload.get("ok"):
-        print("QUIRE", payload.get("error"))
-        return {}
-    return payload.get("note") or {}
-
-
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    if not SCRIBE.exists() or not LLM.exists():
+    if not SCRIBE.exists():
         print("building release bins…")
-        subprocess.check_call(["cargo", "build", "--release", "-p", "scribe-cli", "-p", "scribe-llm"], cwd=ROOT)
-    gold = json.loads(GOLD.read_text())
+        subprocess.check_call(["cargo", "build", "--release", "-p", "scribe-cli"], cwd=ROOT)
 
     print("\n== 1. mock ASR (sanity) ==")
     run([str(SCRIBE), "transcribe", "--engine", "mock", "--audio", str(OUT / "placeholder.wav")]) if False else None
@@ -165,9 +117,6 @@ def main() -> int:
     print("duration", subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(gp)], text=True).strip(), "s")
     tr = transcribe(gp, "gp")
     print("segments", len(tr.get("segments") or []), "engine", tr.get("engine"))
-    note = quire(tr, "gp")
-    if note:
-        print("QUIRE", json.dumps(score(note, gold)))
 
     print("\n== 3. Two-voice TTS (diarisation) ==")
     duo = OUT / "gp-two-voice.wav"
@@ -175,9 +124,6 @@ def main() -> int:
     tr2 = transcribe(duo, "duo")
     speakers = {s.get("speaker") for s in tr2.get("segments") or []}
     print("segments", len(tr2.get("segments") or []), "speakers", speakers)
-    note2 = quire(tr2, "duo")
-    if note2:
-        print("QUIRE", json.dumps(score(note2, gold)))
 
     print("\n== 4. Public two-speaker tape (archive.org) ==")
     src = OUT / "beatles.mp3"

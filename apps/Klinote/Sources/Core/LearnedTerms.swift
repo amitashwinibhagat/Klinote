@@ -45,6 +45,18 @@ enum LearnedTerms {
 
     static var count: Int { load().count }
 
+    /// The words to bias recognition *towards* — the spellings this practice has
+    /// already settled on.
+    ///
+    /// The replacement side of each pair, not the heard side: the point is to
+    /// steer the recogniser towards the wording the clinician uses, so the same
+    /// mishearing is less likely to happen rather than being corrected after it.
+    /// `docs/engineering/ASR.md` calls contextual hints the cheapest of the three
+    /// levers for clinical vocabulary, and this is that lever.
+    static func vocabulary() -> [String] {
+        Array(Set(load().values)).sorted()
+    }
+
     /// Apply the learned vocabulary to a transcript. Returns the rewritten
     /// transcript and how many substitutions were made.
     static func apply(to transcript: Transcript) -> (Transcript, Int) {

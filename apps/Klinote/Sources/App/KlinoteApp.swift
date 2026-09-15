@@ -184,14 +184,11 @@ struct MenuBarContent: View {
             Divider()
         }
 
-        if case .downloading(let fraction) = downloader.state {
-            Text("Downloading listening \(Int(fraction * 100))%")
-            Divider()
-        } else if case .missing = downloader.state {
-            Button("Download listening…") { downloader.start() }
-            Divider()
-        } else if case .failed = downloader.state {
-            Button("Retry listening download") { downloader.start() }
+        // The only download left is the note model. Listening used to appear
+        // here too — 465 MB before the app could transcribe anything — and that
+        // is gone with whisper.cpp.
+        if case .downloading(let fraction) = downloader.noteState {
+            Text("Downloading the note model \(Int(fraction * 100))%")
             Divider()
         }
 

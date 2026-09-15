@@ -43,18 +43,31 @@ alternatives we rejected: [ADR 0001](ADR/0001-rust-core-swift-shell.md).
 
 ## Data flow: audio path
 
+The macOS app recognises speech in the shell, because `SpeechAnalyzer` is a
+Swift API. The words cross the boundary as timed segments and the pipeline picks
+up from there — so the engine still owns diarisation, role mapping, grounding
+and completeness, and the shell must not assemble any of those itself.
+
 ```
-WAV / live buffer
-  → AudioBuffer (mono f32)
-  → resample_to(16 kHz)                 scribe-audio
-  → detect_speech() → Vec<SpeechSpan>   energy VAD, no model
-  → AsrEngine::transcribe()             MockAsrEngine today; SpeechAnalyzer / Whisper later
-  → Diarizer::diarize()                 TurnTakingDiarizer today
-  → RoleMap: SpeakerId → SpeakerRole    {0: Clinician, 1: Patient}, shell-correctable
-  → Transcript { speakers, segments }   scribe-core
-  → NoteGenerator::generate()           RuleBasedGenerator today
-  → ClinicalNote { sections, evidence, missing_required, unassigned }
+SHIFTED SHELL (Swift)                       RUST CORE
+live buffer / WAV
+  → AVAudioEngine tap → AVAudioFile
+  → SpeechAnalyzer + SpeechTranscriber     ← Transcriber.swift
+  → [RecognisedSegment]  (start, end, text, confidence)
+        │
+        └── FFI ────────────────────────────► ScribePipeline::process_segments
+                                                → Diarizer::diarize_segments()   TurnTakingDiarizer (gaps only)
+                                                → RoleMap: SpeakerId → Role      {0: Clinician, 1: Patient}
+                                                → Transcript { speakers, segments }
+                                                → NoteGenerator::generate()      RuleBasedGenerator / Quire
+                                                → verify_support()               grounding on every path
+                                                → ClinicalNote { sections, evidence,
+                                                                 missing_required, unassigned }
 ```
+
+`ScribePipeline::process_audio` still exists for `scribe-cli` and for tests: it
+adds `scribe-audio` (resample, energy VAD) and an `AsrEngine` in front of the
+same tail. The app does not use it.
 
 ## Data flow: text path
 
@@ -67,6 +80,25 @@ plain text ("CLINICIAN: ...", optional [mm:ss], wrapped lines allowed)
 The text path exists so the product can run with **no model and no audio** —
 which is what makes the concierge validation sprint possible today, and what
 keeps CI model-free.
+
+## Who writes the note
+
+There are three drafting paths, and the order between them is a decision, not an
+implementation detail.
+
+| Path | Where | Model | State |
+|---|---|---|---|
+| `scribe-llm` (Quire) | Rust core, a sibling binary the shell spawns | Qwen3-4B, 1.89 GB, downloaded once | **Primary.** This is what polishes a draft, and the app does not try to do without it. |
+| `NoteDrafter` | Swift shell, in-process | Apple's on-device model via Foundation Models | **Fallback.** Used on a Mac where Quire is not installed, or where a clinician declined the download. Also holds its own extraction and brevity pass, so it polishes as well as drafts. |
+| `RuleBasedGenerator` | Rust core | none | **Last resort.** Deterministic, no model, and what keeps `cargo test --workspace` model-free. |
+
+`AppModel.preferLocalDraft` tries them in that order. A note records which engine
+wrote it, and the letterhead says so, because a clinician reviewing a thinner
+draft should be able to tell why it is thinner.
+
+Quire being permanent was decided 2026-09-15; the reasoning and the measurements
+are in `docs/engineering/LLM-BENCH.md`. Do not propose removing it without
+reading that.
 
 ## Crate responsibilities and rules
 

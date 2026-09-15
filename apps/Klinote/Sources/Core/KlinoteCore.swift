@@ -56,20 +56,6 @@ struct TaskListEnvelope: Decodable {
     let tasks: [ConsultTask]?
 }
 
-// MARK: - Errors
-
-enum KlinoteCoreError: LocalizedError {
-    case engine(String)
-    case malformedResponse
-
-    var errorDescription: String? {
-        switch self {
-        case .engine(let message): message
-        case .malformedResponse: "The engine returned a response Klinote could not read."
-        }
-    }
-}
-
 // MARK: - The bridge
 
 enum KlinoteCore {
@@ -130,12 +116,25 @@ enum KlinoteCore {
         return payload.text ?? ""
     }
 
-    /// The audio path: a recorded .wav in, a note out, via whisper.cpp with
-    /// speaker diarisation. `modelPath` points at the downloaded GGUF model;
-    /// pass nil to fall back to the mock engine.
+    /// The recognition path: the shell recognised the speech, and this files the
+    /// words into a note.
+    ///
+    /// `Transcriber` produces the segments; the Rust engine still owns
+    /// diarisation, role mapping, the grounding check and completeness, so
+    /// nothing here may assemble a note by hand. The speaker is deliberately not
+    /// sent — the recogniser does not know who is talking, and a guess from the
+    /// shell would be a role the engine could not correct.
+    ///
+    /// - Parameter audioPath: the recording the segments came from. The engine
+    ///   measures its silences with the energy VAD to find the turn boundaries,
+    ///   because the recogniser reports contiguous ranges and there is no gap in
+    ///   the timings to find. Without it the whole consultation is filed under
+    ///   one speaker, so pass it whenever the recording still exists.
     static func note(
-        fromAudio audioPath: URL,
-        modelPath: URL?,
+        fromSegments segments: [RecognisedSegment],
+        audioPath: URL?,
+        language: String,
+        engine: String,
         templateId: String,
         discipline: String,
         patientRef: String
@@ -144,16 +143,26 @@ enum KlinoteCore {
             "template_id": templateId,
             "discipline": discipline,
             "patient_ref": patientRef,
-            "audio_path": audioPath.path,
+            "language": language,
+            "engine": engine,
+            "segments": segments.map { segment in
+                var entry: [String: Any] = [
+                    "start_ms": segment.startMs,
+                    "end_ms": segment.endMs,
+                    "text": segment.text,
+                ]
+                entry["confidence"] = segment.confidence ?? NSNull()
+                return entry
+            },
         ]
-        request["model_path"] = modelPath?.path ?? NSNull()
+        request["audio_path"] = audioPath?.path ?? NSNull()
 
         let requestData = try JSONSerialization.data(withJSONObject: request)
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
             throw KlinoteCoreError.malformedResponse
         }
 
-        let payload: NoteEnvelope = try envelope(from: scribe_note_from_audio(requestJSON))
+        let payload: NoteEnvelope = try envelope(from: scribe_note_from_segments(requestJSON))
         guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
         guard let note = payload.note, let transcript = payload.transcript else {
             throw KlinoteCoreError.malformedResponse
@@ -188,6 +197,45 @@ enum KlinoteCore {
         guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
         guard let note = payload.note else { throw KlinoteCoreError.malformedResponse }
         return note
+    }
+
+    /// Ground a note the shell drafted, against the transcript it cites.
+    ///
+    /// Every Rust drafting path runs this inside the pipeline. A note built by
+    /// `NoteDrafter` is assembled in Swift and never passes through it, so its
+    /// `support` would otherwise be an assumption — and on macOS 27 that path
+    /// produced a sentence in no utterance. Same check, same core, across the
+    /// boundary.
+    static func verify(
+        note: ClinicalNote,
+        against transcript: Transcript
+    ) throws -> ClinicalNote {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+
+        var transcript = transcript
+        if transcript.createdAt == nil {
+            transcript.createdAt = ISO8601DateFormatter().string(from: Date())
+        }
+
+        guard
+            let noteObject = try JSONSerialization.jsonObject(with: encoder.encode(note)) as? [String: Any],
+            let transcriptObject = try JSONSerialization.jsonObject(with: encoder.encode(transcript)) as? [String: Any]
+        else {
+            throw KlinoteCoreError.malformedResponse
+        }
+
+        let requestData = try JSONSerialization.data(
+            withJSONObject: ["note": noteObject, "transcript": transcriptObject]
+        )
+        guard let requestJSON = String(data: requestData, encoding: .utf8) else {
+            throw KlinoteCoreError.malformedResponse
+        }
+
+        let payload: NoteEnvelope = try envelope(from: scribe_verify_note(requestJSON))
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
+        guard let verified = payload.note else { throw KlinoteCoreError.malformedResponse }
+        return verified
     }
 
     static func storePath() -> String {

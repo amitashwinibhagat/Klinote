@@ -14,12 +14,21 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 scribe-core.workspace = true
 scribe-note.workspace = true
 scribe-pipeline.workspace = true
-scribe-asr-whisper = { path = "../scribe-asr-whisper" }
-scribe-audio.workspace = true
 scribe-store.workspace = true
+# The energy VAD only. The shell recognises the speech; it sends the recording
+# back here purely so the engine can measure where the silences are, because the
+# system recogniser's ranges are contiguous and the two voices are otherwise
+# indistinguishable.
+scribe-audio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true
+
+# No speech engine, deliberately. Recognition is the shell's job on macOS
+# (`SpeechAnalyzer` is a Swift API), so nothing here can reach whisper.cpp — and
+# a clinical app bundle should not contain a large C++ model parser it never
+# calls. The old `scribe-asr-whisper` dependency put whisper.cpp into the app
+# through this crate; `scribe-cli` still pulls it in for the concierge tool.
 
 [dev-dependencies]
 hound = "3"

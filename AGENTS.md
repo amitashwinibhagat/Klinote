@@ -15,10 +15,10 @@ traceable to what was said. Nothing leaves the Mac.
 - **Engine:** Rust, Cargo workspace under `crates/`. Complete and tested.
 - **Shell:** Swift/SwiftUI under `apps/Klinote/`. M1 complete: menu bar, recording
   strip, review window with evidence margin, settings. Builds and launches.
-- **Status:** Whisper small.en + tinydiarize, SQLCipher at rest, Quire on
-  device, sandboxed and notarized. Latest release is v0.1.6. Concierge
-  validation is still outstanding, now recast to therapists
-  (`docs/product/POSITIONING.md`, `docs/product/VALIDATION-PLAN.md`).
+- **Status:** speech recognition is the system's `SpeechAnalyzer` (no model
+  download), SQLCipher at rest, Quire on device, sandboxed and notarized. Latest
+  release is v0.1.6. Concierge validation is still outstanding, now recast to
+  therapists (`docs/product/POSITIONING.md`, `docs/product/VALIDATION-PLAN.md`).
 
 **Design first.** Before changing anything visual, read `PRODUCT.md`,
 `DESIGN.md` and `docs/design/UX-PLAN.md`. They are the source of truth; if code
@@ -28,9 +28,21 @@ disagrees with `DESIGN.md`, the code is wrong.
 
 **1. Local-only.**
 There is no networking code in this workspace and there must never be one.
-No analytics, no crash reporting, no model downloads at runtime, no telemetry,
-no "anonymous usage stats". If a feature seems to need a network call, it is
-the wrong feature. This is the product's entire reason to exist.
+No analytics, no crash reporting, no telemetry, no "anonymous usage stats". If a
+feature seems to need a network call, it is the wrong feature. This is the
+product's entire reason to exist.
+
+There is exactly one exception, it is named and it is checked: the Swift shell
+downloads the note model once, on first use, in one file —
+`Sources/Core/ModelDownloader.swift` — and `scripts/check-network-surface.sh`
+fails the build if a second file reaches the network or if anything ever uploads.
+**The note model is permanent**, decided 2026-09-15: it is what polishes a draft,
+and the app does not try to do without it. So this is not a temporary state to be
+engineered away, and nobody should propose removing it without reading
+`docs/engineering/LLM-BENCH.md` first. Audio, transcripts and notes never leave
+the Mac, before or after the download. An earlier version of this file said
+"no model downloads at runtime", which was never true and is now settled the
+other way.
 
 **2. Traceability.**
 Nothing enters a note unless it can be traced to a transcript segment.
@@ -88,8 +100,9 @@ The app's build phase compiles the Rust core and links
 in `target/` and cannot run anywhere else.
 
 CI and `cargo test --workspace` must pass with no model, no network and no
-audio device. The app downloads Whisper and Quire on first run into the
-container; they are not in the repository or the release zip.
+audio device. The app downloads Quire on first run into the container; it is not
+in the repository or the release zip. Speech recognition has no model at all —
+it is the system's `SpeechAnalyzer`, in `Sources/Core/Transcriber.swift`.
 
 ## How we know a change worked
 
@@ -147,7 +160,11 @@ Rules, mechanical:
   the Rust. Cues are the clinician-editable surface; the scoring algorithm is
   not.
 - **Add a real ASR engine** → implement `AsrEngine`, wire it with
-  `ScribePipeline::with_asr`. Do not change the pipeline.
+  `ScribePipeline::with_asr`. Do not change the pipeline. **The app does not use
+  this path:** it recognises in Swift with `SpeechAnalyzer`
+  (`apps/Klinote/Sources/Core/Transcriber.swift`) and hands timed segments to
+  `ScribePipeline::process_segments`. Whisper is now `scribe-cli` only, and
+  nothing in `scribe-ffi` may depend on it.
 - **Add a model-backed generator** → implement `NoteGenerator`, wire it with
   `ScribePipeline::with_generator`. It must satisfy the traceability and
   no-silent-drop contracts. `RuleBasedGenerator` stays as the no-model fallback.
@@ -176,6 +193,26 @@ Rules, mechanical:
 - **Never link the Rust dylib.** Xcode's linker prefers it over the static
   library, and the app bundle then depends on an absolute path under `target/`.
   The pre-build script copies the `.a` into `target/klinote-link/` for this reason.
+- **After upgrading Xcode, clear the cached build dirs for anything that uses
+  cmake** — `llama-cpp-sys-2` and `whisper-rs-sys` here:
+
+  ```bash
+  rm -rf target/release/build/llama-cpp-sys-2-* target/release/build/whisper-rs-sys-*
+  ```
+
+  Those crates cache an **absolute path to the SDK** in a generated
+  `CMakeCache.txt` (`CMAKE_OSX_SYSROOT:PATH=…/MacOSX26.5.sdk`). A new Xcode
+  deletes the old SDK directory, so the stale cache hands clang a sysroot that
+  no longer exists and every compile fails with:
+
+  ```
+  fatal error: 'cstdio' file not found
+  fatal error: 'arpa/inet.h' file not found
+  ```
+
+  Nothing in that message mentions the SDK, cmake, or Xcode, and a plain
+  `clang++ -c` of the same headers succeeds — which is what makes it worth
+  writing down. Hit for real going from Xcode 26.6 to 27.0 on 2026-09-15.
 
 ## Doc map
 

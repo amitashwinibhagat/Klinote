@@ -18,10 +18,18 @@ Australian Privacy Act or any other regime is a separate assessment that has
 | Logs | Local stderr / shell logs | Must never contain clinical content or identifiers. |
 
 Nothing on this list is transmitted anywhere. The Rust engine contains no
-network code (enforced in CI). The **only** inbound network in the product is
-the Swift shell's first-use download of the open-source whisper.cpp model
-(`ggml-small.en-tdrz.bin`) from Hugging Face. Audio and notes never leave the
-Mac.
+network code (enforced in CI). The **only** inbound network in the product is the
+Swift shell's first-use download of the open-source note model it calls Quire
+(`quire.gguf`, from Hugging Face). Audio and notes never leave the Mac.
+
+Speech recognition uses the system's own model through `SpeechAnalyzer`. Klinote
+makes no request for it, but be precise about what that means: the **operating
+system** may fetch that speech asset on the user's behalf, once, through
+`AssetInventory`. So the honest claim is the narrow, checkable one — *Klinote
+contains no networking code outside the note-model download, and issues no
+request to obtain speech recognition* — rather than "no network, ever". The
+first-use download is also the only reason the app still carries the
+`com.apple.security.network.client` entitlement.
 
 ## Identifiers
 
@@ -46,7 +54,7 @@ repository or in the app database.
 | **Encryption at rest** | SQLCipher. Key in the Keychain (`one.klinote.mac` / `sqlite-key`). Teaching-era plaintext files are renamed `*.unencrypted-bak` and a new ciphertext database is created. |
 | **Retention policy** | Per practice: keep forever, or 3 / 12 / 36 months. Expired notes are purged at launch, and the setting says which. |
 | **Real delete** | Hard `DELETE`, then `VACUUM`, so the freed pages are not left in the database file, plus an audit entry recording the count and the cutoff and never the content. The app tells the clinician "this is a real delete, not a flag", and a test reads the database file to check that the text is actually gone. |
-| **Sandboxed** | The app runs inside `~/Library/Containers/one.klinote.mac` with three entitlements: the microphone, the network client used for the model download, and nothing else. It exists because Klinote reads untrusted input with large C++ parsers — whisper.cpp on audio, llama.cpp on a downloaded GGUF — and the sandbox is what limits what a memory-safety bug in either can reach. Verified by running it: the store opens with its existing Keychain key, Whisper initialises Metal and BLAS, and the `scribe-llm` helper spawns. |
+| **Sandboxed** | The app runs inside `~/Library/Containers/one.klinote.mac` with three entitlements: the microphone, the network client used for the note-model download, and nothing else. It exists because Klinote reads input it does not control with a large C++ parser — llama.cpp on a downloaded GGUF, in the `scribe-llm` helper — and the sandbox is what limits what a memory-safety bug there can reach. That is now the *only* such parser in the bundle: audio no longer goes through whisper.cpp, and speech recognition is the system's own. Verified by running it: the store opens with its existing Keychain key, and the `scribe-llm` helper spawns. |
 
 ## What is missing, and blocks real patient data
 

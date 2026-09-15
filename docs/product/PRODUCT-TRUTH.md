@@ -18,7 +18,7 @@ was said and every draft requiring human review before it enters the record.
 
 | Claim | Status | Evidence |
 |---|---|---|
-| Runs entirely on-device; no network | ✅ true of audio and notes | The Rust engine has no HTTP client (CI). The shell's only network is the first-use download of Whisper and Quire. Audio and notes never leave. |
+| Runs entirely on-device; no network | ✅ true of audio and notes | The Rust engine has no HTTP client (CI). The shell's only network is the first-use download of Quire. Speech recognition makes no request at all — it is the system's `SpeechAnalyzer`. Audio and notes never leave. |
 | Produces structured notes from a transcript | ✅ true | `scribe note` on a real transcript, five built-in templates. |
 | Notes are traceable to transcript segments | ✅ true | `NoteSection::evidence`; markdown output. |
 | Flags missing required sections | ✅ true | `ClinicalNote::missing_required`. |
@@ -32,7 +32,7 @@ was said and every draft requiring human review before it enters the record.
 | Do not claim | Why |
 |---|---|
 | "Accurate" / "clinically validated" | No clinical evaluation has been performed. Accuracy has been tested on synthetic fixtures only. |
-| "Works with your dictation/audio" | Whisper is wired. A real consult through the *sandboxed* app with a real microphone has not been verified (dev Mac defaulted to BlackHole). |
+| "Works with your dictation/audio" | Speech recognition is the system's `SpeechAnalyzer` and runs with no download, but a real consult through the *sandboxed* app with a real microphone has not been verified (dev Mac defaulted to BlackHole). |
 | "Saves you X minutes per patient" | Not measured on real encounters yet. This is exactly what the validation sprint measures. |
 | "HIPAA / GDPR compliant" | Not assessed. Strong privacy *posture* is not a determination. |
 | "Integrates with Epic / Cerner / your EHR" | No EHR integration exists. Today the output is Markdown/JSON for copy-paste. |

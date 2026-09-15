@@ -111,7 +111,8 @@ universal build needs a second cargo target, not a second arch flag.
 
 ## Models
 
-The app ships **no models**. The first run downloads Whisper and the note model
-into `~/Library/Application Support/Klinote/Models/`. A release artifact is
-therefore about 7 MB rather than 2.5 GB, and nothing in the repository or the
+The app ships **no models**. The first run downloads the note model into
+`~/Library/Application Support/Klinote/Models/`; speech recognition needs no
+model at all, because it is the system's `SpeechAnalyzer`. A release artifact is
+therefore under 20 MB rather than 2.5 GB, and nothing in the repository or the
 release carries model weights.

@@ -72,9 +72,10 @@ product. Upheal does not do this. That is why they are here.
 
 Then, and only then: Copy is visible. “This never left the Mac.”
 
-Download listening only if they choose **Record**. Dictate and paste never
-wait on Whisper. The teaching checkbox (“I will tell the client”) lives on
-the record path, not in front of the sample.
+Download the note model only if they want a polished draft. Dictate and paste
+never wait on a download, and speech recognition needs none at all. The teaching
+checkbox (“I will tell the client”) lives on the record path, not in front of the
+sample.
 
 If first-run is a settings sheet, we have already lost.
 

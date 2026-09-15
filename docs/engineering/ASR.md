@@ -1,9 +1,22 @@
 # Speech recognition
 
-The engine abstracts ASR behind `scribe_asr::AsrEngine`. The shipped live
-backend is **whisper.cpp with tinydiarize SBD** (`scribe-asr-whisper`), loaded
-from a GGUF the Swift shell downloads on first use. `MockAsrEngine` remains
-the default for tests and CI.
+There are two paths, and they are deliberately different.
+
+**The macOS app recognises with Apple's `SpeechAnalyzer`**, in Swift, in
+`apps/Klinote/Sources/Core/Transcriber.swift`. The words then cross the FFI as
+timed segments and the Rust core files them (`ScribePipeline::process_segments`).
+
+**The Rust engine keeps an `AsrEngine` trait**, and `scribe-cli` still ships
+whisper.cpp behind it. `MockAsrEngine` remains the default for tests and CI, so
+`cargo test --workspace` stays model-free.
+
+The reason the app does not use whisper.cpp any more: it cost a 465 MB download
+before a clinician could record anything, it put a large C++ model parser in an
+app that holds clinical records, and `SpeechAnalyzer` is already on the Mac and
+runs an 80-second consultation in about a second. What whisper.cpp gave us that
+this does not is speaker-boundary detection; `TurnTakingDiarizer` in the core
+takes that over, from the gaps between segments, and the margin still offers
+Swap.
 
 ```rust
 pub trait AsrEngine {
@@ -17,15 +30,42 @@ pub trait AsrEngine {
 
 | Backend | Language | Where | Why | Why not |
 |---|---|---|---|---|
-| **whisper.cpp + tinydiarize SBD** (`scribe-asr-whisper`) | Rust | any macOS | **Shipped.** Open-source, Metal-accelerated, two-speaker SBD, first-use download. | 465 MB model; SBD is A/B not identity; role mapping is a clinician judgment. |
-| **Apple `SpeechAnalyzer`** | Swift | macOS 27+ | Free, streaming, on-device, no model download. | Not in the macOS 26.5 SDK this build targets. Upgrade path when Golden Gate ships. |
+| **Apple `SpeechAnalyzer`** | Swift | **macOS 26+** | **Shipped in the app.** Streaming, on-device, no model download, ~1 s for an 80 s consult. | No speaker labels: `TurnTakingDiarizer` guesses turns from gaps, and the margin has to offer Swap. |
+| **whisper.cpp + tinydiarize SBD** (`scribe-asr-whisper`) | Rust | any macOS | **Shipped in `scribe-cli`.** Open-source, Metal-accelerated, two-speaker SBD. | 465 MB model; SBD is A/B not identity; role mapping is a clinician judgment. **No longer in the app** — nothing in `scribe-ffi` links it. |
 | **sherpa-onnx** (`sherpa-rs`) | Rust | any macOS | Streaming, small models, has diarisation and VAD models in the same runtime. | More integration work; ONNX Runtime dependency. |
 | **Parakeet TDT** | Rust/ONNX | any macOS | Very fast, small, strong English accuracy. | Needs ONNX runtime; fewer languages. |
 | **Cloud** | — | — | — | **Never.** Violates the product's only real promise. |
 
-**Shipped:** whisper.cpp (`ggml-small.en-tdrz.bin`) in the Rust core, downloaded
-once by the Swift shell into `~/Library/Application Support/Klinote/Models/`.
-`SpeechAnalyzer` remains the upgrade path when macOS 27's SDK lands.
+**Shipped:** `SpeechAnalyzer` + `SpeechTranscriber` in the app; whisper.cpp in
+`scribe-cli` only. Verified on 2026-09-15 (macOS 26.6.2, Xcode 26.6, M4) — the
+app bundle contains no whisper symbols and `cargo tree -p scribe-ffi` has no
+speech or llama dependency at all.
+
+**This file used to say `SpeechAnalyzer` was not in the SDK.** The claim that it
+was "not in the macOS 26.5 SDK this build targets" was wrong, and it was
+load-bearing: it made the 465 MB first-use download look unavoidable. Checked
+against the installed SDK rather than remembered:
+
+```
+$ grep -B2 "actor SpeechAnalyzer" \
+    "$(xcrun --show-sdk-path)/System/Library/Frameworks/Speech.framework/\
+Versions/A/Modules/Speech.swiftmodule/arm64e-apple-macos.swiftinterface"
+@available(macOS 26.0, iOS 26.0, visionOS 26.0, tvOS 26.0, *)
+@available(watchOS, unavailable)
+final public actor SpeechAnalyzer : Swift.Sendable
+```
+
+`SpeechTranscriber`, `SpeechDetector`, `DictationTranscriber`, `AssetInventory`
+and `ContextualStringsTag` are all `@available(macOS 26.0, *)` in that file.
+
+### One API trap, measured
+
+`SpeechAnalyzer` has both an `init(inputAudioFile:…)` and an
+`analyzeSequence(from:)`, and they sit side by side in the framework headers.
+Calling the second after the first **starts the same file twice**: the process
+dies with `SIGTRAP` inside the framework before a single result arrives. Use the
+file initialiser and await `transcriber.results`; that is the whole call. See the
+comment in `Transcriber.swift`.
 
 ## Implementation notes, whichever backend
 
@@ -101,10 +141,59 @@ Do not start with (3).
 It is honest about being a heuristic, and role assignment is the most common
 failure mode of every ambient scribe.
 
-The upgrade path is pyannote segmentation + speaker embeddings over ONNX, behind
-the existing `Diarizer` trait. Until then the shell **must** offer one-click
-role correction ("this was the patient"), because the model will be wrong in
-noisy exam rooms and a wrong role is worse than an unfiled sentence.
+**`SpeechAnalyzer` made this harder.** whisper.cpp's tinydiarize gave
+speaker-boundary detection from the acoustics. `SpeechTranscriber` gives none,
+and it reports **contiguous** ranges — one result ends exactly where the next
+begins — so the silence between turns is not in the segment timings at all. There
+is nothing in the transcript to alternate on, and measuring the gaps instead
+scored **52%** role accuracy on the two-voice bench, with 5 speaker changes found
+where the consultation had 17. A coin flip, on the field `ASR.md` already calls
+the most common failure mode of every ambient scribe.
+
+So the two voices are separated by how they *sound*, in
+`crates/scribe-diarize/src/acoustic.rs` — `AcousticDiarizer`:
+
+- two features per utterance, median **fundamental frequency** (autocorrelation)
+  and **zero-crossing rate**, no model and no download;
+- deterministic 2-means over log-pitch, fixed initialisation, no random restart;
+- a **`MIN_PITCH_SEPARATION` guard** (≈15%, about two semitones): if the two
+  clusters are closer than that, it reports **one speaker** rather than inventing
+  a second out of one person's ordinary variation. That guard is what keeps a
+  dictated note from alternating roles arbitrarily.
+- It diarises the **ASR segments**, not the VAD's spans. The VAD merges
+  everything between two silences into one span, so two people talking back to
+  back — most of a consultation — arrive as a single span with a single voice and
+  nothing left to separate. It found 7 spans for 18 turns.
+- With no audio it falls back to `TurnTakingDiarizer`'s gaps, which is worse and
+  is meant to be.
+
+### Measured, `scripts/diarize-bench.py`
+
+Two-voice synthesis of the sample consultation, scored against the turns the
+script actually spoke:
+
+| Scenario | Speakers found | Role accuracy |
+|---|---|---|
+| Before: gaps only (baseline) | 2 | **0.52** (13/25) |
+| Two voices, male + female | 2 | **1.00** (25/25) |
+| One voice (dictation) | 1 ✅ | — (no real turns) |
+| **Two male voices, close pitch** | **1 ❌** | 0.79 (19/24) |
+
+**The last row is the honest limit, and it is not a pass.** Two voices of the
+same sex are not separated: the guard fires, and it reports one speaker. That is
+the *safe* failure — it does not invent a turn nobody made — but it means role
+attribution is inert for a same-sex pair, and every utterance is filed as the
+clinician. About half of two-person consultations will be like this.
+
+Per-pitch separation is a heuristic standing in for speaker identity. It works
+when the voices differ enough and does nothing when they do not, and it has been
+tuned against synthetic TTS, which is cleaner than a room. The real fix is
+speaker **embeddings** — the upgrade path is pyannote segmentation + embeddings
+over ONNX, behind the existing `Diarizer` trait. Until then the shell **must**
+keep offering one-click role correction ("this was the patient"), because the
+heuristic will be wrong in noisy rooms and for similar voices, and a wrong role
+is worse than an unfiled sentence. Treat same-sex separation as the thing to work
+on next, not as solved.
 
 ## Adding an engine
 

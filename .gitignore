@@ -18,6 +18,7 @@ apps/Klinote/DerivedData/
 /data/
 /fixtures/private/
 /fixtures/note-bench/last-report.json
+/fixtures/note-bench/last-note.json
 /fixtures/note-bench/last-fail.txt
 scripts/__pycache__/
 

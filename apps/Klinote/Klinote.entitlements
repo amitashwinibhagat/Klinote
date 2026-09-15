@@ -7,11 +7,15 @@
 
 	  The reason is containment, not compliance. Klinote takes input from three
 	  places it does not control — a microphone, an audio file, and a GGUF model
-	  downloaded over the network — and reads all three with large C++ parsers:
-	  whisper.cpp and llama.cpp. The sandbox is what limits what a memory-safety
-	  bug in either of them can reach. For an app holding clinical records that
-	  is worth having even though the Mac App Store, the only place it is
-	  mandatory, is not where this ships.
+	  downloaded over the network — and reads the last of them with a large C++
+	  parser, llama.cpp in the `scribe-llm` helper. The sandbox is what limits
+	  what a memory-safety bug there can reach. For an app holding clinical
+	  records that is worth having even though the Mac App Store, the only place
+	  it is mandatory, is not where this ships.
+
+	  There used to be two such parsers. Audio went through whisper.cpp as well;
+	  speech recognition is now the system's own SpeechAnalyzer, so the audio
+	  path no longer touches a third-party parser at all.
 
 	  What it changes:
 	    · the database, the models and the learned terms live in
@@ -27,8 +31,9 @@
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
 	<!--
-	  The model download is the only network use: downloads, never uploads. It
-	  lives in exactly one file, which scripts/check-network-surface.sh enforces.
+	  The note-model download is the only network use: downloads, never uploads.
+	  It lives in exactly one file, which scripts/check-network-surface.sh
+	  enforces. Speech recognition is not here — the system owns that asset.
 	-->
 	<key>com.apple.security.network.client</key>
 	<true/>

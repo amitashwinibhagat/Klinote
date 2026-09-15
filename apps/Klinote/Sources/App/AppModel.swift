@@ -161,9 +161,6 @@ final class AppModel: ObservableObject {
     /// Set when print is requested for a consult that is not on screen.
     @Published var pendingPrint: Encounter?
 
-    /// A recording captured before the speech model finished downloading,
-    /// held until the download completes so it is transcribed for real.
-    private var pendingRecording: URL?
     /// When the current (or just-finished) recording started.
     private var recordingStart: Date?
     /// When the current hold began, if one is running.
@@ -171,25 +168,11 @@ final class AppModel: ObservableObject {
     /// Total time deliberately not captured in the current recording.
     private var heldMs: UInt64 = 0
 
-    private var downloadObserver: NSObjectProtocol?
     private var noteDownloadObserver: NSObjectProtocol?
     private var ticker: Timer?
 
     private init() {
-        // When the first-use model finishes downloading, transcribe anything
-        // we're holding.
-        downloadObserver = NotificationCenter.default.addObserver(
-            forName: .klinoteModelDownloadFinished,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                self.handleDownloadFinished()
-            }
-        }
-
-        // And when Quire arrives, rewrite the note on screen if the rules wrote
+        // When Quire arrives, rewrite the note on screen if the rules wrote
         // it. Quietly: the clinician pressed download, and the note improving
         // underneath them is the answer, not a dialogue.
         noteDownloadObserver = NotificationCenter.default.addObserver(
@@ -779,21 +762,16 @@ final class AppModel: ObservableObject {
             isSettingUp = true
             return
         }
-        switch ModelDownloader.shared.state {
-        case .ready:
-            break
-        case .missing:
-            lastError = "Download listening first (Settings → Recording). 465 MB, once, stays on this Mac."
-            return
-        case .downloading:
-            lastError = "Listening is still downloading. Record when Settings says it is ready."
-            return
-        case .failed:
-            lastError = "Listening could not be downloaded. Retry in Settings → Recording."
+        // Listening is not a download any more. It used to be: the app could not
+        // transcribe until 465 MB of whisper.cpp model had arrived, so a
+        // recording taken before then was held in `pendingRecording` and
+        // transcribed when the download landed. `SpeechAnalyzer` is part of the
+        // OS, so there is nothing to wait for and nothing to hold.
+        guard Transcriber.isAvailable else {
+            lastError = Transcriber.unavailableReason
+                ?? "Transcribing is not available on this Mac."
             return
         }
-        // Quire is an upgrade, not a ticket. Without it the rule-based engine
-        // still produces a note from the transcript, and AFM is tried first.
         Task { @MainActor in
             if !Recorder.shared.permissionGranted {
                 guard await Recorder.shared.requestPermission() else {
@@ -881,22 +859,40 @@ final class AppModel: ObservableObject {
         transcribe(url, startedAt: startedAt)
     }
 
-    /// Transcribe a captured recording on a background queue (the FFI call
-    /// blocks for the whole consultation and must never hold the main actor).
+    /// Recognise a captured recording, then file it.
+    ///
+    /// Off the main actor: recognition runs for as long as the consultation did,
+    /// and nothing about it may hold the interface.
     private func transcribe(_ url: URL, startedAt: Date) {
         let templateId = self.templateId
         let discipline = self.discipline
         let patientRef = nextPatientRef()
-        let modelPath = ModelDownloader.modelFile
         // Capture the hold before the background task starts; the property is
         // main-actor state and the recording is over by the time we are here.
         let held = heldMs
+        // This practice's own spellings, so a drug name it has already settled
+        // on is less likely to be misheard in the first place.
+        let vocabulary = LearnedTerms.vocabulary()
 
         Task.detached {
             do {
+                // Recognition first, in Swift, because `SpeechAnalyzer` is a
+                // Swift API. The words then cross to the Rust engine, which owns
+                // diarisation, routing, grounding and completeness.
+                let segments = try await Transcriber.transcribe(
+                    file: url,
+                    vocabulary: vocabulary
+                )
+
                 let result = try KlinoteCore.note(
-                    fromAudio: url,
-                    modelPath: modelPath,
+                    fromSegments: segments,
+                    // The recording goes back so the engine can measure where the
+                    // silences are: the recogniser's ranges are contiguous, so
+                    // the turn boundaries are not in the timings. Deleted after,
+                    // not before.
+                    audioPath: url,
+                    language: "en",
+                    engine: Transcriber.engineName,
                     templateId: templateId,
                     discipline: discipline,
                     patientRef: patientRef
@@ -905,8 +901,8 @@ final class AppModel: ObservableObject {
                 let template = await MainActor.run {
                     self.templates.first(where: { $0.id == templateId }) ?? self.templates.first
                 }
-                // This practice's own vocabulary, learned from corrections the
-                // clinician accepted. Applied before drafting, and announced.
+                // Vocabulary corrections the clinician accepted previously.
+                // Applied before drafting, and announced.
                 var (transcript, learned) = LearnedTerms.apply(to: result.transcript)
                 // Say that the gap was deliberate. Silence in a consult is
                 // ambiguous; a held stretch is a decision.
@@ -934,7 +930,6 @@ final class AppModel: ObservableObject {
                     self.encounters.removeAll { $0.isSyntheticDemo }
                     self.encounters.insert(encounter, at: 0)
                     self.selection = encounter.id
-                    self.pendingRecording = nil
                     self.lastError = nil
                     self.recordingState = .idle
                     self.elapsed = 0
@@ -955,8 +950,13 @@ final class AppModel: ObservableObject {
             } catch {
                 try? FileManager.default.removeItem(at: url)
                 await MainActor.run {
-                    self.pendingRecording = nil
-                    self.lastError = "Could not write this note. Record again if you still need it."
+                    // Name the stage: recognition and the engine fail for
+                    // different reasons, and "could not write this note" sent
+                    // whoever read it looking in the wrong place.
+                    let stage = (error is TranscriberError) ? "hear" : "write"
+                    self.lastError = stage == "hear"
+                        ? "Could not make out that recording. \(error.localizedDescription)"
+                        : "Could not write this note. Record again if you still need it."
                     self.recordingState = .idle
                     self.elapsed = 0
                     RecordingStripController.shared.hide()
@@ -992,7 +992,22 @@ final class AppModel: ObservableObject {
             template: template,
             encounterId: fallback.encounterId
            ) {
-            return drafted
+            // The core's grounding check, which this path does not otherwise get:
+            // `NoteDrafter` assembles the note in Swift, so nothing has marked
+            // its sentences. Every Rust drafting path is checked this way.
+            //
+            // If the check cannot run, the draft still beats the rules — but it
+            // goes back unmarked, which is a real caveat and not worth being
+            // quiet about.
+            do {
+                return try KlinoteCore.verify(note: drafted, against: transcript)
+            } catch {
+                NSLog(
+                    "Klinote: could not ground the on-device draft, leaving it unmarked: %@",
+                    error.localizedDescription
+                )
+                return drafted
+            }
         }
         return fallback
     }
@@ -1111,13 +1126,6 @@ final class AppModel: ObservableObject {
     /// Mint an opaque pseudonymous encounter code. Never a name or MRN.
     private func nextPatientRef() -> String {
         "enc-\(UUID().uuidString.prefix(8))"
-    }
-
-    private func handleDownloadFinished() {
-        guard let pendingRecording else { return }
-        let startedAt = recordingStart ?? Date()
-        self.pendingRecording = nil
-        transcribe(pendingRecording, startedAt: startedAt)
     }
 
     // MARK: - Rewriting a note the rules wrote

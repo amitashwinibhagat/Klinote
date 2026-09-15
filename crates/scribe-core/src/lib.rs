@@ -33,4 +33,8 @@ pub use template::{Audience, RenderKind, SectionSpec, Template, TemplateFamily};
 pub use transcript::{Segment, Speaker, SpeakerRole, Transcript, Utterance, parse_transcript_text};
 
 /// Version of the domain model / FFI contract. Bump on breaking changes.
-pub const SCHEMA_VERSION: &str = "0.1.0";
+///
+/// 0.2.0 — `scribe_note_from_audio` was replaced by `scribe_note_from_segments`.
+/// The shell does speech recognition now, so the old entry point (which fell
+/// back to synthetic `MockAsrEngine` text when handed no model) is gone.
+pub const SCHEMA_VERSION: &str = "0.2.0";

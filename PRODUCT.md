@@ -12,7 +12,9 @@ Swift/SwiftUI shell over a Rust core (Cargo workspace in `crates/`), linked as a
 static library through a hand-written C ABI. Project generated with XcodeGen.
 The Rust engine contains no networking code (see `docs/engineering/ADR/0002`).
 The Swift shell's only network action is a first-use download of the open-source
-whisper.cpp model; audio and notes never leave the Mac.
+note model it calls Quire; audio and notes never leave the Mac. Speech
+recognition uses the system's own `SpeechAnalyzer`, so listening needs no
+download at all.
 
 ## Users
 
@@ -70,11 +72,12 @@ is looked at afterwards, briefly.
 **Confirmed today.** Five note templates (SOAP, physiotherapy, psychology,
 dentistry, veterinary) as clinician-editable TOML. Rule-based note generation
 with per-sentence evidence links. Required-section completeness checking. A
-plain-text transcript path that works with no model at all. WAV ingest, VAD,
-whisper.cpp ASR with tinydiarize speaker-boundary detection (model downloaded
-once on first use). A Swift/SwiftUI macOS shell: menu bar, patient-visible
-recording strip, review window with evidence margin, settings. SQLite storage
-with an append-only audit log. A C ABI for the shell.
+plain-text transcript path that works with no model at all. Live capture with
+WAV ingest, VAD, and speech recognition through the system's `SpeechAnalyzer` —
+no model to download, nothing to install (two-speaker turns are a heuristic, and
+the margin offers Swap). A Swift/SwiftUI macOS shell: menu bar,
+patient-visible recording strip, review window with evidence margin, settings.
+SQLite storage with an append-only audit log. A C ABI for the shell.
 
 **Not built.** EHR integration. Retention and deletion.
 
