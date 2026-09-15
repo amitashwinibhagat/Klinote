@@ -25,8 +25,8 @@ build if anyone quietly breaks it.
 |---|---|
 | **Platform** | macOS 15+. On-device speech and the Apple note model need macOS 26+. |
 | **Stack** | Rust engine (11 crates) + SwiftUI shell, over a hand-written C ABI |
-| **Privacy** | Audio and text never leave the Mac. Enforced in CI, not promised in a policy |
-| **Tests** | 98 Rust, 51 Swift, 7 gate checks, all green |
+| **Privacy** | Audio and text never leave the Mac. Enforced by a script you can run yourself |
+| **Tests** | 98 Rust, 51 Swift, 7 gate checks, green under `./scripts/gate.sh` |
 | **Size** | 17 MB app bundle, 6.5 MB archive. The optional note model is a separate 1.9 GB download |
 | **Licence** | Apache-2.0 |
 | **Status** | A working app. Not a validated product. [See exactly which is which](#what-is-done-and-what-is-not) |
@@ -81,7 +81,7 @@ page, and "we take your privacy seriously" is not evidence.
 
 | Claim | Check it yourself |
 |---|---|
-| The engine cannot make a network request | No HTTP client in any Rust crate, and CI has a step named *No networking dependencies*. |
+| The engine cannot make a network request | No HTTP client in any Rust crate, and no dependency that could supply one. A gate step asserts it; run it yourself. |
 | The app has exactly one documented outbound path | `scripts/check-network-surface.sh` fails the build if the sandbox grows a second call site. [ADR-0002](docs/engineering/ADR/0002-local-only-privacy-posture.md) explains why it exists and what it fetches. |
 | Speech recognition makes no request at all | It is `SpeechAnalyzer`, a system API. There is no model to download for it and no code path from audio to a socket. |
 | The store is encrypted, key in the Keychain | `crates/scribe-store` uses SQLCipher; the Swift side only ever holds a Keychain reference. |
@@ -219,7 +219,7 @@ Everything below runs locally. No key, no account, and no model is required to s
 git clone https://github.com/amitashwinibhagat/Klinote.git
 cd Klinote
 
-# 1. The whole gate — format, clippy, tests and every guard. This is what CI runs.
+# 1. The whole gate — format, clippy, tests and every guard. CI is configured to run this.
 ./scripts/gate.sh
 
 # 2. Engine only: transcript file in, structured note out.
@@ -313,7 +313,7 @@ one that does not exist.
   skip it entirely.
 - Sandboxed, Developer ID signed, hardened runtime, notarized releases, nested executables
   verified. Settings, a patient-facing document mode, print and copy guards.
-- 98 Rust and 51 Swift tests, a 7-check gate, CI on `macos-26`.
+- 98 Rust and 51 Swift tests behind a 7-check gate, green when you run `./scripts/gate.sh`.
 
 **Not done**
 
@@ -330,6 +330,11 @@ one that does not exist.
   public host and is trusted on transport alone. Verifying a hash before the file is used is a
   small change with a large trust payoff, and it is exactly the kind of thing a closed product
   never has to answer for.
+- **Hosted CI has never gone green.** The workflow needs the macOS 26 image, because the app
+  compiles Apple's Foundation Models and an older SDK cannot resolve the import. No macOS 26
+  runner has picked the job up: one label fails in ten seconds, the explicit `macos-26-arm64`
+  label queues until cancelled. So every enforcement claim in this file is about the gate, not
+  a badge — which is the better bargain anyway, since the gate runs on your Mac.
 - **No clinical validation of any of the five templates.** The structures are implemented and
   editable; whether each is what that discipline documents is for a clinician to judge.
 
