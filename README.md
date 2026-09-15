@@ -35,6 +35,7 @@ build if anyone quietly breaks it.
 
 ## Contents
 
+- [See it](#see-it)
 - [The problem it actually solves](#the-problem-it-actually-solves)
 - [The promise, and how to check it yourself](#the-promise-and-how-to-check-it-yourself)
 - [What a note is, mechanically](#what-a-note-is-mechanically)
@@ -49,6 +50,42 @@ build if anyone quietly breaks it.
 - [Documentation](#documentation)
 
 ---
+
+## See it
+
+These are the real app, dark appearance, on a **synthetic** session — the bundled
+`apps/Klinote/Resources/demo-transcript.txt`, typed in rather than recorded. Not mock-ups,
+and not a patient.
+
+### How a session gets in
+
+![The paste screen, headed "How is this session getting in?"](docs/screenshots/01-how-a-session-gets-in.png)
+
+Recording is not the only door. "Paste what was said" is the concierge path — a transcript
+from anywhere becomes a structured note — and it is how the app is tested. The subtitle is
+the product in one line: *the next client is soon.*
+
+### The note, and the words behind it
+
+![Therapy Session Note with the evidence margin beside it](docs/screenshots/02-the-note-and-its-evidence.png)
+
+Five sections, filled from what was actually said, beside the margin that can justify each
+one. The margin states its own contract: **click any sentence to see the words that produced
+it.** The matching phrases are emphasised in the margin rather than in the note, so the
+document reads as a document and the evidence stays one click away.
+
+Note what the status says: **Ready · 4 not filed.** Four things the client said did not
+belong in any section, and the app says so instead of dropping them.
+
+### The last mile, and what it admits
+
+![Copied, with the unfiled statements and completeness line still visible](docs/screenshots/03-copied-with-unfiled-statements.png)
+
+Copy puts the note on the clipboard and reports it — *paste it into the record you already
+use* — because there is no EHR integration and the app does not pretend otherwise. The
+completeness check reads **5 of 5 sections documented · ready to copy**, and the unfiled
+statements stay on screen with their sources, so the clinician can see exactly what is being
+left behind at the moment they paste.
 
 ## The problem it actually solves
 
