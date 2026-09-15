@@ -48,9 +48,30 @@ hits=$(scan '\.font\(\.system\(size: [0-9]')
 hits=$(scan 'cornerRadius: [0-9]')
 [ -n "$hits" ] && violations+="a raw corner radius — use KlinoteMetrics.radiusDocument/Module/Chip/Lamp"$'\n'"$hits"$'\n'
 
-# 3. Spacing. A gap of 0 (an edge-to-edge stack) is not spacing.
-hits=$(scan '(padding\(\.[a-zA-Z]+, [0-9]+\)|spacing: [1-9])')
-[ -n "$hits" ] && violations+="off-scale spacing — layout 4 8 12 16 24 32 48, inline 2 6"$'\n'"$hits"$'\n'
+# 3. Spacing. The scale is fixed by DESIGN.md: 4 · 8 · 12 · 16 · 24 · 32 · 48
+#    for layout, 2 · 6 inline, and 0 for an edge-to-edge stack (which is not
+#    spacing at all).
+#
+#    The value has to be read out of the match and compared against that set.
+#    The pattern used to be `spacing: [1-9]`, which is really "any spacing that
+#    begins with a digit" — so it rejected 4, 8, 12, 16, 24, 32 and 48, every
+#    value the scale permits, and accepted only 0. It was green because no
+#    positive spacing had been written yet, not because the scale was obeyed.
+#    A guard that fails on correct code teaches people to ignore the guard.
+spacing_scale=" 0 2 4 6 8 12 16 24 32 48 "
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  value=$(printf '%s' "$hit" \
+    | grep -oE '(padding\(\.[a-zA-Z]+, [0-9]+\)|spacing: [0-9]+)' \
+    | grep -oE '[0-9]+' | tail -1 || true)
+  [ -n "$value" ] || continue
+  case "$spacing_scale" in
+    *" $value "*) ;;
+    *) violations+="off-scale spacing — layout 4 8 12 16 24 32 48, inline 2 6"$'\n'"$hit"$'\n' ;;
+  esac
+done <<EOF
+$(scan '(padding\(\.[a-zA-Z]+, [0-9]+\)|spacing: [0-9]+)')
+EOF
 
 # 4. Modal chrome: one family, one width and one inset.
 for sheet in SetupSheet PasteTranscriptSheet CopyConfirmSheet; do
