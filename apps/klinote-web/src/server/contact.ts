@@ -38,6 +38,12 @@ function summary(data: ContactInput): string {
  * Configure exactly one of:
  *   CONTACT_WEBHOOK_URL   Slack or Discord incoming webhook (one pasted URL)
  *   RESEND_API_KEY + CONTACT_TO   email via Resend
+ *
+ * CONTACT_FROM overrides the sender. It defaults to Resend's test address,
+ * which can only deliver to the account owner's own email until a domain is
+ * verified. Once klinote.one is verified, set
+ * CONTACT_FROM="Klinote enquiries <enquiries@klinote.one>" and notifications
+ * can go to any address.
  */
 async function notify(data: ContactInput): Promise<'sent' | 'skipped' | 'failed'> {
   const webhook = process.env.CONTACT_WEBHOOK_URL
@@ -69,8 +75,10 @@ async function notify(data: ContactInput): Promise<'sent' | 'skipped' | 'failed'
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Klinote enquiries <onboarding@resend.dev>',
+          from: process.env.CONTACT_FROM || 'Klinote enquiries <onboarding@resend.dev>',
           to: [to],
+          // So hitting Reply answers the prospect, not Resend's test address.
+          reply_to: data.email,
           subject: `Klinote enquiry from ${data.name}`,
           text,
         }),
