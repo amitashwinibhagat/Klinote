@@ -41,7 +41,7 @@ Headline: The session stays in the room. The note still gets written.
 
 Subheadline: Klinote turns a session — recorded or dictated — into a
 structured progress-note draft entirely on your Mac. Every sentence cites the words that
-produced it. Nothing is uploaded — there is nothing to upload to.
+produced it. Nothing is uploaded, because there is nothing to upload to.
 
 CTA Button: "Request early access"
 Secondary:  "How it works"
@@ -69,8 +69,8 @@ Card 02 — "Invented"
   either.
 
 Card 03 — "Untraceable"
-  When a sentence arrives with no source, the only honest question is "why is
-  this in my note?" — and "the model said so" is not an answer a record accepts.
+  When a sentence arrives with no source, the question "why is this in my
+  note?" has no answer a record accepts.
 
 ========================================
 SOLUTION SECTION  (carousel = "How it works")
@@ -79,8 +79,8 @@ SOLUTION SECTION  (carousel = "How it works")
 Eyebrow: Klinote · How it works
 Heading: Five steps, and the fourth one is the product
 
-Intro: Most of a note is not writing — it is deciding where each sentence
-belongs. Klinote does that filing on the Mac, then hands you the draft and the
+Intro: Writing a note is the small part of the work. Deciding where each
+sentence belongs is most of it. Klinote does that filing on the Mac, then hands you the draft and the
 receipt for every line of it.
 
 Step 1 — Record
@@ -92,8 +92,8 @@ Step 2 — Transcribe
   download to wait for, no request to leave the room.
 
 Step 3 — Route
-  Each statement is filed into the structure your discipline actually
-  documents in — DAP, BIRP, SOAP — not a generic dump.
+  Each statement is filed into the structure your discipline documents in,
+  whether that is DAP, BIRP or SOAP.
 
 Step 4 — Cite
   Every sentence carries the words that produced it. A quote that is not in
@@ -170,11 +170,11 @@ Card 01 — "Community support" · Free · Apache-2.0, always
   CTA: Open an issue
 
 Card 02 — "Shape it for your discipline" · Free · Three to five practices
-  You get the template build free — the same work that costs $600 — tuned to how
-  your practice actually documents. In exchange you report honestly on the draft:
-  what it invented, what it misfiled, whether reviewing it took longer than
-  typing it. Those reports are the only way the defaults for your discipline get
-  written by someone who has signed its notes, and that is why this one is free.
+  You get the template build free, the same work that costs $600, tuned to how
+  your practice documents. In exchange you report honestly on the draft: what it
+  invented, what it misfiled, and whether reviewing it took longer than typing
+  it. Those reports are how the defaults for your discipline get written by
+  someone who has signed its notes. That is why this one is free.
   CTA: Apply for a place
 
   Note on framing: this card was first written founder-first ("report what the
@@ -187,11 +187,10 @@ Card 02 — "Shape it for your discipline" · Free · Three to five practices
   jargon that positions the reader as a test subject.
 
 Card 03 — "A template built for you" · from $600 · One-off, no subscription
-  For a practice whose notes do not fit a built-in shape. Your discipline's
-  template is written and tuned to the way your clinicians actually document,
-  tested against notes you have already signed, and handed back as a file you
-  own. Deliverable with what is built today; it is template work, and it buys
-  no promise about transcription.
+  For a practice whose notes do not fit a built-in shape. Your template is
+  written and tuned to the way your clinicians document, tested against notes
+  you have already signed, and handed back as a file you own. It is template
+  work, and it buys no promise about transcription.
   CTA: Commission a template
 
 The promise that bounds all of it:

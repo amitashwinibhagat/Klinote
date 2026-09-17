@@ -10,19 +10,19 @@ const PROBLEMS = [
   {
     num: '01',
     title: 'Uploaded',
-    desc: 'A cloud scribe means the session exists on a vendor’s disk before the note exists. Licence, ethics, or law says the room stays in the room — and the recording leaves before the note is written.',
+    desc: 'A cloud scribe means the session sits on a vendor’s disk before the note does. Licence, ethics or law may say the room stays in the room, and the recording leaves first.',
     img: clockLamp,
   },
   {
     num: '02',
     title: 'Invented',
-    desc: 'A draft that puts words in the client’s mouth is worse than no draft: a risk they did not name, a feeling they did not describe, a plan they did not agree to. You cannot sign that — and you should not have to rewrite it either.',
+    desc: 'A draft that puts words in the client’s mouth is worse than no draft: a risk they did not name, a feeling they did not describe, and a plan they did not agree to. You cannot sign that, and you should not have to rewrite it either.',
     img: pills,
   },
   {
     num: '03',
     title: 'Untraceable',
-    desc: 'When a sentence arrives with no source, the only honest question is “why is this in my note?” — and “the model said so” is not an answer a record accepts.',
+    desc: 'When a sentence arrives with no source, the question "why is this in my note?" has no answer a record accepts.',
     img: waitlist,
   },
 ] as const
@@ -80,10 +80,10 @@ function Hero() {
                     width: '608px',
                   }}
                 >
-                  Klinote turns a session — recorded or dictated — into a
+                  Klinote turns a session, recorded or dictated, into a
                   structured progress-note draft entirely on your Mac. Every
-                  sentence cites the words that produced it. Nothing is uploaded —
-                  there is nothing to upload to.
+                  sentence cites the words that produced it. Nothing is uploaded,
+                  because there is nothing to upload to.
                 </span>
               </AnimatedText>
             </div>
@@ -164,9 +164,9 @@ function TeamSection() {
                   width: '270px',
                 }}
               >
-                Most of a note is not writing — it is deciding where each sentence
-                belongs. Klinote does that filing on the Mac, then hands you the draft
-                and the receipt for every line of it.
+                Writing a note is the small part of the work. Deciding where each
+                sentence belongs is most of it. Klinote does that filing on the Mac
+                and hands you the draft with a receipt for every line.
               </span>
             </AnimatedText>
           }
@@ -188,7 +188,7 @@ function BenefitsSection() {
         <div className="col-span-12 md:col-span-4 md:col-start-9 md:pt-4">
           <AnimatedText className="text-base text-muted-foreground leading-relaxed">
             The objection is rarely the editor. It is the disk, the invention and the
-            missing receipt — three problems that a better text box does not fix.
+            missing receipt, three problems a better text box does not fix.
           </AnimatedText>
         </div>
       </div>
@@ -274,11 +274,11 @@ function CardContent({
 const FAQS = [
   {
     q: 'Does the recording leave my Mac?',
-    a: 'No. The Rust engine has no HTTP client — it is checked on every build. Speech recognition is the system’s own SpeechAnalyzer, so listening makes no request either. The one download the app ever makes is the note model, once, on first use. Audio and notes never leave.',
+    a: 'No. The Rust engine has no HTTP client, and that is checked on every build. Speech recognition is the system’s own SpeechAnalyzer, so listening makes no request either. The one download the app ever makes is the note model, once, on first use. Audio and notes never leave.',
   },
   {
     q: 'Will it invent findings my client didn’t mention?',
-    a: 'It is built not to, and the refusal is mechanical rather than a promise: a quote must exist in the transcript or it does not enter the note, risk is never generated, and anything the generator cannot confidently route lands in an “unfiled” list for you to place — never in the bin.',
+    a: 'It is built not to, and the refusal is mechanical rather than a promise: a quote must exist in the transcript or it does not enter the note, risk is never generated, and anything the generator cannot confidently route lands in an "unfiled" list for you to place. Nothing goes to the bin.',
   },
   {
     q: 'Is it HIPAA or GDPR compliant?',
@@ -286,11 +286,11 @@ const FAQS = [
   },
   {
     q: 'Does it integrate with my EHR?',
-    a: 'Not today — output is Markdown and JSON for copy-paste into the record you already keep. Integration is decided by which systems paying users name.',
+    a: 'Not today. Output is Markdown and JSON for copy-paste into the record you already keep. Integration is decided by which systems paying users name.',
   },
   {
     q: 'How accurate is it?',
-    a: 'That has not been measured on real encounters, so no accuracy figure is published. The draft is exactly that — a draft, for a clinician to review and sign. Nothing is ever presented as final.',
+    a: 'That has not been measured on real encounters, so no accuracy figure is published. The draft is exactly that: a draft, for a clinician to review and sign. Nothing is ever presented as final.',
   },
 ] as const
 
@@ -306,7 +306,7 @@ function FaqSection() {
         <div className="col-span-12 md:col-span-4 md:col-start-9 md:pt-4">
           <AnimatedText className="text-base text-muted-foreground leading-relaxed">
             Ask these of any scribe. The answers here are the ones that are true
-            today, including the ones that are still “not yet measured”.
+            today, including the ones that are still "not yet measured".
           </AnimatedText>
         </div>
       </div>
@@ -345,7 +345,7 @@ function FaqSection() {
             >
               downloadable directly from GitHub
             </a>
-            . No account, no sign-up, no telemetry — ever.
+            . There is no account to create and no telemetry to switch off.
           </AnimatedText>
         </div>
       </div>
@@ -359,7 +359,7 @@ const SUPPORT_TIERS = [
     title: 'Community support',
     price: 'Free',
     note: 'Apache-2.0, always',
-    desc: 'File an issue on GitHub and it is read by the person who wrote the code. The privacy model, the template format and the known gaps are all documented in the open — including the two the project names as unfunded: scoring a draft against a clinician-signed note, and separating two voices that sound alike.',
+    desc: 'File an issue on GitHub and the person who wrote the code reads it. The privacy model, the template format and the known gaps are documented in the open, including the two the project names as unfunded: scoring a draft against a clinician-signed note, and separating two voices that sound alike.',
     cta: 'Open an issue',
     href: 'https://github.com/amitashwinibhagat/Klinote/issues',
   },
@@ -368,7 +368,7 @@ const SUPPORT_TIERS = [
     title: 'Shape it for your discipline',
     price: 'Free',
     note: 'Three to five practices',
-    desc: 'You get the template build free — the same work that costs $600 — tuned to how your practice actually documents. In exchange you report honestly on the draft: what it invented, what it misfiled, whether reviewing it took longer than typing it. Those reports are the only way the defaults for your discipline get written by someone who has signed its notes, and that is why this one is free.',
+    desc: 'You get the template build free, the same work that costs $600, tuned to how your practice documents. In exchange you report honestly on the draft: what it invented, what it misfiled, and whether reviewing it took longer than typing it. Those reports are how the defaults for your discipline get written by someone who has signed its notes. That is why this one is free.',
     cta: 'Apply for a place',
     href: 'mailto:amit@datadab.com?subject=Klinote%20founding%20cohort',
   },
@@ -377,7 +377,7 @@ const SUPPORT_TIERS = [
     title: 'A template built for you',
     price: 'from $600',
     note: 'One-off, no subscription',
-    desc: 'For a practice whose notes do not fit a built-in shape. Your discipline\u2019s template is written and tuned to the way your clinicians actually document, tested against notes you have already signed, and handed back as a file you own. Deliverable with what is built today; it is template work, and it buys no promise about transcription.',
+    desc: 'For a practice whose notes do not fit a built-in shape. Your template is written and tuned to the way your clinicians document, tested against notes you have already signed, and handed back as a file you own. It is template work, and it buys no promise about transcription.',
     cta: 'Commission a template',
     href: 'mailto:amit@datadab.com?subject=Klinote%20template%20build',
   },
@@ -395,9 +395,9 @@ function SupportSection() {
         <div className="col-span-12 md:col-span-4 md:col-start-9 md:pt-4">
           <AnimatedText className="text-base text-muted-foreground leading-relaxed">
             A solo practitioner does not have a procurement department, so there is
-            no procurement process here either. Two of these cost nothing and one
-            does not, yet — the paid one is template work you can buy today, and
-            the subscription comes when validation says the draft is worth one.
+            no procurement process here. Two of these cost nothing. The third is
+            template work you can buy today, and the subscription comes later, if
+            validation earns it.
           </AnimatedText>
         </div>
       </div>
@@ -451,13 +451,12 @@ function SupportSection() {
         className="text-sm text-muted-foreground leading-relaxed mt-12 max-w-3xl"
         delay={0.2}
       >
-        Nothing here is a subscription yet, because a subscription would be a
-        promise the validation sprint has not earned the right to make. When the
-        cohort says the draft is worth standing behind, the practice tier arrives
-        — tuned templates, priority triage, and a named person accountable —
-        priced per practice, not per clinician. Until then the one thing money
-        buys is a template, and it buys no promise about accuracy, compliance or
-        time saved.
+        Nothing here is a subscription yet. A subscription would promise more
+        than the validation sprint can support. When the cohort says the draft is
+        worth standing behind, the practice tier arrives: tuned templates,
+        priority triage, and a named person accountable, priced per practice.
+        Until then the one thing money buys is a template, and it buys no promise
+        about accuracy, compliance or time saved.
       </AnimatedText>
     </section>
   )
@@ -476,8 +475,8 @@ function FinalCta() {
             delay={0.15}
           >
             Klinote <span className="font-mono">{appVersion}</span> for macOS is free and
-            Apache-2.0. No account, no card, nothing to cancel — and nothing leaves
-            the Mac while you decide whether it earns a place in your room.
+            Apache-2.0. No account, no card, nothing to cancel, and nothing leaves the Mac
+            while you decide whether it earns a place in your room.
           </AnimatedText>
 
           <div className="mt-12 flex flex-wrap items-center gap-6">
@@ -499,7 +498,7 @@ function FinalCta() {
           </div>
 
           <p className="mt-10 text-xs tracking-[0.2em] text-white/50 uppercase font-mono">
-            Three to five cohort places — a real limit, not a launch tactic
+            Three to five cohort places. That limit is real.
           </p>
         </div>
       </div>
