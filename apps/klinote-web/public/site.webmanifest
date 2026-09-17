@@ -1,0 +1,13 @@
+{
+  "name": "Klinote",
+  "short_name": "Klinote",
+  "description": "On-device clinical documentation for macOS. The session stays in the room; the note still gets written.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#16324F",
+  "theme_color": "#16324F",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#16324F"/>
+
+  <!-- Faint ruled-field motif: the clinical letter's grid, not decoration -->
+  <g stroke="#9CC3E5" stroke-opacity="0.12">
+    <line x1="0" y1="157.5" x2="1200" y2="157.5"/>
+    <line x1="0" y1="315" x2="1200" y2="315"/>
+    <line x1="0" y1="472.5" x2="1200" y2="472.5"/>
+  </g>
+
+  <!-- Wordmark: the ink mark, scaled up from the header logo -->
+  <g transform="translate(100, 210)">
+    <circle cx="33" cy="40" r="26" stroke="#FFFFFF" stroke-width="4.5"/>
+    <path d="M33 22V58M16.5 40H49.5" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round"/>
+    <text x="82" y="55" font-family="Helvetica, Arial, sans-serif" font-size="52" font-weight="600" letter-spacing="-1.3" fill="#FFFFFF">klinote</text>
+  </g>
+
+  <!-- The positioning line -->
+  <text x="100" y="400" font-family="Helvetica, Arial, sans-serif" font-size="56" font-weight="600" letter-spacing="-1.4" fill="#FFFFFF">The session stays in the room.</text>
+  <text x="100" y="470" font-family="Helvetica, Arial, sans-serif" font-size="56" font-weight="600" letter-spacing="-1.4" fill="#FFFFFF">The note still gets written.</text>
+
+  <!-- The four checkable facts, as a trust row -->
+  <text x="100" y="556" font-family="Helvetica, Arial, sans-serif" font-size="21" fill="#9CC3E5" letter-spacing="1.2">NO ACCOUNT  ·  NO UPLOAD  ·  ENCRYPTED AT REST  ·  THE MACHINE DRAFTS, YOU SIGN</text>
+</svg>
