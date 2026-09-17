@@ -89,7 +89,7 @@ export const Route = createRootRoute({
       },
       {
         rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@400;500;600&display=swap',
+        href: 'https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Schibsted+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap',
       },
 
       // Icons. Generated from src/assets/icon-source.svg by generate.mjs.

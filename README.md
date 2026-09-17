@@ -431,17 +431,28 @@ The work that most needs doing — scoring a draft against a note a clinician ac
 signed, and separating two voices that sound alike — is the work nobody is paying
 for.
 
-There is one thing money does buy, and it is a service rather than a licence: the
-[validation practice](https://klinote.one/#support) at $99 a month. A therapist runs
-real sessions, reports what the draft got wrong, and their template cues get tuned in
-return. It buys attention and tuning, not an uptime promise or a feature; if the draft
-invents or reviewing it costs more time than typing it, the remedy is a refund and the
-finding goes on the public gap list above.
+There is no subscription, and there will not be one until validation says the draft is
+worth standing behind. What exists instead:
+
+- **The validation cohort** — free, three to five practices. You run real sessions and
+  report what the draft got wrong; the templates get tuned and the invented-finding
+  rate gets measured against notes you have already signed. Nobody pays, because the
+  findings are worth more than a subscription would be. See
+  [docs/product/MONETISATION.md](docs/product/MONETISATION.md) for why charging for
+  validation was rejected.
+- **A bespoke template build** — from $600, one-off. If your practice's notes do not
+  fit a built-in shape, the template is written and tuned to how your clinicians
+  actually document, tested against signed notes, and handed back as a file you own.
+  It is template work: it buys no promise about transcription accuracy, compliance or
+time saved, because none of those are measured yet.
+
+The practice tier — tuned templates, priority triage and a named person accountable,
+priced per practice rather than per clinician — arrives when the cohort gives the
+green light, and not before.
 
 If it earned you an evening and you want nothing in return, you can [buy me a
 coffee](https://buymeacoffee.com/amitash). It buys no features and no support
-promise — unlike the validation practice, which is the honest version of paid help:
-it exists, it is bounded, and the gap list above says what it does not reach.
+promise.
 
 [![Buy Me a Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/amitash)
 

@@ -147,18 +147,19 @@ SUPPORT SECTION  (paid, honestly)
 ========================================
 
 Framework note: the copywriter's instinct here is a three-tier price table
-(Premium / Pro / Enterprise) with an SLA and a "Most Popular" badge. None of
-that is built, because none of it exists. There is one paid thing — the
-$99/month validation offer named in PRODUCT.md — and one free thing. Two cards,
-not three tiers, and the word "support contract" appears only to say it isn't
-one.
+(Premium / Pro / Enterprise) with an SLA and a "Most Popular" badge. None
+of that is built, because none of it exists. What replaced it is three cards,
+one of which costs money, and none of which is a subscription — because a
+subscription would be a promise the validation sprint has not earned.
+
+See docs/product/MONETISATION.md for the reasoning; this is the copy.
 
 Section intro:
   Left:  Help that doesn't cost you the room
   Right: A solo practitioner does not have a procurement department, so there
-         is no procurement process here either. Two ways in: one free, one
-         paid, and the paid one exists because the free one cannot tune a
-         template it never sees.
+         is no procurement process here either. Two of these cost nothing and
+         one does not, yet — the paid one is template work you can buy today,
+         and the subscription comes when validation says the draft is worth one.
 
 Card 01 — "Community support" · Free · Apache-2.0, always
   File an issue on GitHub and it is read by the person who wrote the code. The
@@ -167,19 +168,28 @@ Card 01 — "Community support" · Free · Apache-2.0, always
   against a clinician-signed note, and separating two voices that sound alike.
   CTA: Open an issue
 
-Card 02 — "The validation practice" · $99 / month · A handful of practices
-  For a therapist who wants the draft shaped to the way they actually document.
-  You run real sessions — recorded or dictated — and report what the note got
+Card 02 — "The validation cohort" · Free · Three to five practices, not a paid beta
+  You run real sessions — recorded or dictated — and report what the draft got
   wrong. Your template cues get tuned, your missing sections get named, and the
-  invented-finding rate gets measured against notes you have already signed.
-  CTA: Ask about validation
+  invented-finding rate gets measured against notes you have already signed. You
+  pay nothing, because the findings are worth more than a subscription would be.
+  CTA: Apply for the cohort
 
-The promise that bounds both:
-  The paid tier is a validation offer, not a support contract: it buys
-  attention and tuning, not an uptime promise or a feature. If the draft puts
-  words in a client's mouth, or reviewing it takes longer than typing it, the
-  remedy is a refund and the finding goes on the public gap list.
+Card 03 — "A template built for you" · from $600 · One-off, no subscription
+  For a practice whose notes do not fit a built-in shape. Your discipline's
+  template is written and tuned to the way your clinicians actually document,
+  tested against notes you have already signed, and handed back as a file you
+  own. Deliverable with what is built today; it is template work, and it buys
+  no promise about transcription.
+  CTA: Commission a template
 
+The promise that bounds all of it:
+  Nothing here is a subscription yet, because a subscription would be a promise
+  the validation sprint has not earned the right to make. When the cohort says
+  the draft is worth standing behind, the practice tier arrives — tuned
+  templates, priority triage, and a named person accountable — priced per
+  practice, not per clinician. Until then the one thing money buys is a
+  template, and it buys no promise about accuracy, compliance or time saved.
 ========================================
 
 Not built. The Pelmatech design ships exactly three sections and adding a
@@ -224,4 +234,4 @@ Conversion Tips:
 | Team carousel, 5 doctors | "How it works", 5 steps | There is no team to photograph and no permission to invent one. The carousel mechanism is preserved exactly; the cards carry workflow steps. |
 | Benefits cards: Unavailable / Unethical / Waitlist | Problem cards: Uploaded / Invented / Untraceable | The template's negative-card framing *is* PAS agitation. Swapped in real Klinote problems. |
 | Logo swap on scroll | Kept, with a Klinote wordmark | Lowercase sans wordmark per PRODUCT.md — no rule, no serif, no domain line |
-| (none — template has no such section) | Support section, 2 cards | New, not from the template. Added because a stuck clinician is the moment to pitch. Two cards, not three tiers, because only two offerings exist. |
+| (none — template has no such section) | Support section, 3 cards | New, not from the template. Added because a stuck clinician is the moment to pitch. Three cards, not three tiers, because only one paid offering is honest today: a one-off template build. |

@@ -6,8 +6,6 @@ import { AnimatedHeading, AnimatedText, MaskedImage } from '~/components/Animate
 import { TeamCarousel } from '~/components/TeamCarousel'
 import { clockLamp, heroImage, pills, waitlist, downloadUrl, appVersion } from '~/assets'
 
-const TT_HOVES = '"TT Hoves", "Helvetica Neue", Helvetica, Arial, sans-serif'
-
 const PROBLEMS = [
   {
     num: '01',
@@ -109,7 +107,7 @@ function Hero() {
         </div>
 
         <div
-          className="mt-12 pt-5 border-t border-white/20 flex items-center justify-between tracking-[0.2em] text-white/70 uppercase"
+          className="mt-12 pt-5 border-t border-white/20 flex items-center justify-between tracking-[0.2em] text-white/70 uppercase font-mono"
           style={{ fontSize: '12px' }}
         >
           <span>No account · No upload · Encrypted at rest</span>
@@ -128,13 +126,12 @@ function TeamSection() {
   return (
     <section
       className="py-32 px-8 md:px-12 scroll-mt-24"
-      style={{ fontFamily: TT_HOVES }}
       id="how-it-works"
     >
       <div style={{ paddingLeft: '335.26px' }}>
         <div
-          className="mb-16 flex gap-24 tracking-[0.2em] uppercase text-muted-foreground"
-          style={{ fontSize: '11.26px', fontFamily: TT_HOVES }}
+          className="mb-16 flex gap-24 tracking-[0.2em] uppercase text-muted-foreground font-mono"
+          style={{ fontSize: '11.26px' }}
         >
           <span>Klinote</span>
           <span>How it works</span>
@@ -146,7 +143,6 @@ function TeamSection() {
               fontSize: '58.55px',
               lineHeight: 1.05,
               display: 'block',
-              fontFamily: TT_HOVES,
             }}
           >
             Five steps, and the fourth<br />one is the product
@@ -164,7 +160,6 @@ function TeamSection() {
                   lineHeight: 1.5,
                   display: 'block',
                   width: '270px',
-                  fontFamily: TT_HOVES,
                 }}
               >
                 Most of a note is not writing — it is deciding where each sentence
@@ -259,7 +254,7 @@ function CardContent({
   return (
     <div className="mt-auto">
       <div className="flex items-start gap-3 mb-4">
-        <span className="text-xs text-muted-foreground mt-2">({p.num})</span>
+        <span className="text-xs text-muted-foreground mt-2 font-mono">({p.num})</span>
         <AnimatedHeading as="h3" className="text-3xl font-medium" delay={i * 0.1}>
           {p.title}
         </AnimatedHeading>
@@ -340,7 +335,7 @@ function FaqSection() {
             className="text-sm text-muted-foreground leading-relaxed mt-12"
             delay={0.2}
           >
-            Klinote {appVersion} for macOS is free to try, notarized, and
+            <span className="font-mono">Klinote {appVersion}</span> for macOS is free to try, notarized, and
            {' '}
             <a
               href={downloadUrl}
@@ -368,12 +363,21 @@ const SUPPORT_TIERS = [
   },
   {
     num: '02',
-    title: 'The validation practice',
-    price: '$99 / month',
-    note: 'A handful of practices, while it lasts',
-    desc: 'For a therapist who wants the draft shaped to the way they actually document. You run real sessions — recorded or dictated — and report what the note got wrong. Your template cues get tuned, your missing sections get named, and the invented-finding rate gets measured against notes you have already signed.',
-    cta: 'Ask about validation',
-    href: 'mailto:amit@datadab.com?subject=Klinote%20validation',
+    title: 'The validation cohort',
+    price: 'Free',
+    note: 'Three to five practices, not a paid beta',
+    desc: 'You run real sessions — recorded or dictated — and report what the draft got wrong. Your template cues get tuned, your missing sections get named, and the invented-finding rate gets measured against notes you have already signed. You pay nothing, because the findings are worth more than a subscription would be.',
+    cta: 'Apply for the cohort',
+    href: 'mailto:amit@datadab.com?subject=Klinote%20validation%20cohort',
+  },
+  {
+    num: '03',
+    title: 'A template built for you',
+    price: 'from $600',
+    note: 'One-off, no subscription',
+    desc: 'For a practice whose notes do not fit a built-in shape. Your discipline\u2019s template is written and tuned to the way your clinicians actually document, tested against notes you have already signed, and handed back as a file you own. Deliverable with what is built today; it is template work, and it buys no promise about transcription.',
+    cta: 'Commission a template',
+    href: 'mailto:amit@datadab.com?subject=Klinote%20template%20build',
   },
 ] as const
 
@@ -389,14 +393,14 @@ function SupportSection() {
         <div className="col-span-12 md:col-span-4 md:col-start-9 md:pt-4">
           <AnimatedText className="text-base text-muted-foreground leading-relaxed">
             A solo practitioner does not have a procurement department, so there is
-            no procurement process here either. Two ways in: one free, one paid,
-            and the paid one exists because the free one cannot tune a template
-            it never sees.
+            no procurement process here either. Two of these cost nothing and one
+            does not, yet — the paid one is template work you can buy today, and
+            the subscription comes when validation says the draft is worth one.
           </AnimatedText>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {SUPPORT_TIERS.map((t, i) => (
           <div
             key={t.num}
@@ -404,7 +408,7 @@ function SupportSection() {
           >
             <div className="flex items-baseline justify-between gap-4 mb-6">
               <div className="flex items-start gap-3">
-                <span className="text-xs text-muted-foreground mt-2">({t.num})</span>
+                <span className="text-xs text-muted-foreground mt-2 font-mono">({t.num})</span>
                 <AnimatedHeading as="h3" className="text-3xl font-medium" delay={i * 0.1}>
                   {t.title}
                 </AnimatedHeading>
@@ -417,7 +421,7 @@ function SupportSection() {
               </AnimatedText>
             </div>
 
-            <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase mb-8">
+            <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase mb-8 font-mono">
               {t.note}
             </p>
 
@@ -445,10 +449,13 @@ function SupportSection() {
         className="text-sm text-muted-foreground leading-relaxed mt-12 max-w-3xl"
         delay={0.2}
       >
-        The paid tier is a validation offer, not a support contract: it buys
-        attention and tuning, not an uptime promise or a feature. If the draft
-        puts words in a client’s mouth, or reviewing it takes longer than typing
-        it, the remedy is a refund and the finding goes on the public gap list.
+        Nothing here is a subscription yet, because a subscription would be a
+        promise the validation sprint has not earned the right to make. When the
+        cohort says the draft is worth standing behind, the practice tier arrives
+        — tuned templates, priority triage, and a named person accountable —
+        priced per practice, not per clinician. Until then the one thing money
+        buys is a template, and it buys no promise about accuracy, compliance or
+        time saved.
       </AnimatedText>
     </section>
   )

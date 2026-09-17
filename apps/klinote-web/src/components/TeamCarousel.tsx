@@ -53,7 +53,6 @@ export function TeamCarousel({ intro }: { intro: React.ReactNode }) {
                 className="shrink-0"
                 style={{
                   width: `calc((100% - ${(STEPS.length - 1) * GAP}px) / ${STEPS.length})`,
-                  fontFamily: '"TT Hoves", "Helvetica Neue", Helvetica, Arial, sans-serif',
                 }}
               >
                 <div className="aspect-[3/4] overflow-hidden bg-muted">
@@ -65,7 +64,7 @@ export function TeamCarousel({ intro }: { intro: React.ReactNode }) {
                   />
                 </div>
                 <div className="pt-6">
-                  <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
+                  <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase font-mono">
                     {m.role}
                   </p>
                   <p className="text-xl mt-2 font-medium">{m.name}</p>
