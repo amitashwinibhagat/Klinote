@@ -424,12 +424,24 @@ engineering and a product anyone can believe.
 
 ## Support
 
-Klinote is free and Apache-2.0, with no paid tier behind it. The work that most needs doing —
-scoring a draft against a note a clinician actually signed, and separating two voices that sound
-alike — is the work nobody is paying for.
+Klinote is free and Apache-2.0, with no paid tier behind it — the software is never
+the thing you pay for, and the licence already grants you every feature.
 
-If it earned you an evening, you can buy me a coffee. It buys no features and no support
-promise; the licence already granted you those.
+The work that most needs doing — scoring a draft against a note a clinician actually
+signed, and separating two voices that sound alike — is the work nobody is paying
+for.
+
+There is one thing money does buy, and it is a service rather than a licence: the
+[validation practice](https://klinote.one/#support) at $99 a month. A therapist runs
+real sessions, reports what the draft got wrong, and their template cues get tuned in
+return. It buys attention and tuning, not an uptime promise or a feature; if the draft
+invents or reviewing it costs more time than typing it, the remedy is a refund and the
+finding goes on the public gap list above.
+
+If it earned you an evening and you want nothing in return, you can [buy me a
+coffee](https://buymeacoffee.com/amitash). It buys no features and no support
+promise — unlike the validation practice, which is the honest version of paid help:
+it exists, it is bounded, and the gap list above says what it does not reach.
 
 [![Buy Me a Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/amitash)
 
