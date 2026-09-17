@@ -41,6 +41,7 @@ function HomePage() {
         <Hero />
         <TeamSection />
         <BenefitsSection />
+        <SupportSection />
         <FaqSection />
       </main>
     </div>
@@ -351,6 +352,104 @@ function FaqSection() {
           </AnimatedText>
         </div>
       </div>
+    </section>
+  )
+}
+
+const SUPPORT_TIERS = [
+  {
+    num: '01',
+    title: 'Community support',
+    price: 'Free',
+    note: 'Apache-2.0, always',
+    desc: 'File an issue on GitHub and it is read by the person who wrote the code. The privacy model, the template format and the known gaps are all documented in the open — including the two the project names as unfunded: scoring a draft against a clinician-signed note, and separating two voices that sound alike.',
+    cta: 'Open an issue',
+    href: 'https://github.com/amitashwinibhagat/Klinote/issues',
+  },
+  {
+    num: '02',
+    title: 'The validation practice',
+    price: '$99 / month',
+    note: 'A handful of practices, while it lasts',
+    desc: 'For a therapist who wants the draft shaped to the way they actually document. You run real sessions — recorded or dictated — and report what the note got wrong. Your template cues get tuned, your missing sections get named, and the invented-finding rate gets measured against notes you have already signed.',
+    cta: 'Ask about validation',
+    href: 'mailto:amit@datadab.com?subject=Klinote%20validation',
+  },
+] as const
+
+function SupportSection() {
+  return (
+    <section className="py-32 px-8 md:px-12 bg-surface" id="support">
+      <div className="grid grid-cols-12 gap-12 mb-24">
+        <div className="col-span-12 md:col-span-7">
+          <AnimatedHeading className="text-5xl md:text-6xl font-medium leading-[1.05]">
+            Help that doesn’t cost<br />you the room
+          </AnimatedHeading>
+        </div>
+        <div className="col-span-12 md:col-span-4 md:col-start-9 md:pt-4">
+          <AnimatedText className="text-base text-muted-foreground leading-relaxed">
+            A solo practitioner does not have a procurement department, so there is
+            no procurement process here either. Two ways in: one free, one paid,
+            and the paid one exists because the free one cannot tune a template
+            it never sees.
+          </AnimatedText>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {SUPPORT_TIERS.map((t, i) => (
+          <div
+            key={t.num}
+            className="p-10 flex flex-col border border-border rounded-lg bg-background"
+          >
+            <div className="flex items-baseline justify-between gap-4 mb-6">
+              <div className="flex items-start gap-3">
+                <span className="text-xs text-muted-foreground mt-2">({t.num})</span>
+                <AnimatedHeading as="h3" className="text-3xl font-medium" delay={i * 0.1}>
+                  {t.title}
+                </AnimatedHeading>
+              </div>
+              <AnimatedText
+                className="text-2xl font-medium shrink-0"
+                delay={0.05 + i * 0.1}
+              >
+                {t.price}
+              </AnimatedText>
+            </div>
+
+            <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase mb-8">
+              {t.note}
+            </p>
+
+            <AnimatedText
+              className="text-sm text-muted-foreground leading-relaxed"
+              delay={0.15 + i * 0.1}
+            >
+              {t.desc}
+            </AnimatedText>
+
+            <a
+              href={t.href}
+              className="mt-10 self-start inline-flex items-center gap-3 font-medium text-sm bg-foreground text-background rounded-full pl-6 pr-2 py-2 hover:opacity-90 transition"
+            >
+              {t.cta}
+              <span className="w-9 h-9 rounded-full bg-background text-foreground flex items-center justify-center">
+                <ArrowUpRight className="w-4 h-4" />
+              </span>
+            </a>
+          </div>
+        ))}
+      </div>
+
+      <AnimatedText
+        className="text-sm text-muted-foreground leading-relaxed mt-12 max-w-3xl"
+        delay={0.2}
+      >
+        The paid tier is a validation offer, not a support contract: it buys
+        attention and tuning, not an uptime promise or a feature. If the draft
+        puts words in a client’s mouth, or reviewing it takes longer than typing
+        it, the remedy is a refund and the finding goes on the public gap list.
+      </AnimatedText>
     </section>
   )
 }

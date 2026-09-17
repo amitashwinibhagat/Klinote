@@ -143,7 +143,43 @@ A: That has not been measured on real encounters, so no accuracy figure is
    and sign. Nothing is ever presented as final.
 
 ========================================
-FINAL CTA
+SUPPORT SECTION  (paid, honestly)
+========================================
+
+Framework note: the copywriter's instinct here is a three-tier price table
+(Premium / Pro / Enterprise) with an SLA and a "Most Popular" badge. None of
+that is built, because none of it exists. There is one paid thing — the
+$99/month validation offer named in PRODUCT.md — and one free thing. Two cards,
+not three tiers, and the word "support contract" appears only to say it isn't
+one.
+
+Section intro:
+  Left:  Help that doesn't cost you the room
+  Right: A solo practitioner does not have a procurement department, so there
+         is no procurement process here either. Two ways in: one free, one
+         paid, and the paid one exists because the free one cannot tune a
+         template it never sees.
+
+Card 01 — "Community support" · Free · Apache-2.0, always
+  File an issue on GitHub and it is read by the person who wrote the code. The
+  privacy model, the template format and the known gaps are all documented in
+  the open — including the two the project names as unfunded: scoring a draft
+  against a clinician-signed note, and separating two voices that sound alike.
+  CTA: Open an issue
+
+Card 02 — "The validation practice" · $99 / month · A handful of practices
+  For a therapist who wants the draft shaped to the way they actually document.
+  You run real sessions — recorded or dictated — and report what the note got
+  wrong. Your template cues get tuned, your missing sections get named, and the
+  invented-finding rate gets measured against notes you have already signed.
+  CTA: Ask about validation
+
+The promise that bounds both:
+  The paid tier is a validation offer, not a support contract: it buys
+  attention and tuning, not an uptime promise or a feature. If the draft puts
+  words in a client's mouth, or reviewing it takes longer than typing it, the
+  remedy is a refund and the finding goes on the public gap list.
+
 ========================================
 
 Not built. The Pelmatech design ships exactly three sections and adding a
@@ -188,3 +224,4 @@ Conversion Tips:
 | Team carousel, 5 doctors | "How it works", 5 steps | There is no team to photograph and no permission to invent one. The carousel mechanism is preserved exactly; the cards carry workflow steps. |
 | Benefits cards: Unavailable / Unethical / Waitlist | Problem cards: Uploaded / Invented / Untraceable | The template's negative-card framing *is* PAS agitation. Swapped in real Klinote problems. |
 | Logo swap on scroll | Kept, with a Klinote wordmark | Lowercase sans wordmark per PRODUCT.md — no rule, no serif, no domain line |
+| (none — template has no such section) | Support section, 2 cards | New, not from the template. Added because a stuck clinician is the moment to pitch. Two cards, not three tiers, because only two offerings exist. |
