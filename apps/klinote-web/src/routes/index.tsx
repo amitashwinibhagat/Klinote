@@ -363,12 +363,12 @@ const SUPPORT_TIERS = [
   },
   {
     num: '02',
-    title: 'The validation cohort',
+    title: 'Shape it for your discipline',
     price: 'Free',
-    note: 'Three to five practices, not a paid beta',
-    desc: 'You run real sessions — recorded or dictated — and report what the draft got wrong. Your template cues get tuned, your missing sections get named, and the invented-finding rate gets measured against notes you have already signed. You pay nothing, because the findings are worth more than a subscription would be.',
-    cta: 'Apply for the cohort',
-    href: 'mailto:amit@datadab.com?subject=Klinote%20validation%20cohort',
+    note: 'Three to five practices',
+    desc: 'You get the template build free — the same work that costs $600 — tuned to how your practice actually documents. In exchange you report honestly on the draft: what it invented, what it misfiled, whether reviewing it took longer than typing it. Those reports are the only way the defaults for your discipline get written by someone who has signed its notes, and that is why this one is free.',
+    cta: 'Apply for a place',
+    href: 'mailto:amit@datadab.com?subject=Klinote%20founding%20cohort',
   },
   {
     num: '03',

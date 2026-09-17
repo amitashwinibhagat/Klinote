@@ -168,12 +168,22 @@ Card 01 — "Community support" · Free · Apache-2.0, always
   against a clinician-signed note, and separating two voices that sound alike.
   CTA: Open an issue
 
-Card 02 — "The validation cohort" · Free · Three to five practices, not a paid beta
-  You run real sessions — recorded or dictated — and report what the draft got
-  wrong. Your template cues get tuned, your missing sections get named, and the
-  invented-finding rate gets measured against notes you have already signed. You
-  pay nothing, because the findings are worth more than a subscription would be.
-  CTA: Apply for the cohort
+Card 02 — "Shape it for your discipline" · Free · Three to five practices
+  You get the template build free — the same work that costs $600 — tuned to how
+  your practice actually documents. In exchange you report honestly on the draft:
+  what it invented, what it misfiled, whether reviewing it took longer than
+  typing it. Those reports are the only way the defaults for your discipline get
+  written by someone who has signed its notes, and that is why this one is free.
+  CTA: Apply for a place
+
+  Note on framing: this card was first written founder-first ("report what the
+  draft got wrong", "the invented-finding rate gets measured") and had to be
+  rewritten. Read from the clinician's side it asked for unpaid QA in exchange
+  for software that is already free — the $99 problem with the payment removed.
+  A cohort is genuinely needed, because GitHub issues cannot answer the roadmap's
+  kill questions; but the card leads with what the practice gets and names the
+  exchange as an exchange. The title is not "validation cohort": that is startup
+  jargon that positions the reader as a test subject.
 
 Card 03 — "A template built for you" · from $600 · One-off, no subscription
   For a practice whose notes do not fit a built-in shape. Your discipline's

@@ -434,10 +434,10 @@ for.
 There is no subscription, and there will not be one until validation says the draft is
 worth standing behind. What exists instead:
 
-- **The validation cohort** — free, three to five practices. You run real sessions and
-  report what the draft got wrong; the templates get tuned and the invented-finding
-  rate gets measured against notes you have already signed. Nobody pays, because the
-  findings are worth more than a subscription would be. See
+- **Shape it for your discipline** — free, three to five practices. You get the template
+  build free, tuned to how your practice actually documents, and in exchange you report
+  honestly on the draft: what it invented, what it misfiled, whether reviewing it took
+  longer than typing it. Nobody pays. See
   [docs/product/MONETISATION.md](docs/product/MONETISATION.md) for why charging for
   validation was rejected.
 - **A bespoke template build** — from $600, one-off. If your practice's notes do not

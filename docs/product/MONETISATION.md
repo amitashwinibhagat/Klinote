@@ -155,8 +155,9 @@ arguable: the plan must be honest about what it is for.
 Done. The Support section now carries three cards and no paid beta:
 
 1. **Community support — free.** GitHub issues, the privacy model, the named gaps.
-2. **The validation cohort — free.** Apply, run real sessions, pay nothing. This
-   replaced the $99/month card.
+2. **Shape it for your discipline — free.** The founding cohort: template build
+   included, in exchange for honest reporting on the draft. This replaced the
+   $99/month card.
 3. **A template built for you — from $600, one-off.** The honest paid doorway:
    template work, deliverable today, no promise about transcription.
 
