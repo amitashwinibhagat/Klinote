@@ -39,8 +39,8 @@ HERO SECTION
 
 Headline: The session stays in the room. The note still gets written.
 
-Subheadline: Klinote turns a consultation recording into a structured
-progress-note draft entirely on your Mac. Every sentence cites the words that
+Subheadline: Klinote turns a session — recorded or dictated — into a
+structured progress-note draft entirely on your Mac. Every sentence cites the words that
 produced it. Nothing is uploaded — there is nothing to upload to.
 
 CTA Button: "Request early access"
@@ -65,7 +65,8 @@ Card 01 — "Uploaded"
 Card 02 — "Invented"
   A draft that puts words in the client's mouth is worse than no draft: a risk
   they did not name, a feeling they did not describe, a plan they did not
-  agree to. Promotion is not the only way to prescribe the wrong thing.
+  agree to. You cannot sign that — and you should not have to rewrite it
+  either.
 
 Card 03 — "Untraceable"
   When a sentence arrives with no source, the only honest question is "why is
@@ -235,6 +236,27 @@ Conversion Tips:
   positioning — a therapist who reads "that has not been measured" and stays
   is the therapist this product is for.
 ```
+
+## Section order (revised — PAS, not the template's)
+
+The template's order was solution-first: Hero → How it works → The cost.
+That is AIDA, not the PAS this page is written in. Reordered to:
+
+    Hero (the promise) → The cost (problem + agitate) → How it works
+    (solution) → Support (the offer) → FAQ (objections) → Final CTA
+
+The final CTA did not exist — a convinced reader reached a footnote instead
+of an action. It closes on the brand ink (#16324F, DESIGN.md's ink token,
+the same ground as the OG card): heading "See if the draft is one you would
+have signed", both actions, and the one real limit stated as a real limit.
+
+The carousel steps carried no descriptions — five one-word labels; the step
+copy below existed in this file and was never implemented. Now rendered.
+
+Declined from the framework, deliberately: testimonials (none exist),
+"proven / guaranteed / effortless" (nothing is proven or measured), and
+invented scarcity (the 3–5 cohort cap is the only real limit, so it is the
+only one used).
 
 ## Design → copy mapping
 

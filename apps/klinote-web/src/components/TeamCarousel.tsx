@@ -10,11 +10,36 @@ import { cite, record, route, sign, transcribe } from '~/assets'
 //
 // See docs/marketing/LANDING-COPY.md, "Design → copy mapping".
 const STEPS = [
-  { img: record, role: 'STEP 01', name: 'Record' },
-  { img: transcribe, role: 'STEP 02', name: 'Transcribe' },
-  { img: route, role: 'STEP 03', name: 'Route' },
-  { img: cite, role: 'STEP 04', name: 'Cite' },
-  { img: sign, role: 'STEP 05', name: 'Sign' },
+  {
+    img: record,
+    role: 'STEP 01',
+    name: 'Record',
+    desc: 'Capture the session, or dictate it after. A patient-visible strip keeps consent where it belongs — on the desk, not in a settings screen.',
+  },
+  {
+    img: transcribe,
+    role: 'STEP 02',
+    name: 'Transcribe',
+    desc: 'Speech recognition runs on the Mac itself — the system’s own engine. No download to wait for, no request to leave the room.',
+  },
+  {
+    img: route,
+    role: 'STEP 03',
+    name: 'Route',
+    desc: 'Each statement is filed into the structure your discipline actually documents in — DAP, BIRP, SOAP — not a generic dump.',
+  },
+  {
+    img: cite,
+    role: 'STEP 04',
+    name: 'Cite',
+    desc: 'Every sentence carries the words that produced it, and a quote that is not in the transcript does not enter the note. This step is the product.',
+  },
+  {
+    img: sign,
+    role: 'STEP 05',
+    name: 'Sign',
+    desc: 'You review, correct and file. Required sections you did not cover are named out loud, not hidden. The machine never signs — only you can.',
+  },
 ] as const
 
 const INTRO_WIDTH = 324
@@ -68,6 +93,9 @@ export function TeamCarousel({ intro }: { intro: React.ReactNode }) {
                     {m.role}
                   </p>
                   <p className="text-xl mt-2 font-medium">{m.name}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed mt-3">
+                    {m.desc}
+                  </p>
                 </div>
               </div>
             ))}

@@ -8,8 +8,8 @@ import { downloadUrl } from '~/assets'
 // an external URL. Anchor links that point at nothing are the bug this replaced.
 const NAV_ITEMS = [
   { label: 'Home', href: '#' },
-  { label: 'How it works', href: '#how-it-works' },
   { label: 'The cost', href: '#the-cost' },
+  { label: 'How it works', href: '#how-it-works' },
   { label: 'Support', href: '#support' },
   { label: 'FAQ', href: '#faq' },
 ] as const

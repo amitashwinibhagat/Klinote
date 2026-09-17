@@ -12,6 +12,7 @@
   --accent-foreground: oklch(0.98 0 0);
   --border:            oklch(0.88 0.005 100);
   --header-bg:         oklch(0.25 0.01 100 / 0.85);
+  --ink:               #16324F;
 }
 
 @theme inline {
@@ -24,6 +25,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-border: var(--border);
   --color-header-bg: var(--header-bg);
+  --color-ink: var(--ink);
 
   --font-sans: "Schibsted Grotesk", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-display: "Newsreader", "New York", Georgia, "Times New Roman", serif;

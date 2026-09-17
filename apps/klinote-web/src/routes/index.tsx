@@ -10,13 +10,13 @@ const PROBLEMS = [
   {
     num: '01',
     title: 'Uploaded',
-    desc: 'We understand that there may be times when a session cannot exist on a vendor’s disk. Licence, ethics, or law says the room stays in the room — and the recording leaves before the note is written.',
+    desc: 'A cloud scribe means the session exists on a vendor’s disk before the note exists. Licence, ethics, or law says the room stays in the room — and the recording leaves before the note is written.',
     img: clockLamp,
   },
   {
     num: '02',
     title: 'Invented',
-    desc: 'A draft that puts words in the client’s mouth is worse than no draft: a risk they did not name, a feeling they did not describe, a plan they did not agree to. Promotion is not the only way to prescribe the wrong thing.',
+    desc: 'A draft that puts words in the client’s mouth is worse than no draft: a risk they did not name, a feeling they did not describe, a plan they did not agree to. You cannot sign that — and you should not have to rewrite it either.',
     img: pills,
   },
   {
@@ -37,10 +37,11 @@ function HomePage() {
       <Header />
       <main>
         <Hero />
-        <TeamSection />
         <BenefitsSection />
+        <TeamSection />
         <SupportSection />
         <FaqSection />
+        <FinalCta />
       </main>
     </div>
   )
@@ -79,9 +80,10 @@ function Hero() {
                     width: '608px',
                   }}
                 >
-                  Klinote turns a consultation recording into a structured progress-note draft
-                  entirely on your Mac. Every sentence cites the words that produced it. Nothing
-                  is uploaded — there is nothing to upload to.
+                  Klinote turns a session — recorded or dictated — into a
+                  structured progress-note draft entirely on your Mac. Every
+                  sentence cites the words that produced it. Nothing is uploaded —
+                  there is nothing to upload to.
                 </span>
               </AnimatedText>
             </div>
@@ -457,6 +459,50 @@ function SupportSection() {
         buys is a template, and it buys no promise about accuracy, compliance or
         time saved.
       </AnimatedText>
+    </section>
+  )
+}
+
+function FinalCta() {
+  return (
+    <section className="py-32 px-8 md:px-12 bg-ink" id="start">
+      <div className="grid grid-cols-12 gap-12">
+        <div className="col-span-12 md:col-span-7">
+          <AnimatedHeading className="text-5xl md:text-6xl font-medium leading-[1.05] text-white">
+            See if the draft is one<br />you would have signed
+          </AnimatedHeading>
+          <AnimatedText
+            className="text-base text-white/75 leading-relaxed mt-8 max-w-xl"
+            delay={0.15}
+          >
+            Klinote <span className="font-mono">{appVersion}</span> for macOS is free and
+            Apache-2.0. No account, no card, nothing to cancel — and nothing leaves
+            the Mac while you decide whether it earns a place in your room.
+          </AnimatedText>
+
+          <div className="mt-12 flex flex-wrap items-center gap-6">
+            <a
+              href={downloadUrl}
+              className="bg-white text-foreground rounded-full pl-6 pr-2 py-2 flex items-center gap-3 font-medium text-sm hover:bg-white/90 transition"
+            >
+              Download for Mac
+              <span className="w-9 h-9 rounded-full bg-foreground text-white flex items-center justify-center">
+                <ArrowUpRight className="w-4 h-4" />
+              </span>
+            </a>
+            <a
+              href="mailto:amit@datadab.com?subject=Klinote%20founding%20cohort"
+              className="text-white border border-white/30 rounded-full px-6 py-2 text-sm font-medium hover:bg-white/10 transition"
+            >
+              Apply for the cohort
+            </a>
+          </div>
+
+          <p className="mt-10 text-xs tracking-[0.2em] text-white/50 uppercase font-mono">
+            Three to five cohort places — a real limit, not a launch tactic
+          </p>
+        </div>
+      </div>
     </section>
   )
 }
