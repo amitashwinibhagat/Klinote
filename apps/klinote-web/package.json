@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node .output/server/index.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "enquiries": "node scripts/enquiries.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
@@ -24,6 +25,7 @@
   "devDependencies": {
     "@netlify/vite-plugin": "^3.0.1",
     "@tailwindcss/vite": "^4.1.0",
+    "@types/node": "^22.20.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",

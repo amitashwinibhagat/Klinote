@@ -16,17 +16,88 @@ function clean(value: unknown, limit = 300): string {
   return String(value ?? '').trim().slice(0, limit)
 }
 
+function summary(data: ContactInput): string {
+  const lines = [
+    `New Klinote enquiry: ${data.name}${data.practice ? ` (${data.practice})` : ''}`,
+    `Topic: ${data.topic}`,
+    `Reply to: ${data.email}`,
+    '',
+    data.message,
+  ]
+  return lines.join('\n')
+}
+
 /**
- * Stores a contact enquiry in Netlify Blobs.
+ * Tells someone. Returns whether a channel was configured and reached.
  *
- * This replaced Netlify Forms, which silently discarded browser submissions
- * here while still answering 200 with a success page: eleven attempts were
- * logged, five stored, and every one that came from a browser was dropped with
- * no error and no spam-list entry. A contact form that loses enquiries without
- * saying so is worse than no form, so the submission path is owned here and the
- * caller gets an explicit answer it can check.
+ * A submission is never lost just because this fails: the blob is written
+ * first and stays the record. This exists because a form whose messages nobody
+ * is told about is not a contact form, which is what the first version of this
+ * shipped as.
  *
- * Read what arrived with:
+ * Configure exactly one of:
+ *   CONTACT_WEBHOOK_URL   Slack or Discord incoming webhook (one pasted URL)
+ *   RESEND_API_KEY + CONTACT_TO   email via Resend
+ */
+async function notify(data: ContactInput): Promise<'sent' | 'skipped' | 'failed'> {
+  const webhook = process.env.CONTACT_WEBHOOK_URL
+  const resendKey = process.env.RESEND_API_KEY
+  const to = process.env.CONTACT_TO
+  const text = summary(data)
+
+  try {
+    if (webhook) {
+      // Slack reads "text", Discord reads "content". Sending both is harmless
+      // and means one variable works for either.
+      const res = await fetch(webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, content: text }),
+      })
+      if (!res.ok) {
+        console.error('contact: webhook rejected the notice', res.status)
+        return 'failed'
+      }
+      return 'sent'
+    }
+
+    if (resendKey && to) {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${resendKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Klinote enquiries <onboarding@resend.dev>',
+          to: [to],
+          subject: `Klinote enquiry from ${data.name}`,
+          text,
+        }),
+      })
+      if (!res.ok) {
+        console.error('contact: resend rejected the notice', res.status, await res.text())
+        return 'failed'
+      }
+      return 'sent'
+    }
+  } catch (error) {
+    console.error('contact: notification failed', error)
+    return 'failed'
+  }
+
+  // No channel configured. The enquiry is still stored; this line is the alarm.
+  console.error(
+    'contact: NO NOTIFICATION CHANNEL CONFIGURED — enquiry stored but nobody was told. ' +
+      'Set CONTACT_WEBHOOK_URL, or RESEND_API_KEY and CONTACT_TO.',
+  )
+  return 'skipped'
+}
+
+/**
+ * Stores an enquiry in Netlify Blobs, then tries to announce it.
+ *
+ * Read what arrived with `npm run enquiries`, or:
  *   netlify blobs:list klinote-contact
  *   netlify blobs:get klinote-contact <key>
  */
@@ -43,9 +114,8 @@ export const submitContact = createServerFn({ method: 'POST' })
     }
   })
   .handler(async ({ data }) => {
-    // Bot trap. Answer as if it worked so the caller learns nothing.
     if (data.website) {
-      return { ok: true as const }
+      return { ok: true as const, notified: 'skipped' as const }
     }
 
     if (!data.name || !data.message) {
@@ -68,7 +138,10 @@ export const submitContact = createServerFn({ method: 'POST' })
         message: data.message,
         receivedAt,
       })
-      return { ok: true as const }
+
+      // Stored first, so a failed notice still leaves the enquiry on record.
+      const notified = await notify(data)
+      return { ok: true as const, notified }
     } catch (error) {
       console.error('contact: could not store submission', error)
       return { ok: false as const, error: 'storage_failed' as const }

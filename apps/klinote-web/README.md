@@ -21,12 +21,34 @@ linking step is needed. The site is linked to Netlify project
 ## The contact form
 
 `/contact` posts to a server function (`src/server/contact.ts`) that writes the
-enquiry to Netlify Blobs. Read what arrived with:
+enquiry to Netlify Blobs.
+
+Read every enquiry, newest first:
 
 ```bash
-netlify blobs:list klinote-contact
-netlify blobs:get klinote-contact <key>
+npm run enquiries
 ```
+
+### Being told when one arrives — currently NOT configured
+
+Storing an enquiry is not the same as knowing about it, and right now nobody is
+told. The function is written to announce submissions and needs one value in the
+Netlify environment. Set **either**:
+
+| Variable | What it is |
+|---|---|
+| `CONTACT_WEBHOOK_URL` | A Slack or Discord incoming webhook URL. One paste, works for either. |
+| `RESEND_API_KEY` **and** `CONTACT_TO` | Email via Resend: an API key and the address to notify. |
+
+```bash
+netlify env:set CONTACT_WEBHOOK_URL 'https://hooks.slack.com/...'
+```
+
+Until one is set, the function logs
+`contact: NO NOTIFICATION CHANNEL CONFIGURED` on every submission, and returns
+`notified: "skipped"`. The enquiry is still stored either way — a failed or
+missing channel never loses it — but an unannounced enquiry is easy to miss,
+which is why `npm run enquiries` exists as the backstop.
 
 ### Why it is not Netlify Forms
 
