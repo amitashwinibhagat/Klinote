@@ -19,21 +19,43 @@ traceable to what was said. Nothing leaves the Mac.
   download), SQLCipher at rest, Quire on device, sandboxed and notarized. Latest
   release is v0.1.6. Concierge validation is still outstanding, now recast to
   therapists (`docs/product/PRODUCT-TRUTH.md`).
+- **Marketing site:** `apps/klinote-web/` — the public page at
+  [klinote.one](https://klinote.one). TanStack Start on Netlify, a separate
+  surface with a separate deploy. It is the only code in this repository allowed
+  to use the network, and it never sees patient data.
 
-**Design first.** Before changing anything visual, read `PRODUCT.md`,
-`DESIGN.md` and `docs/design/UX-PLAN.md`. They are the source of truth; if code
-disagrees with `DESIGN.md`, the code is wrong.
+**Design first.** Before changing anything visual in the *product*, read
+`PRODUCT.md`, `DESIGN.md` and `docs/design/UX-PLAN.md`. They are the source of
+truth; if product code disagrees with `DESIGN.md`, the code is wrong. The
+marketing site is a different surface: it follows the Pelmatech spec and
+`docs/marketing/LANDING-COPY.md`, and `DESIGN.md` does not govern it.
 
 ## THE CONTRACTS (do not weaken, ever)
 
 **1. Local-only.**
-There is no networking code in this workspace and there must never be one.
+There is no networking code in the product, and there must never be one.
 No analytics, no crash reporting, no telemetry, no "anonymous usage stats". If a
 feature seems to need a network call, it is the wrong feature. This is the
 product's entire reason to exist.
 
-There is exactly one exception, it is named and it is checked: the Swift shell
-downloads the note model once, on first use, in one file —
+**Scope, because the old wording was too broad.** This contract governs the
+product: `crates/` and `apps/Klinote/`. It does not describe the repository as a
+whole, and an earlier version of this paragraph saying "no networking code in
+this workspace" was false from the day `apps/klinote-web/` landed. The marketing
+site does use the network, in three named places: it hot-links its images from
+`qclay.design`, and `src/server/contact.ts` emails an enquiry through Resend and
+writes it to Netlify Blobs. That is the website, not the product. It must never
+carry patient data either, and it has no path to any.
+
+The distinction is enforced rather than trusted. `check-network-surface.sh` scans
+only `apps/Klinote/Sources` and the Rust dependency graph, so product networking
+cannot be laundered through the web app, and the web app's own network use
+cannot mask a product call. When you touch the product the contract is absolute;
+when you touch the site, keep its network use to the list above and say so here
+if you add a fourth.
+
+There is exactly one exception in the product, it is named and it is checked: the
+Swift shell downloads the note model once, on first use, in one file —
 `Sources/Core/ModelDownloader.swift` — and `scripts/check-network-surface.sh`
 fails the build if a second file reaches the network or if anything ever uploads.
 **The note model is permanent**, decided 2026-09-15: it is what polishes a draft,
@@ -94,6 +116,22 @@ xcodebuild -project apps/Klinote/Klinote.xcodeproj -scheme Klinote \
   -configuration Release -derivedDataPath /tmp/klinote-dd build CODE_SIGNING_ALLOWED=NO
 ```
 
+The marketing site is a separate app with its own toolchain; nothing in
+`./scripts/gate.sh` touches it.
+
+```bash
+cd apps/klinote-web
+npm run typecheck                      # tsc, part of the build
+npm run build                          # emits dist/client and the SSR function
+netlify deploy --prod                  # netlify.toml carries build + publish
+npm run enquiries                      # read stored contact enquiries
+```
+
+Env changes do not reach the deployed function until the next deploy, so
+`netlify env:set` is always followed by `netlify deploy --prod`. Contact
+notification is configured with `RESEND_API_KEY`, `CONTACT_TO` and
+`CONTACT_FROM`; see `apps/klinote-web/README.md`.
+
 The app's build phase compiles the Rust core and links
 `libscribe_core_ffi.a` **statically** from `target/klinote-link/`. Never link the
 `.dylib`: the linker prefers it, and the bundle then points at an absolute path
@@ -129,6 +167,20 @@ Rules, mechanical:
 - After `cp` / `mv` / `rm`, read the destination. After `defaults`, `plutil -p`
   the container plist. Never `echo` success as a separate command.
 
+The same lesson, once more, on the site. Building the contact form, a
+submission that was silently discarded still returned **200 with a success
+page**, so every check that looked at the status code passed while the message
+was gone. Netlify Forms did this to every browser submission — eleven attempts,
+five stored — and it was caught only by reading what actually arrived, not by
+trusting the response. Two rules came out of it:
+
+- **A status code is not proof of receipt.** When something is captured for a
+  human to read, verify the thing the human reads: the stored record, the
+  delivered email, the file on disk. `res.ok` proves a request completed.
+- **Ask who is supposed to see it before building the capture.** The first
+  version of the form stored enquiries and told nobody, which is not a contact
+  form. Storage is not the feature; being told is.
+
 ## Repo layout
 
 | Path | What | Notes |
@@ -143,11 +195,13 @@ Rules, mechanical:
 | `crates/scribe-ffi/` | C ABI, JSON envelopes | `crate-type = ["staticlib","cdylib","rlib"]`. |
 | `crates/scribe-cli/` | `scribe` binary | Also the concierge tool. |
 | `apps/Klinote/` | Swift/SwiftUI shell | `project.yml` is the source of truth; the `.xcodeproj` is generated and gitignored. |
+| `apps/klinote-web/` | Marketing site at klinote.one | TanStack Start + Tailwind v4 on Netlify. Its own README covers deploy, the contact form, and two traps. **Not part of the product's Cargo build.** |
 | `templates/` | TOML note templates | Add a discipline here, then register it in `TemplateLibrary::BUILTIN`. |
 | `fixtures/` | Synthetic transcripts | **Never real patient data.** |
 | `docs/design/` | UX-PLAN (shape brief + direction contract) | Read before any UI change. |
-| `docs/product/` | PRODUCT-TRUTH, ROADMAP | |
+| `docs/product/` | PRODUCT-TRUTH, ROADMAP, MONETISATION | |
 | `docs/engineering/` | ARCHITECTURE, ASR, ADR/ | |
+| `docs/marketing/` | LANDING-COPY | The site's copy and the reasoning, governed by PRODUCT-TRUTH. |
 | `docs/compliance/` | PRIVACY | Encryption-at-rest and retention gaps are tracked here. |
 | `PRODUCT.md`, `DESIGN.md` | Product truth and the visual system | `DESIGN.md` wins over code. |
 
@@ -168,6 +222,14 @@ Rules, mechanical:
 - **Add a model-backed generator** → implement `NoteGenerator`, wire it with
   `ScribePipeline::with_generator`. It must satisfy the traceability and
   no-silent-drop contracts. `RuleBasedGenerator` stays as the no-model fallback.
+- **Change the site's words** → edit `docs/marketing/LANDING-COPY.md` first,
+  then the component. Everything claimable is bounded by
+  `docs/product/PRODUCT-TRUTH.md`: no accuracy, no time saved, no compliance,
+  no EHR integration, and no testimonial that does not exist. The page currently
+  carries four checkable facts instead of social proof, on purpose.
+- **Change what the site looks like** → the Pelmatech spec, not `DESIGN.md`.
+  Accessibility floor still applies: keyboard focus, reduced motion, real
+  contrast.
 - **Extend the FFI** → add a function in `crates/scribe-ffi/src/lib.rs`, keep
   the `{"ok":...,"error":...}` envelope, and free strings with
   `scribe_string_free`. When the boundary needs real state (streaming sessions,
@@ -214,6 +276,23 @@ Rules, mechanical:
   `clang++ -c` of the same headers succeeds — which is what makes it worth
   writing down. Hit for real going from Xcode 26.6 to 27.0 on 2026-09-15.
 
+- **Never set `style` on `<html>` before hydration.** The site hydrates the
+  whole document (`hydrateRoot(document, …)`), so an inline `style.zoom` applied
+  by the responsive-zoom script is an attribute mismatch React throws #418 on.
+  `suppressHydrationWarning` cannot fix it: React's SSR renderer strips the
+  attribute, so it never reaches the client. Zoom goes through a `<style>` rule,
+  which changes computed style without touching the element.
+- **`~/.netlify/netlify.toml` is inherited by every project run below `$HOME`.**
+  The global file's `publish` was leaking the home directory into unrelated
+  deploys; that key is deliberately absent there. Keep project config in the
+  project's own `netlify.toml`.
+- **Netlify Forms is not used here, and should not be reintroduced.** It
+  returned success while discarding browser submissions. The site owns its
+  submission path instead. `apps/klinote-web/README.md` has the full account.
+- **The site's images are hot-linked from `qclay.design`**, so the page depends
+  on a third-party host. Fine for a marketing page, worth vendoring before it
+  matters.
+
 ## Doc map
 
 | Document | Read it when |
@@ -227,3 +306,6 @@ Rules, mechanical:
 | `docs/engineering/ASR.md` | You are wiring a real speech engine. |
 | `docs/engineering/ADR/` | You wonder why a decision was made. |
 | `docs/compliance/PRIVACY.md` | You are dealing with real patient data. |
+| `apps/klinote-web/README.md` | You are touching the marketing site: deploy, contact form, and its two traps. |
+| `docs/marketing/LANDING-COPY.md` | You are changing site copy, or wondering why it declines a claim. |
+| `docs/product/MONETISATION.md` | You are deciding what to charge for, or why validation is free. |
