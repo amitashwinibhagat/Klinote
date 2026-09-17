@@ -29,44 +29,32 @@ Read every enquiry, newest first:
 npm run enquiries
 ```
 
-### Being told when one arrives — currently NOT configured
+### Being told when one arrives
 
-Storing an enquiry is not the same as knowing about it, and right now nobody is
-told. The function is written to announce submissions and needs one value in the
-Netlify environment. Set **either**:
+Configured and working: every submission emails **amit@datadab.com** from
+**enquiries@klinote.one**, with `reply_to` set to the enquirer so hitting Reply
+answers the prospect. Verified delivered through the Resend API, not merely
+accepted.
 
-| Variable | What it is |
-|---|---|
-| `CONTACT_WEBHOOK_URL` | A Slack or Discord incoming webhook URL. One paste, works for either. |
-| `RESEND_API_KEY` **and** `CONTACT_TO` | Email via Resend: an API key and the address to notify. |
+`klinote.one` is verified in Resend. The DNS records live at **Spaceship**, not
+Netlify, and are:
+
+| Type | Name | Value |
+|---|---|---|
+| TXT | `resend._domainkey` | the DKIM key from `GET /domains/{id}` |
+| CNAME | `rsend` | `rsend-apne1.forge.rmta.net` |
+| CNAME | `send` | `send.forge.rmta.net` |
+
+To change who is told, or who it appears to come from:
 
 ```bash
-netlify env:set CONTACT_WEBHOOK_URL 'https://hooks.slack.com/...'
+netlify env:set CONTACT_TO 'amit@datadab.com,someone@else.com'   # comma separated
+netlify env:set CONTACT_FROM 'Klinote enquiries <enquiries@klinote.one>'
 ```
 
-Until one is set, the function logs
-`contact: NO NOTIFICATION CHANNEL CONFIGURED` on every submission, and returns
-`notified: "skipped"`. The enquiry is still stored either way — a failed or
-missing channel never loses it — but an unannounced enquiry is easy to miss,
-which is why `npm run enquiries` exists as the backstop.
-
-### Why it is not Netlify Forms
-
-It was, and it silently lost messages. Netlify Forms answered 200 with a success
-page while discarding browser submissions: of eleven attempts across curl and
-browser, five were stored, and **every browser submission was dropped** — no
-error, no spam-list entry, no trace. Reproduced with headless and headed
-Chrome. curl with the same body always stored.
-
-The likely trigger is request fingerprinting: replaying browser headers exactly
-(with `sec-ch-ua`, `sec-fetch-*`) stopped Netlify intercepting the POST at all,
-and served the static file instead. The mechanism was never fully established,
-which is the point — an opaque pipeline that reports success while dropping
-enquiries is not something to build a contact form on.
-
-The replacement is owned and verifiable: the server function returns an explicit
-`{ ok: true }` only after the blob is written, and the form shows success only
-when it sees that. A status code is never treated as proof of receipt.
+A redeploy is needed for env changes to reach the function. Without a domain
+verification, Resend only delivers to the account owner's address, which is why
+`CONTACT_FROM` defaults to its test sender.
 
 ## Brand assets
 

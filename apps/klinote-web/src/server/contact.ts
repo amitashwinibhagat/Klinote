@@ -76,7 +76,8 @@ async function notify(data: ContactInput): Promise<'sent' | 'skipped' | 'failed'
         },
         body: JSON.stringify({
           from: process.env.CONTACT_FROM || 'Klinote enquiries <onboarding@resend.dev>',
-          to: [to],
+          // CONTACT_TO may list several addresses, comma separated.
+          to: to.split(',').map((address) => address.trim()).filter(Boolean),
           // So hitting Reply answers the prospect, not Resend's test address.
           reply_to: data.email,
           subject: `Klinote enquiry from ${data.name}`,
