@@ -257,6 +257,18 @@ Declined from the framework, deliberately: testimonials (none exist),
 invented scarcity (the 3–5 cohort cap is the only real limit, so it is the
 only one used).
 
+## Where the CTAs go (changed 2026-09-17)
+
+The three paid/free enquiries (cohort, template build) pointed at `mailto:` links
+and did nothing for any visitor without a desktop mail client, which is most of
+them. They now open `/contact`, a real form whose submissions are written to
+Netlify Blobs by `src/server/contact.ts`. The only deliberate mailto left is the
+fallback shown when storage fails, and it prefills what the visitor typed.
+
+The free community CTA still points at GitHub issues, which works and is where
+developers expect it; the buyers here are therapists, which is why the paid
+enquiries do not.
+
 ## Design → copy mapping
 
 | Pelmatech (template) | Klinote (this page) | Why |

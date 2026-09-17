@@ -48,6 +48,9 @@ function HomePage() {
 }
 
 function Hero() {
+  // The template inherited this strip from a slide deck; on a scrolling page the
+  // only honest version is a working "next" and a count of the sections below.
+  const SECTIONS_AHEAD = ['the-cost', 'how-it-works', 'support', 'faq', 'start']
   return (
     <section className="relative h-screen min-h-[780px] w-full overflow-hidden">
       <img
@@ -114,8 +117,18 @@ function Hero() {
         >
           <span>No account · No upload · Encrypted at rest</span>
           <span className="flex items-center gap-6">
-            <span><span className="text-white">01</span> / 04</span>
-            <span>Next</span>
+            <span>
+              <span className="text-white">01</span> / {String(SECTIONS_AHEAD.length).padStart(2, '0')}
+            </span>
+            <button
+              onClick={() =>
+                document.getElementById(SECTIONS_AHEAD[0])?.scrollIntoView({ behavior: 'smooth' })
+              }
+              className="hover:text-white transition cursor-pointer"
+              aria-label="Continue to the next section"
+            >
+              Next
+            </button>
           </span>
           <span>Scroll to explore</span>
         </div>
@@ -370,7 +383,7 @@ const SUPPORT_TIERS = [
     note: 'Three to five practices',
     desc: 'You get the template build free, the same work that costs $600, tuned to how your practice documents. In exchange you report honestly on the draft: what it invented, what it misfiled, and whether reviewing it took longer than typing it. Those reports are how the defaults for your discipline get written by someone who has signed its notes. That is why this one is free.',
     cta: 'Apply for a place',
-    href: 'mailto:amit@datadab.com?subject=Klinote%20founding%20cohort',
+    href: '/contact?topic=cohort',
   },
   {
     num: '03',
@@ -379,7 +392,7 @@ const SUPPORT_TIERS = [
     note: 'One-off, no subscription',
     desc: 'For a practice whose notes do not fit a built-in shape. Your template is written and tuned to the way your clinicians document, tested against notes you have already signed, and handed back as a file you own. It is template work, and it buys no promise about transcription.',
     cta: 'Commission a template',
-    href: 'mailto:amit@datadab.com?subject=Klinote%20template%20build',
+    href: '/contact?topic=template',
   },
 ] as const
 
@@ -490,7 +503,7 @@ function FinalCta() {
               </span>
             </a>
             <a
-              href="mailto:amit@datadab.com?subject=Klinote%20founding%20cohort"
+              href="/contact?topic=cohort"
               className="text-white border border-white/30 rounded-full px-6 py-2 text-sm font-medium hover:bg-white/10 transition"
             >
               Apply for the cohort
