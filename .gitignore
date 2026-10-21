@@ -49,3 +49,6 @@ __pycache__/
 
 # Local model weights
 *.gguf
+
+# Local Netlify folder
+.netlify

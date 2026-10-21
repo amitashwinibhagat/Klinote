@@ -21,7 +21,10 @@ try {
   process.exit(0)
 }
 
-const keys = [...listing.matchAll(/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z-[0-9a-f-]{36}/g)]
+// Honeypot submissions are stored under `spam-<same key>`. The old pattern
+// stripped that prefix and then asked Blobs for a key that did not exist, so
+// every spam entry appeared as an unreadable enquiry.
+const keys = [...listing.matchAll(/(?:spam-)?[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z-[0-9a-f-]{36}/g)]
   .map((m) => m[0])
   .sort()
   .reverse()
@@ -46,7 +49,8 @@ for (const key of keys) {
   const body = JSON.parse(raw.slice(start))
 
   console.log('─'.repeat(64))
-  console.log(`${body.receivedAt}   [${body.topic}]`)
+  const spam = key.startsWith('spam-') || body.spam === true
+  console.log(`${body.receivedAt}   [${body.topic}]${spam ? ' · spam/honeypot' : ''}`)
   console.log(`${body.name}${body.practice ? ` — ${body.practice}` : ''}`)
   console.log(`Reply to: ${body.email}`)
   console.log('')
