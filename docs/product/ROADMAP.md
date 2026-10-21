@@ -13,7 +13,7 @@ to kill the microphone.
 
 ## Now — stop being a GP product
 
-- [x] Engine, shell, Whisper, Quire, SQLCipher, sandbox, notarized 0.1.6
+- [x] Engine, shell, Whisper, Quire, SQLCipher, sandbox, notarized 0.1.7
 - [x] Recast: therapy / psych room, not “solo clinicians”
 - [ ] Copy and PRODUCT-TRUTH: session, client, progress note
 - [ ] Do not ship another dental / vet / physio template

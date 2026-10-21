@@ -8,9 +8,9 @@ export const heroImage = `${BASE}doctor-computer.png`
 
 // The notarized build, published as a GitHub release asset. It is a .zip, not
 // a .dmg. Update both when a new version ships.
-export const appVersion = '0.1.6'
+export const appVersion = '0.1.7'
 export const downloadUrl =
-  'https://github.com/amitashwinibhagat/Klinote/releases/download/v0.1.6/Klinote-0.1.6.zip'
+  'https://github.com/amitashwinibhagat/Klinote/releases/download/v0.1.7/Klinote-0.1.7.zip'
 
 export const clockLamp = `${BASE}clock-lamp.png`
 export const pills = `${BASE}pills.png`

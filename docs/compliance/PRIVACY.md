@@ -64,7 +64,7 @@ repository or in the app database.
 | **No access control beyond the key** | Any process running as the user can read the database once the Keychain has released the key. | Consider per-practice database files, and a review of the Keychain access policy. |
 | **No export/portability story** | Clinicians have a right to their data. | Documented export format and a one-command backup. |
 | **No BAA/DPA position** | Even though no data is processed by us, some practices require paperwork. | Written data-handling statement; counsel review before enterprise sales. |
-| **Notarization** | Done as of 0.1.6 (`klinote` notary profile). Keep it in the release script; a lapse returns this gap. | [`RELEASING.md`](../engineering/RELEASING.md) |
+| **Notarization** | Done as of 0.1.7 (`klinote` notary profile). Keep it in the release script; a lapse returns this gap. | [`RELEASING.md`](../engineering/RELEASING.md) |
 
 ### Upgrading an install from 0.1.x
 

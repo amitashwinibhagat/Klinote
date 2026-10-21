@@ -17,7 +17,7 @@ traceable to what was said. Nothing leaves the Mac.
   strip, review window with evidence margin, settings. Builds and launches.
 - **Status:** speech recognition is the system's `SpeechAnalyzer` (Klinote ships
   no speech model; macOS may fetch its asset once), SQLCipher at rest, Quire on
-  device, sandboxed and notarized. Latest release is v0.1.6. Concierge validation is still outstanding, now recast to
+  device, sandboxed and notarized. Latest release is v0.1.7. Concierge validation is still outstanding, now recast to
   therapists (`docs/product/PRODUCT-TRUTH.md`).
 - **Marketing site:** `apps/klinote-web/` — the public page at
   [klinote.one](https://klinote.one). TanStack Start on Netlify, a separate

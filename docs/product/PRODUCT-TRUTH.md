@@ -1,6 +1,6 @@
 # Product Truth — Local Clinical Scribe
 
-Last updated: 2026-10-21 · Verified against: Klinote 0.1.6 (notarized)
+Last updated: 2026-10-21 · Verified against: Klinote 0.1.7 (notarized)
 
 This document is the single source of truth for what this product **is**, what
 it **does today**, and what may be **claimed externally**. If marketing copy,
