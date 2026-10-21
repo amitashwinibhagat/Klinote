@@ -25,12 +25,12 @@ struct MarginView: View {
             if let transcript = model.selectedEncounter?.transcript {
                 Picker("", selection: $showingWholeConsult) {
                     Text("Evidence").tag(false)
-                    Text("Full").tag(true)
+                    Text("Full transcript").tag(true)
                 }
                 .pickerStyle(.segmented)
                 .controlSize(.small)
                 .labelsHidden()
-                .accessibilityLabel("Show evidence for the selected sentence, or the whole session")
+                .accessibilityLabel("Show the words behind the selected sentence, or the whole session")
                 .padding(.horizontal, KlinoteMetrics.space16)
                 .padding(.bottom, KlinoteMetrics.space8)
 
@@ -62,26 +62,35 @@ struct MarginView: View {
                     Hairline()
                 }
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(visibleSegments(transcript)) { segment in
-                                UtteranceRow(
-                                    segment: segment,
-                                    role: label(for: segment, in: transcript),
-                                    isEvidence: !showingWholeConsult && evidenceIDs.contains(segment.id),
-                                    isPrimary: !showingWholeConsult && primaryEvidenceID == segment.id
-                                )
-                                .id(segment.id)
-                                Hairline()
+                    if !showingWholeConsult && citingIDs.isEmpty {
+                        // Nothing chosen yet — say what to do, rather than
+                        // showing a transcript and pretending it is evidence.
+                        Text(isAuthoredWithoutWords
+                             ? "This line is yours, so there are no words behind it."
+                             : "Select a sentence in the note to see the words behind it.")
+                            .font(KlinoteFont.caption())
+                            .foregroundStyle(KlinoteColor.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(KlinoteMetrics.space16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 0) {
+                                ForEach(visibleSegments(transcript)) { segment in
+                                    UtteranceRow(
+                                        segment: segment,
+                                        role: label(for: segment, in: transcript),
+                                        isEvidence: !showingWholeConsult && evidenceIDs.contains(segment.id),
+                                        isPrimary: !showingWholeConsult && primaryEvidenceID == segment.id
+                                    )
+                                    .id(segment.id)
+                                    Hairline()
+                                }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .onChange(of: model.selectedSentenceID) { _, _ in
-                        guard let target = primaryEvidenceID else { return }
-                        withAnimation(.easeInOut(duration: KlinoteMetrics.motionLayout)) {
-                            proxy.scrollTo(target, anchor: .center)
-                        }
+                        .onChange(of: model.selectedSentenceID) { _, _ in scrollToPrimary(proxy) }
+                        .onChange(of: model.selectedUnfiledID) { _, _ in scrollToPrimary(proxy) }
                     }
                 }
             } else {
@@ -97,11 +106,33 @@ struct MarginView: View {
     }
 
     private func visibleSegments(_ transcript: Transcript) -> [TranscriptSegment] {
-        guard showingWholeConsult, !transcriptSearch.isEmpty else {
-            return transcript.segments
-        }
+        let visible = EvidencePresentation.visible(
+            segments: transcript.segments,
+            citing: citingIDs,
+            mode: showingWholeConsult ? .full : .selected
+        )
+        guard showingWholeConsult, !transcriptSearch.isEmpty else { return visible }
         let needle = transcriptSearch.lowercased()
-        return transcript.segments.filter { $0.text.lowercased().contains(needle) }
+        return visible.filter { $0.text.lowercased().contains(needle) }
+    }
+
+    /// The cited segment ids for whatever the reader is asking about: a note
+    /// sentence, or an unfiled statement whose source they asked to see.
+    private var citingIDs: [String] {
+        if let item = model.selectedUnfiledItem { return item.evidence }
+        return selectedSentence?.sentence.evidence ?? []
+    }
+
+    private var isAuthoredWithoutWords: Bool {
+        guard let sentence = selectedSentence?.sentence else { return false }
+        return sentence.isAuthored && sentence.evidence.isEmpty
+    }
+
+    private func scrollToPrimary(_ proxy: ScrollViewProxy) {
+        guard let target = primaryEvidenceID else { return }
+        withAnimation(.easeInOut(duration: KlinoteMetrics.motionLayout)) {
+            proxy.scrollTo(target, anchor: .center)
+        }
     }
 
     private var header: some View {
@@ -111,6 +142,26 @@ struct MarginView: View {
                 Text("\(model.selectedEncounter?.transcript?.segments.count ?? 0) things said. A gap marked held was not recorded.")
                     .font(KlinoteFont.caption())
                     .foregroundStyle(KlinoteColor.secondary)
+            } else if let item = model.selectedUnfiledItem {
+                Text("Source of an unfiled statement")
+                    .font(KlinoteFont.caption(.medium))
+                    .foregroundStyle(KlinoteColor.primary)
+                Text("The words behind: \u{201C}\(item.text)\u{201D}")
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let sentence = selectedSentence?.sentence,
+                      sentence.authored == LineAuthorship.clinicianEdited {
+                // Rewritten by the clinician, but still citing what was said.
+                // Both facts matter: the words are the original source, not a
+                // check of the new wording.
+                Text("You rewrote this line")
+                    .font(KlinoteFont.caption(.medium))
+                    .foregroundStyle(KlinoteColor.primary)
+                Text("The words below are what it came from — not a check of your new wording.")
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if let selected = selectedSentence, selected.sentence.isAuthored {
                 // Nothing was said, so there is nothing to point at. Saying so
                 // is the difference between "you wrote this" and a line that
@@ -126,9 +177,13 @@ struct MarginView: View {
                 // Short, and allowed to wrap. This line is how a clinician
                 // knows which sentence the margin is answering for, so it must
                 // never be the thing that truncates.
-                Text("Behind sentence \(sentenceNumber)")
+                let missing = EvidencePresentation.missingCitations(
+                    segments: model.selectedEncounter?.transcript?.segments ?? [],
+                    citing: citingIDs
+                )
+                Text(missing > 0 ? "Behind sentence \(sentenceNumber) · \(missing) source missing" : "Behind sentence \(sentenceNumber)")
                     .font(KlinoteFont.caption(.medium))
-                    .foregroundStyle(KlinoteColor.primary)
+                    .foregroundStyle(missing > 0 ? KlinoteColor.caution : KlinoteColor.primary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text("Click any sentence to see the words that produced it.")
@@ -157,11 +212,20 @@ struct MarginView: View {
     private var selectedSentenceNumber: Int? { selectedSentence?.number }
 
     private var evidenceIDs: Set<String> {
-        Set(selectedSentence?.sentence.evidence ?? [])
+        Set(citingIDs)
     }
 
     private var primaryEvidenceID: String? {
-        selectedSentence?.sentence.evidence.first
+        // First *by time*, matching the order the column lists, so the scroll
+        // target and the top of the list agree.
+        guard let transcript = model.selectedEncounter?.transcript else {
+            return citingIDs.first
+        }
+        let wanted = Set(citingIDs)
+        return transcript.segments
+            .filter { wanted.contains($0.id) }
+            .min { $0.startMs < $1.startMs }?
+            .id ?? citingIDs.first
     }
 
     /// From a recording, diarisation yields anonymous voices — it does not know

@@ -43,7 +43,7 @@ struct SetupSheet: View {
                     symbol: "waveform",
                     title: listeningReady ? "Listening is ready" : "Listening is not available",
                     detail: listeningReady
-                        ? "Speech recognition is part of macOS, so there is nothing to download before your first session. You can record straight away."
+                        ? "Speech recognition is part of macOS, so there is nothing to download before your first session. You can record straight away. The input is \(Recorder.inputDeviceName)."
                         : Transcriber.unavailableReason
                             ?? "This Mac cannot transcribe on device. You can still paste a transcript you already have."
                 )
@@ -54,6 +54,10 @@ struct SetupSheet: View {
                         ? "Quire is on this Mac. It reads the transcript and writes the note."
                         : "Reading the words is not the same as writing the note. Quire does that — 1.9 GB, once, on this Mac. Without it the built-in rules write a thinner draft, and nothing on screen would tell you which you got. Add it now or later; if it arrives later it writes the note again from the saved words."
                 )
+            }
+
+            if listeningReady {
+                MicrophoneCheck()
             }
 
             Rule()
@@ -139,6 +143,56 @@ struct SetupSheet: View {
     private func primaryAction() {
         downloader.startNote()
         model.completeSetupThenRecord()
+    }
+}
+
+/// The pre-flight check: the actual input, and a live trace while the
+/// clinician says something. It checks signal, not transcription, and the
+/// caption says so — the plan's rule that a level test must not imply a
+/// quality promise the product has not measured.
+struct MicrophoneCheck: View {
+    @ObservedObject private var recorder = Recorder.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.space8) {
+            HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
+                Text("Microphone")
+                    .font(KlinoteFont.label())
+                    .foregroundStyle(KlinoteColor.secondary)
+                Text(Recorder.inputDeviceName)
+                    .font(KlinoteFont.data())
+                    .foregroundStyle(KlinoteColor.primary)
+                Spacer(minLength: 0)
+                Button(recorder.isPreviewing ? "Stop the check" : "Check the microphone") {
+                    if recorder.isPreviewing {
+                        recorder.stopPreview()
+                    } else {
+                        try? recorder.startPreview()
+                    }
+                }
+                .controlSize(.small)
+                .accessibilityLabel(
+                    recorder.isPreviewing
+                        ? "Stop the microphone check"
+                        : "Check the microphone for a few seconds"
+                )
+            }
+            if recorder.isPreviewing {
+                TraceView(
+                    level: recorder.inputLevel,
+                    isActive: true,
+                    samples: recorder.trace,
+                    isPaused: false,
+                    reduceMotion: reduceMotion
+                )
+                .frame(height: 22)
+                Text("Say a sentence. A moving trace means the microphone is hearing you. This checks the signal, not the transcription.")
+                    .font(KlinoteFont.caption())
+                    .foregroundStyle(KlinoteColor.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 

@@ -39,7 +39,7 @@ impl NoteGenerator for RuleBasedGenerator {
             let role = request.transcript.role_of(segment.speaker);
             for raw_sentence in split_sentences(&segment.text) {
                 let sentence = tidy(raw_sentence);
-                if sentence.split_whitespace().count() < 2 {
+                if sentence.trim().is_empty() {
                     continue;
                 }
 
@@ -89,8 +89,13 @@ impl NoteGenerator for RuleBasedGenerator {
                     text: entry.text.clone(),
                     evidence: vec![entry.segment_id],
                     ambiguous: entry.ambiguous,
-                    support: Support::Supported,
-                    wording: Default::default(),
+                    support: Some(Support::Supported),
+                    // The rule-based generator does not judge patient-facing
+                    // wording; `simplify_for_patient` does, after this.
+                    wording: None,
+                    authored: None,
+                    line_id: None,
+                    excluded: false,
                 })
                 .collect();
 
@@ -124,6 +129,7 @@ impl NoteGenerator for RuleBasedGenerator {
             template_id: template.id.clone(),
             sections,
             unassigned,
+            excluded: Vec::new(),
             generated_at: chrono::Utc::now(),
             engine: self.name().to_owned(),
             review_state: ReviewState::Draft,
@@ -177,16 +183,12 @@ fn route<'a>(sentence: &str, role: SpeakerRole, template: &'a Template) -> Optio
         return Some((key, ambiguous));
     }
 
-    // A patient statement with no cue match still belongs in the history if
-    // the template has one — dropping it would be worse than filing it.
-    if matches!(role, SpeakerRole::Patient | SpeakerRole::Caregiver) {
-        return template
-            .sections
-            .iter()
-            .find(|s| PATIENT_PREFERRED.contains(&s.key.as_str()))
-            .map(|s| (s.key.as_str(), false));
-    }
-
+    // A patient statement with no cue match goes to `unassigned`, not into a
+    // guessed section. This deliberately replaces the old fallback into
+    // Subjective/Presenting: it filed "I parked outside" and "the weather was
+    // terrible" as clinical history, and it made a one-word answer look like a
+    // finding in whichever section happened to be first. Unfiled is visible,
+    // reversible and honest; a wrong section is none of those.
     None
 }
 
@@ -317,7 +319,11 @@ fn split_sentences(text: &str) -> Vec<&str> {
 /// Punctuation *inside* a sentence is preserved — a clinical note that loses
 /// its commas reads worse, not cleaner.
 pub fn tidy(sentence: &str) -> String {
-    const FILLERS: &[&str] = &["um", "uh", "erm", "er", "ah", "hmm", "mmm", "mm", "eh"];
+    // Only sounds that cannot be a clinical word. `er` and `mm` used to be in
+    // this list and were removed case-insensitively, so "Sent to ER" became
+    // "Sent to" and "10 mm" became "10". `ah` and `eh` are left alone for the
+    // same reason a note is not the place to guess at discourse markers.
+    const FILLERS: &[&str] = &["um", "uh", "erm", "hmm", "mmm"];
     const TRIM: &[char] = &['"', '\'', '(', ')', '[', ']', '“', '”', '‘', '’'];
 
     let mut words: Vec<String> = Vec::new();
@@ -563,6 +569,62 @@ CLINICIAN: Follow up in one week if not improving.
                 .map(|s| s.text.as_str())
                 .collect::<Vec<_>>()
                 .join(" ")
+        );
+    }
+
+    /// A one-word answer is content. "No." to a risk question must not vanish
+    /// into the word-count filter; it goes to `unassigned` where a clinician
+    /// can see it and file it.
+    #[test]
+    fn keeps_one_word_answers_as_unfiled() {
+        let note = generate(
+            "psychology",
+            "CLINICIAN: Any thoughts of harming yourself?\nPATIENT: No.",
+        );
+        assert!(
+            note.unassigned.iter().any(|item| item.text == "No."),
+            "the answer was dropped: {:?}",
+            note.unassigned
+        );
+        assert!(
+            !note
+                .sections
+                .iter()
+                .any(|section| section.body.contains("No.")),
+            "a one-word answer was guessed into a section"
+        );
+    }
+
+    /// Patient small talk is not history just because the speaker is the
+    /// patient. The old fallback filed it into Subjective/Presenting.
+    #[test]
+    fn patient_small_talk_is_unfiled_not_filed() {
+        let note = generate("psychology", "PATIENT: I parked outside.");
+        assert!(
+            note.unassigned
+                .iter()
+                .any(|item| item.text.contains("parked")),
+            "small talk entered a section: {:?}",
+            note.sections
+        );
+        assert!(
+            !note
+                .sections
+                .iter()
+                .any(|section| section.body.contains("parked")),
+            "unroutable patient speech was guessed into a section"
+        );
+    }
+
+    #[test]
+    fn preserves_clinical_abbreviations_that_look_like_fillers() {
+        assert_eq!(
+            tidy("Sent to ER for assessment."),
+            "Sent to ER for assessment."
+        );
+        assert_eq!(
+            tidy("A 10 mm nodule was noted."),
+            "A 10 mm nodule was noted."
         );
     }
 

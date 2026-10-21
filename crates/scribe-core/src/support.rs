@@ -76,6 +76,18 @@ pub fn doses_per_day(text: &str) -> HashSet<u64> {
     let mut out = HashSet::new();
 
     for (index, token) in tokens.iter().enumerate() {
+        // "every six hours" / "every 6 hours" is the spoken form of q6h.
+        // This was missing, so a correct note saying q6h was flagged against
+        // the words that said "every six hours" — the same instruction.
+        if token == "every" {
+            if let Some(hours) = tokens.get(index + 1).and_then(|value| number_value(value)) {
+                let unit = tokens.get(index + 2).map(String::as_str);
+                if matches!(unit, Some("hour" | "hours")) && hours > 0 && 24 % hours == 0 {
+                    out.insert(24 / hours);
+                }
+            }
+        }
+
         if let Some(doses) = interval_as_doses(token) {
             out.insert(doses);
             continue;
@@ -164,6 +176,22 @@ pub fn numbers(text: &str) -> HashSet<String> {
     let mut index = 0;
     while index < tokens.len() {
         let token = &tokens[index];
+        // The number in "every 6 hours" is an interval, not a quantity. It is
+        // compared by `doses_per_day`; reading it as a number flagged a note
+        // written in that form against a transcript that said q6h.
+        if token == "every"
+            && tokens
+                .get(index + 1)
+                .and_then(|value| number_value(value))
+                .is_some()
+            && matches!(
+                tokens.get(index + 2).map(String::as_str),
+                Some("hour" | "hours")
+            )
+        {
+            index += 3;
+            continue;
+        }
         if token.chars().any(|c| c.is_ascii_digit()) {
             if !is_interval(token) {
                 for value in digits_in(token) {
@@ -203,6 +231,14 @@ fn digits_in(token: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// A number written as digits or as one spoken word ("six", "12").
+fn number_value(token: &str) -> Option<u64> {
+    if let Ok(value) = token.parse::<u64>() {
+        return Some(value);
+    }
+    unit_value(token).or_else(|| tens_value(token))
 }
 
 fn unit_value(token: &str) -> Option<u64> {
@@ -362,6 +398,23 @@ mod tests {
 
     /// One instruction written two ways must compare equal. This is the false
     /// positive that started it: a correct line flagged as unverified.
+    /// The interval written out in the note and shorthanded in the transcript
+    /// is the same instruction in either direction.
+    #[test]
+    fn the_interval_spelling_works_in_both_directions() {
+        assert_eq!(
+            judge("Paracetamol 1g every 6 hours.", "paracetamol one gram q6h"),
+            Support::Supported
+        );
+        assert_eq!(
+            judge(
+                "Paracetamol 1g every six hours.",
+                "paracetamol one gram q6h"
+            ),
+            Support::Supported
+        );
+    }
+
     #[test]
     fn an_interval_and_a_frequency_are_the_same_instruction() {
         assert_eq!(
@@ -397,6 +450,34 @@ mod tests {
 
     /// An interval that does not divide a day is not a frequency, so it is not
     /// compared as one — and its digits are not read as a quantity either.
+    /// The spoken form of an interval is still an interval. Without this, a
+    /// correct q6h against "every six hours" was flagged.
+    #[test]
+    fn spoken_every_n_hours_equals_the_interval() {
+        assert_eq!(
+            judge(
+                "Paracetamol 1g q6h.",
+                "paracetamol one gram every six hours"
+            ),
+            Support::Supported
+        );
+        assert_eq!(
+            judge(
+                "Paracetamol 1g q4h.",
+                "paracetamol one gram every four hours"
+            ),
+            Support::Supported
+        );
+        assert_eq!(
+            judge(
+                "Paracetamol 1g q6h.",
+                "paracetamol one gram every four hours"
+            ),
+            Support::Unverified
+        );
+        assert!(doses_per_day("every 6 hours").contains(&4));
+    }
+
     #[test]
     fn an_odd_interval_is_not_read_as_a_quantity() {
         assert!(!doses_per_day("q5h").contains(&0));

@@ -431,6 +431,33 @@ pub unsafe extern "C" fn scribe_note_from_segments(request_json: *const c_char) 
     into_c_string(&payload.to_string())
 }
 
+/// Turn a reviewed note into the patient-facing register: expand lossless
+/// shorthand, flag the ambiguous kind, and leave everything else alone.
+///
+/// The Rust pipeline does this for a note it generated. A note drafted in the
+/// shell (`NoteDrafter`) never passes through that pipeline, so a patient
+/// summary written by the system model used to reach the clipboard with
+/// `q8h` in it and `wording` hard-coded to plain.
+///
+/// Input:  a serialised ClinicalNote.
+/// Output: {"ok":true,"note":{...}} | {"ok":false,"error":"..."}
+///
+/// # Safety
+/// `note_json` must be null or a valid NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn scribe_simplify_for_patient(note_json: *const c_char) -> *mut c_char {
+    let payload = (|| -> Result<Value, String> {
+        let raw = unsafe { cstr_to_string(note_json) }?;
+        let mut note: ClinicalNote =
+            serde_json::from_str(&raw).map_err(|err| format!("invalid note json: {err}"))?;
+        note.simplify_for_patient();
+        Ok(json!({ "ok": true, "note": note }))
+    })()
+    .unwrap_or_else(error_envelope);
+
+    into_c_string(&payload.to_string())
+}
+
 #[derive(Debug, Deserialize)]
 struct StoreSaveRequest {
     patient_ref: String,
@@ -487,21 +514,15 @@ pub unsafe extern "C" fn scribe_store_save(
 
         let store = scribe_store::Store::open_with_key(&path, key.as_deref())
             .map_err(|err| err.to_string())?;
+        // One unit of work. Encounter, transcript, note and audit either all
+        // reach the disk or none do; the note's own review state is what is
+        // stored, so an approval made in the shell survives a relaunch.
         store
-            .save_encounter(&encounter)
-            .map_err(|err| err.to_string())?;
-        store
-            .save_transcript(&request.transcript)
-            .map_err(|err| err.to_string())?;
-        store
-            .save_note(&request.note)
-            .map_err(|err| err.to_string())?;
-        store
-            .audit(
+            .save_session(
+                &encounter,
+                &request.transcript,
+                &request.note,
                 request.actor.as_deref().unwrap_or("shell"),
-                "note.saved",
-                Some(&request.note.id.to_string()),
-                None,
             )
             .map_err(|err| err.to_string())?;
         Ok(json!({ "ok": true }))
@@ -1029,6 +1050,15 @@ mod tests {
     /// in the timings at all. Measured from the recording, it is.
     #[test]
     fn segments_with_the_audio_find_both_voices() {
+        // The template tests own KLINOTE_TEMPLATES_DIR for the whole process:
+        // one of them points it at a temp directory and deletes that
+        // directory at the end. This test reads templates too, so without
+        // the lock it could run while the variable named a directory that
+        // was just removed — "template directory does not exist", twice
+        // under full-gate load, never in isolation. The flake was
+        // environment, not diarisation.
+        let _templates = TEMPLATES.lock().unwrap_or_else(|err| err.into_inner());
+
         let dir = std::env::temp_dir().join("scribe-ffi-segments-test");
         std::fs::create_dir_all(&dir).unwrap();
         let wav = dir.join("two-voices.wav");
@@ -1110,6 +1140,52 @@ mod tests {
                 .contains("invalid request json"),
             "{json}"
         );
+    }
+
+    /// The shell's patient-facing draft never passes through the pipeline, so
+    /// it needs the same register transform across the boundary.
+    #[test]
+    fn simplify_for_patient_expands_and_flags() {
+        let note = serde_json::json!({
+            "id": "32ad722c-6d45-46a2-b25a-deebef1d6b30",
+            "encounter_id": "ce925aa1-5202-4003-a149-98546409944b",
+            "template_id": "patient_summary",
+            "sections": [{
+                "key": "plan",
+                "title": "What we agreed",
+                "body": "Paracetamol 1g q8h. Vision reduced in OD.",
+                "evidence": [],
+                "sentences": [
+                    {"text": "Paracetamol 1g q8h.", "evidence": [], "ambiguous": false, "wording": "plain"},
+                    {"text": "Vision reduced in OD.", "evidence": [], "ambiguous": false, "wording": "plain"}
+                ],
+                "complete": true
+            }],
+            "generated_at": "2026-10-21T00:00:00Z",
+            "engine": "apple-foundation-models-phlox",
+            "review_state": "draft",
+            "missing_required": [],
+            "machine_generated": true
+        })
+        .to_string();
+        let input = CString::new(note).unwrap();
+        let output = unsafe { scribe_simplify_for_patient(input.as_ptr()) };
+        let json: Value =
+            serde_json::from_str(&unsafe { cstr_to_string(output) }.unwrap()).unwrap();
+        unsafe { scribe_string_free(output) };
+
+        assert_eq!(json["ok"], true, "{json}");
+        let plan = &json["note"]["sections"][0];
+        assert!(
+            plan["body"].as_str().unwrap().contains("every 8 hours"),
+            "{plan}"
+        );
+        assert!(
+            plan["body"].as_str().unwrap().contains("OD"),
+            "ambiguous shorthand is flagged, never rewritten: {plan}"
+        );
+        assert_eq!(plan["sentences"][0]["wording"], "plain");
+        assert_eq!(plan["sentences"][1]["wording"], "jargon");
     }
 
     #[test]

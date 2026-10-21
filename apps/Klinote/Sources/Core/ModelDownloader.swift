@@ -18,6 +18,7 @@
 // the CI dependency denylist stay network-free.
 //
 
+import CryptoKit
 import Foundation
 
 extension Notification.Name {
@@ -27,6 +28,23 @@ extension Notification.Name {
     /// stored transcript the moment this lands, which is the only reason it
     /// exists.
     static let klinoteNoteModelDownloadFinished = Notification.Name("one.klinote.mac.note-model-download-finished")
+}
+
+enum ModelDownloadError: LocalizedError {
+    case http(Int)
+    case wrongSize(expected: Int64, got: Int64)
+    case notGGUF
+    case checksum
+
+    var errorDescription: String? {
+        switch self {
+        case .http(let status): "The server answered with HTTP \(status)."
+        case .wrongSize(let expected, let got):
+            "The download was \(got) bytes; the model is \(expected)."
+        case .notGGUF: "The download is not a GGUF model."
+        case .checksum: "The download did not match the pinned model checksum."
+        }
+    }
 }
 
 enum ModelState: Equatable {
@@ -54,6 +72,9 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
     )!
     /// ~1.89 GB. Ships on disk as quire.gguf — never the upstream filename.
     static let noteExpectedSize: Int64 = 1_886_997_600
+    /// SHA-256 of the pinned GGUF. Set from the published file, so a changed
+    /// upstream or an error page cannot be loaded as the note model.
+    static let noteSHA256 = "0ce20058cc0ed6b6c9213bb383589327e458c12ffce0842fc96867042d669c75"
 
     nonisolated static var noteFile: URL {
         modelsDirectory.appendingPathComponent("quire.gguf")
@@ -103,14 +124,26 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
             withIdentifier: "one.klinote.mac.model-download"
         )
         configuration.isDiscretionary = false
-        session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
+        // Hashing a 1.9 GB file on the main queue would freeze the app at the
+        // moment the model arrives. The delegate does its file work here and
+        // hops to the main actor only to publish state.
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        queue.name = "one.klinote.mac.model-download"
+        session = URLSession(configuration: configuration, delegate: self, delegateQueue: queue)
         refresh()
     }
 
     func refresh() {
         Self.adoptLegacyNoteFileIfNeeded()
-        if FileManager.default.fileExists(atPath: Self.noteFile.path) {
+        if Self.isPlausibleModel(at: Self.noteFile) {
             if case .downloading = noteState {} else { noteState = .ready }
+        } else if FileManager.default.fileExists(atPath: Self.noteFile.path) {
+            // A truncated, empty, or non-GGUF file is not a model. Removing it
+            // here is what lets the next download start instead of every note
+            // failing against a file that looks present.
+            try? FileManager.default.removeItem(at: Self.noteFile)
+            noteState = .missing
         } else if case .downloading = noteState {
         } else if case .failed = noteState {
         } else {
@@ -162,6 +195,25 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
         didFinishDownloadingTo location: URL
     ) {
         do {
+            // URLSession calls this for an error page too. A 404 body is not a
+            // GGUF, and saving it as `quire.gguf` made the app say "Ready" and
+            // then fail every note. Status, size, magic and hash are all
+            // checked before the file is allowed to become the model.
+            if let response = downloadTask.response as? HTTPURLResponse,
+               !(200..<300).contains(response.statusCode) {
+                throw ModelDownloadError.http(response.statusCode)
+            }
+            let size = (try? FileManager.default.attributesOfItem(atPath: location.path)[.size] as? NSNumber)?.int64Value
+            guard size == Self.noteExpectedSize else {
+                throw ModelDownloadError.wrongSize(expected: Self.noteExpectedSize, got: size ?? 0)
+            }
+            guard Self.hasGGUFMagic(at: location) else {
+                throw ModelDownloadError.notGGUF
+            }
+            guard try Self.sha256(of: location) == Self.noteSHA256 else {
+                throw ModelDownloadError.checksum
+            }
+
             let directory = Self.modelsDirectory
             try FileManager.default.createDirectory(
                 at: directory,
@@ -188,6 +240,31 @@ final class ModelDownloader: NSObject, ObservableObject, URLSessionDownloadDeleg
                 self.progressObservation = nil
             }
         }
+    }
+
+    /// A cheap sanity check for a file that is already on disk. The full hash
+    /// is checked when a download lands; hashing 1.9 GB at every launch would
+    /// delay the first note for no benefit.
+    nonisolated static func isPlausibleModel(at url: URL) -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value
+        return size == noteExpectedSize && hasGGUFMagic(at: url)
+    }
+
+    nonisolated static func hasGGUFMagic(at url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        return (try? handle.read(upToCount: 4)) == Data("GGUF".utf8)
+    }
+
+    nonisolated static func sha256(of url: URL) throws -> String {
+        var hasher = SHA256()
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     nonisolated func urlSession(

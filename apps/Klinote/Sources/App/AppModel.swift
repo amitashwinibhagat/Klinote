@@ -95,11 +95,37 @@ final class AppModel: ObservableObject {
     @Published var elapsed: TimeInterval = 0
     @Published var traceLevel: Double = 0
     @Published var traceSamples: [Double] = Array(repeating: 0, count: 64)
-    @Published var selectedSentenceID: String?
+    @Published var selectedSentenceID: String? {
+        didSet {
+            // One selection at a time. Choosing a note sentence leaves the
+            // unfiled-statement source view; otherwise the margin would keep
+            // answering the old question.
+            if selectedSentenceID != nil { selectedUnfiledID = nil }
+        }
+    }
+    /// The unfiled statement whose source is being read, when one is. The
+    /// margin answers for it the same way it answers for a sentence: the
+    /// words that were said, opened by the clinician's own "show source".
+    @Published var selectedUnfiledID: String?
+
+    /// Which stage of the capture pipeline is running, when one is. Real
+    /// stages only: the recogniser reports no percentage, so the strip names
+    /// the step and shows elapsed time — a fabricated bar would claim
+    /// progress nobody can measure.
+    enum ProcessingStage: Equatable { case transcribing, writing }
+    @Published var processingStage: ProcessingStage?
     @Published var discipline = "psychology"
     @Published var templateId = "psychology"
     @Published var lastError: String?
     @Published var isFiling = false
+    /// Whether the newest mutation of a session reached the encrypted store,
+    /// keyed by encounter id. Set on every save attempt; read by the
+    /// letterhead. A screen that says nothing while the store said no is a
+    /// success lie — the exact failure this exists to prevent.
+    @Published private(set) var saveOutcomes: [String: SaveOutcome] = [:]
+    /// Encounter ids with a mutation that never persisted. They stay visible
+    /// and retryable; nothing here deletes the clinician's copy.
+    @Published private(set) var unsavedEncounterIDs: Set<String> = []
     /// Which consults are being written again right now.
     ///
     /// This was one flag for the whole app, so a rewrite already in flight
@@ -118,6 +144,16 @@ final class AppModel: ObservableObject {
     @Published var isPasting = false
     /// The sentence currently open for correction, if any.
     @Published var editingSentenceID: String?
+    /// The section the refusal sheet asked to open. `SectionBlock` watches
+    /// this and opens its editor on arrival; nil when nothing is asked.
+    @Published var focusedSectionKey: String?
+
+    /// The refusal sheet's jump: open the letter on the missing section and
+    /// put its editor on screen. One click from "not ready" to doing the
+    /// thing that makes it ready.
+    func focusMissingSection(_ key: String) {
+        focusedSectionKey = key
+    }
     @Published var templates: [TemplateSummary] = []
     /// First-run setup, which states the clinician's consent duty and offers
     /// the download as a choice rather than a wall.
@@ -149,12 +185,23 @@ final class AppModel: ObservableObject {
     /// name is set, because my list should be mine.
     @AppStorage("klinote.showAllClinicians") var showAllClinicians = false
 
+    /// Retrying a save that failed. The clinician's in-memory copy is the only
+    /// copy until this succeeds, so the retry reuses the exact revision on
+    /// screen — never a rebuilt one.
+    func retrySave(of encounterID: String) {
+        guard let encounter = encounters.first(where: { $0.id == encounterID }) else { return }
+        persist(encounter)
+    }
+
     /// The checklist and the ticks, derived from one store read.
     @Published private(set) var board = TaskBoard()
 
     /// Every read and write of the encrypted store. AppModel does not know
     /// about paths, keys or the C ABI.
     private let store = SessionStore()
+    /// Where failed captures wait for their retry. Opened once; retention is
+    /// enforced at open and at every refresh.
+    private lazy var vault = CaptureVault.open()
     /// Set when a copy is requested for a consult that is not on screen. The
     /// clinician confirms before the clipboard changes.
     @Published var pendingCopy: Encounter?
@@ -163,15 +210,22 @@ final class AppModel: ObservableObject {
 
     /// When the current (or just-finished) recording started.
     private var recordingStart: Date?
-    /// When the current hold began, if one is running.
+    /// When the current hold began, if one running.
     private var holdStartedAt: Date?
     /// Total time deliberately not captured in the current recording.
     private var heldMs: UInt64 = 0
+    /// Captures that failed after the microphone stopped. Kept encrypted on
+    /// this Mac, offered on the desk with Retry or Discard. A capture the
+    /// clinician cannot recover is a session they must re-live.
+    @Published private(set) var recoveries: [RecoverableCapture] = []
+    /// The recovery currently being retried, so the strip can say so.
+    @Published private(set) var retryingRecoveryID: String?
 
     private var noteDownloadObserver: NSObjectProtocol?
     private var ticker: Timer?
 
     private init() {
+        copiedReceipts = Self.loadReceipts()
         // When Quire arrives, rewrite the note on screen if the rules wrote
         // it. Quietly: the clinician pressed download, and the note improving
         // underneath them is the answer, not a dialogue.
@@ -201,9 +255,42 @@ final class AppModel: ObservableObject {
         return encounters.first { $0.id == selection } ?? encounters.first
     }
 
+    /// Clipboard receipts, per encounter. The desk's "still on this Mac"
+    /// reads this: an encounter with a current receipt has left; one whose
+    /// receipt is stale — edited after the copy — is here again, and one
+    /// never copied never left. Review and copy stay separate claims.
+    @Published private(set) var copiedReceipts: [String: CopiedReceipt] = [:] {
+        didSet { Self.saveReceipts(copiedReceipts) }
+    }
+
+    private static let copiedReceiptsKey = "klinote.copiedReceipts"
+
+    private static func loadReceipts() -> [String: CopiedReceipt] {
+        guard let data = UserDefaults.standard.data(forKey: copiedReceiptsKey),
+              let receipts = try? JSONDecoder().decode([String: CopiedReceipt].self, from: data)
+        else { return [:] }
+        return receipts
+    }
+
+    private static func saveReceipts(_ receipts: [String: CopiedReceipt]) {
+        guard let data = try? JSONEncoder().encode(receipts) else { return }
+        UserDefaults.standard.set(data, forKey: copiedReceiptsKey)
+    }
+
     /// Drafts that never made it into the record. The desk's only inbox.
+    ///
+    /// "Made it into the record" is unknowable — Klinote cannot see the
+    /// record system — so this is honest about what it knows: whether the
+    /// clipboard has provably carried this exact revision. An approval is
+    /// a claim about reading, not about the clipboard, and no longer
+    /// decides this list (that was the old rule, and it made reviewing a
+    /// draft look like having dealt with it).
     var uncopied: [Encounter] {
-        encounters.filter { !$0.isSyntheticDemo && $0.state != .approved && $0.note != nil }
+        encounters.filter { encounter in
+            guard !encounter.isSyntheticDemo, encounter.note != nil else { return false }
+            guard let receipt = copiedReceipts[encounter.id] else { return true }
+            return !receipt.isCurrent(for: encounter.note!)
+        }
     }
 
     func showDesk() {
@@ -291,6 +378,9 @@ final class AppModel: ObservableObject {
             : nil
         applySessions(world.sessions)
         rebuildBoard(tasks: world.tasks)
+        // Failed captures come back with the app. Expiry runs here: a recovery
+        // older than the policy is destroyed before it is ever offered.
+        refreshRecoveries()
         if world.purgedNotes > 0 {
             copyBanner = world.purgedNotes == 1
                 ? "Deleted 1 note past the retention period."
@@ -375,15 +465,23 @@ final class AppModel: ObservableObject {
     }
 
     /// Retention runs at launch and on demand. A real delete, not a flag.
+    /// Failure is reported, not swallowed: "deleted 0" and "could not reach
+    /// the store" are different answers, and only one of them is safe to
+    /// show as a receipt.
     @discardableResult
     func purgeExpiredNotes() -> Int {
-        let removed = (try? store.purge(months: retentionMonths)) ?? 0
-        if removed > 0 {
-            copyBanner = removed == 1
-                ? "Deleted 1 note past the retention period."
-                : "Deleted \(removed) notes past the retention period."
+        do {
+            let removed = try store.purge(months: retentionMonths)
+            if removed > 0 {
+                copyBanner = removed == 1
+                    ? "Deleted 1 note past the retention period."
+                    : "Deleted \(removed) notes past the retention period."
+            }
+            return removed
+        } catch {
+            lastError = "Could not run retention. Nothing was deleted: \(error.localizedDescription)"
+            return 0
         }
-        return removed
     }
 
     /// Text → note, with no model and no download. The fastest honest path to
@@ -473,6 +571,18 @@ final class AppModel: ObservableObject {
     /// Print exactly what Copy note would have put on the clipboard.
     func printSelectedNote() {
         guard let encounter = selectedEncounter, let note = encounter.note else { return }
+        // Paper cannot be recalled, so print holds the same line as copy.
+        switch OutputPolicy.decision(for: readiness(for: encounter)) {
+        case .blocked(let reason):
+            pendingReviewRequest = PendingOutput(
+                encounter: encounter,
+                kind: .print,
+                reason: reason
+            )
+            return
+        case .allowed:
+            break
+        }
         PrintNote.run(
             for: note,
             patientRef: encounter.patientRef,
@@ -527,6 +637,7 @@ final class AppModel: ObservableObject {
             persist(document)
             selectFirstEvidence()
             let fallback = rules
+            let startingRevision = rules.generatedAt
             Task.detached {
                 let drafted = await Self.preferLocalDraft(
                     transcript: transcript,
@@ -535,13 +646,23 @@ final class AppModel: ObservableObject {
                 )
                 await MainActor.run {
                     if let index = self.encounters.firstIndex(where: { $0.id == document.id }) {
-                        // Same reason as the redraft: a line typed into the
-                        // document while the model was working is in no
-                        // transcript, so it has to be carried across.
+                        // Same rule as a redraft: do not replace a revision the
+                        // clinician changed while the model was working.
+                        guard self.encounters[index].note?.generatedAt == startingRevision else {
+                            self.lastError = "The document changed while it was being written again. Nothing was replaced."
+                            return
+                        }
+                        // A line typed into the document while the model was
+                        // working is in no transcript, so it has to be carried.
                         let current = self.encounters[index].note
                         self.encounters[index].note = current.map {
-                            NoteEditing.carryingAuthoredLines(from: $0, into: drafted)
+                            NoteEditing.carryingAuthoredLines(
+                                from: $0,
+                                into: drafted,
+                                requiredKeys: self.requiredKeys(for: template)
+                            )
                         } ?? drafted
+                        self.markRedrafted(&self.encounters[index], note: self.encounters[index].note!)
                         self.persist(self.encounters[index])
                         self.selectFirstEvidence()
                     }
@@ -554,7 +675,10 @@ final class AppModel: ObservableObject {
 
     func renameEncounter(_ id: String, to patientRef: String) {
         let trimmed = patientRef.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard PatientReference.isOpaqueCode(trimmed) else {
+            lastError = "Use an opaque code — letters, digits, dot, dash or underscore — not a name."
+            return
+        }
         guard let index = encounters.firstIndex(where: { $0.id == id }) else { return }
         encounters[index].patientRef = trimmed
         persist(encounters[index])
@@ -565,9 +689,21 @@ final class AppModel: ObservableObject {
         // store to remove for it.
         let isBundledSample = encounters.contains { $0.id == id && $0.isSyntheticDemo }
         if !isBundledSample {
-            try? store.delete(encounterID: id)
+            do {
+                try store.delete(encounterID: id)
+            } catch {
+                // Deletion failed, so the row is still on the disk. Removing
+                // it from the screen would be a lie with worse consequences
+                // than a visible failure: the clinician would believe content
+                // gone that the next retention sweep or export would find.
+                lastError = "Could not delete the session. It is still on this Mac: \(error.localizedDescription)"
+                return
+            }
         }
         encounters.removeAll { $0.id == id }
+        saveOutcomes[id] = nil
+        unsavedEncounterIDs.remove(id)
+        copiedReceipts[id] = nil
         if selection == id {
             selection = encounters.first?.id
             selectedSentenceID = nil
@@ -576,33 +712,230 @@ final class AppModel: ObservableObject {
     }
 
     func persist(_ encounter: Encounter) {
-        try? store.save(encounter, clinician: clinicianName)
+        var toSave = encounter
+        // Mint stable identities and normalise derived bodies before the
+        // write. Doing it here — the one place every mutation passes — is
+        // what makes legacy notes safe: the first save after this change
+        // gives every engine line an id, so no later edit can orphan it.
+        if let note = encounter.note {
+            var rebuilt = note
+            for sectionIndex in rebuilt.sections.indices {
+                NoteEditing.rebuildSection(&rebuilt.sections[sectionIndex])
+            }
+            let normalized = NoteEditing.mintingLineIds(for: rebuilt)
+            toSave.note = normalized
+
+            // The minted ids only in `toSave` used to leave the on-screen note
+            // with none, so the next save minted a different set and the first
+            // edit changed the sentence's identity under the selection. Assign
+            // the normalised revision back to the in-memory encounter, and
+            // carry the selection to the same line.
+            if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+                if let oldNote = encounter.note,
+                   let selected = selectedSentenceID,
+                   let location = Self.location(of: selected, in: oldNote),
+                   location.section < normalized.sections.count,
+                   location.sentence < normalized.sections[location.section].sentences.count
+                {
+                    selectedSentenceID = normalized.sections[location.section].sentences[location.sentence].id
+                }
+                encounters[index].note = normalized
+            }
+        }
+        do {
+            try store.save(toSave, clinician: clinicianName)
+            saveOutcomes[toSave.id] = .saved
+            unsavedEncounterIDs.remove(toSave.id)
+        } catch {
+            saveOutcomes[toSave.id] = .failed(error.localizedDescription)
+            unsavedEncounterIDs.insert(toSave.id)
+            lastError = "Could not save this session. It is on screen but not on this Mac: \(error.localizedDescription)"
+        }
         // Keeps the derived lists in step with the consult list without
         // another store read: this is all in memory.
         rebuildTaskViews()
+    }
+
+    private static func location(
+        of sentenceID: String,
+        in note: ClinicalNote
+    ) -> (section: Int, sentence: Int)? {
+        for (sectionIndex, section) in note.sections.enumerated() {
+            if let sentenceIndex = section.sentences.firstIndex(where: { $0.id == sentenceID }) {
+                return (sectionIndex, sentenceIndex)
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Note edits: move, exclude, restore
+
+    /// The template's required section keys for an encounter. The engine's
+    /// `missing_required` list is only a draft-time snapshot; edits need the
+    /// real flags to keep the completeness check honest after moves and
+    /// exclusions. Also what `SectionBlock` reads to decide whether an empty
+    /// section earns the "not discussed" affordance.
+    func requiredKeys(for encounter: Encounter) -> Set<String> {
+        guard let template = templates.first(where: { $0.id == encounter.templateId })
+            ?? templates.first
+        else { return [] }
+        return requiredKeys(for: template)
+    }
+
+    private func requiredKeys(for template: TemplateSummary?) -> Set<String> {
+        Set((template?.sections ?? []).filter(\.required).map(\.key))
+    }
+
+    /// Move a sentence into another section. Evidence and provenance travel
+    /// with the line; completeness and missing-required are recomputed.
+    func moveSentence(_ sentenceID: String, toSection key: String) {
+        guard var encounter = selectedEncounter, let note = encounter.note else { return }
+        guard let updated = NoteEditing.moving(
+            sentenceID: sentenceID, toSection: key, in: note,
+            requiredKeys: requiredKeys(for: encounter)
+        ) else { return }
+        pushUndo(for: encounter, kind: .move)
+        markEdited(&encounter, note: updated)
+        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
+        syncTasks(for: encounter)
+        promptPasteIfReady()
+    }
+
+    /// Exclude a sentence from the note. Reversible; the source and the
+    /// decision both survive, and the clipboard skips the line.
+    func excludeSentence(_ sentenceID: String) {
+        guard var encounter = selectedEncounter, let note = encounter.note else { return }
+        guard let updated = NoteEditing.excluding(
+            sentenceID: sentenceID, in: note,
+            requiredKeys: requiredKeys(for: encounter)
+        ) else { return }
+        pushUndo(for: encounter, kind: .exclude)
+        markEdited(&encounter, note: updated)
+        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
+        syncTasks(for: encounter)
+        promptPasteIfReady()
+    }
+
+    /// Bring back an excluded sentence.
+    func restoreSentence(_ sentenceID: String) {
+        guard var encounter = selectedEncounter, let note = encounter.note else { return }
+        guard let updated = NoteEditing.restoring(
+            sentenceID: sentenceID, in: note,
+            requiredKeys: requiredKeys(for: encounter)
+        ) else { return }
+        pushUndo(for: encounter, kind: .exclude)
+        markEdited(&encounter, note: updated)
+        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
+        syncTasks(for: encounter)
+        promptPasteIfReady()
+    }
+
+    /// File an unfiled statement into a section. The margin keeps pointing
+    /// at the words that were said — that is the whole reason the item
+    /// carried evidence in the first place.
+    func fileUnfiled(_ itemID: String, toSection key: String) {
+        guard var encounter = selectedEncounter, let note = encounter.note else { return }
+        guard let item = note.unassigned.first(where: { $0.id == itemID }) else { return }
+        guard var updated = NoteEditing.adding(
+            item.text,
+            toSection: key,
+            in: note,
+            lineId: UUID().uuidString
+        ) else { return }
+        guard let removeIndex = updated.unassigned.firstIndex(where: { $0.id == itemID }) else { return }
+        updated.unassigned.remove(at: removeIndex)
+        // A filed statement is placed by a person but quoted from the room;
+        // it is not an authored line and must not present as one. The
+        // evidence it carried stays with it.
+        if let sectionIndex = updated.sections.firstIndex(where: { $0.key == key }) {
+            // The line just appended is the last one; it gets the item's
+            // evidence so the margin keeps pointing at the words that were
+            // said, and it is NOT authored — it was quoted from the room and
+            // placed by a person, which is a different thing from written by
+            // a person.
+            if var added = updated.sections[sectionIndex].sentences.last {
+                added.evidence = item.evidence
+                added.authored = nil
+                updated.sections[sectionIndex].sentences[updated.sections[sectionIndex].sentences.count - 1] = added
+            }
+        }
+        pushUndo(for: encounter, kind: .edit)
+        markEdited(&encounter, note: updated)
+        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
+        syncTasks(for: encounter)
+        promptPasteIfReady()
+    }
+
+    /// Exclude an unfiled statement: it leaves the queue and the decision is
+    /// remembered, so the next redraft cannot revive it.
+    func excludeUnfiled(_ itemID: String) {
+        guard var encounter = selectedEncounter, let note = encounter.note else { return }
+        guard let updated = NoteEditing.excludingUnfiled(itemID, from: note) else { return }
+        pushUndo(for: encounter, kind: .exclude)
+        markEdited(&encounter, note: updated)
+        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
+        promptPasteIfReady()
+    }
+
+    /// Put an excluded unfiled statement back into the queue.
+    func restoreUnfiled(_ itemID: String) {
+        guard var encounter = selectedEncounter, let note = encounter.note else { return }
+        guard let updated = NoteEditing.restoringUnfiled(itemID, from: note) else { return }
+        pushUndo(for: encounter, kind: .exclude)
+        markEdited(&encounter, note: updated)
+        if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
+        promptPasteIfReady()
     }
 
     // MARK: - Tasks
 
     /// One row per sentence in a section the template marks as work to do.
     ///
-    /// Called after a note is drafted. It never deletes: a task the clinician
-    /// ticked stays ticked even if the note is re-drafted.
+    /// Called after a note is drafted or edited. It reconciles rather than only
+    /// appends: a sentence that was corrected, moved out of an action section,
+    /// or excluded used to leave its old task open forever. A task the
+    /// clinician has ticked is never deleted — that is a record of work done,
+    /// not a derived row.
     func syncTasks(for encounter: Encounter) {
         guard let note = encounter.note else { return }
+        let template = templates.first { $0.id == encounter.templateId }
+        var wanted: [String: String] = [:]
         for section in note.sections {
-            let isAction = templates
-                .first { $0.id == encounter.templateId }?
+            let isAction = template?
                 .sections.first { $0.key == section.key }?
                 .actions ?? false
             guard isAction else { continue }
-            for sentence in section.sentences {
-                try? store.addTask(
-                    encounterID: encounter.id,
-                    text: sentence.text,
-                    sourceKey: section.key
-                )
+            for sentence in section.sentences where sentence.isPresent {
+                wanted[sentence.text] = section.key
             }
+        }
+
+        reloadTasks()
+        let existing = board.all.filter { $0.encounterId == encounter.id }
+        let existingTexts = Set(existing.map(\.text))
+        for task in existing where !task.done && !wanted.keys.contains(task.text) {
+            try? store.deleteTask(id: task.id)
+        }
+        for (text, key) in wanted where !existingTexts.contains(text) {
+            try? store.addTask(encounterID: encounter.id, text: text, sourceKey: key)
         }
         reloadTasks()
     }
@@ -660,6 +993,41 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Show the source of an unfiled statement: the words that were said, in
+    /// the margin, without pretending the statement is a note sentence.
+    func showSource(of item: UnassignedStatement) {
+        selectedSentenceID = nil
+        selectedUnfiledID = item.id
+    }
+
+    /// The unfiled statement whose source is showing, if any.
+    var selectedUnfiledItem: UnassignedStatement? {
+        guard let id = selectedUnfiledID else { return nil }
+        return selectedEncounter?.note?.unassigned.first { $0.id == id }
+    }
+
+    /// Every sentence the note actually consists of, in reading order. This
+    /// is what arrow-key movement steps through — a line excluded from the
+    /// note is not part of the journey either.
+    var presentSentenceIDs: [String] {
+        guard let note = selectedEncounter?.note else { return [] }
+        return note.sections.flatMap(\.sentences).filter(\.isPresent).map(\.id)
+    }
+
+    /// Move sentence selection by `offset` through the document, wrapping at
+    /// the ends so an arrow key never feels stuck on the last line.
+    func selectAdjacentSentence(_ offset: Int) {
+        let ids = presentSentenceIDs
+        guard !ids.isEmpty else { return }
+        guard let current = selectedSentenceID,
+              let index = ids.firstIndex(of: current)
+        else {
+            selectedSentenceID = offset < 0 ? ids.last : ids.first
+            return
+        }
+        selectedSentenceID = ids[(index + offset + ids.count) % ids.count]
+    }
+
     /// Generates the bundled sample note so the window has real, honest content
     /// on first launch — and so a clinician sees a draft before ever recording
     /// a patient.
@@ -710,6 +1078,10 @@ final class AppModel: ObservableObject {
                 await MainActor.run {
                     if let index = self.encounters.firstIndex(where: { $0.id == encounterId }) {
                         self.encounters[index].note = drafted
+                        // The model finishing is a machine redraft of the
+                        // bundled sample: a revision no human has seen, so
+                        // the review state resets rather than inheriting.
+                        self.markRedrafted(&self.encounters[index], note: drafted)
                         self.persist(self.encounters[index])
                         self.selectFirstEvidence()
                     }
@@ -844,29 +1216,39 @@ final class AppModel: ObservableObject {
         traceLevel = 0
         recordingState = .finalising
 
-        Recorder.shared.stop()
+        // Read before the recorder is reset: this is the honest "how much of
+        // the session was captured", from the file, not the clock. This used
+        // to run after `stop()`, which closes the file, so it was always nil.
+        let capturedMs = Recorder.shared.capturedMilliseconds
         let url = Recorder.shared.capturedFile()
+        Recorder.shared.stop()
         let startedAt = recordingStart ?? Date()
         recordingStart = nil
 
         guard let url else {
             RecordingStripController.shared.hide()
             recordingState = .idle
+            processingStage = nil
             lastError = "Nothing was recorded."
             return
         }
 
-        transcribe(url, startedAt: startedAt)
+        processingStage = .transcribing
+        transcribe(url, startedAt: startedAt, capturedMs: capturedMs)
     }
 
     /// Recognise a captured recording, then file it.
     ///
-    /// Off the main actor: recognition runs for as long as the consultation did,
-    /// and nothing about it may hold the interface.
-    private func transcribe(_ url: URL, startedAt: Date) {
+    /// Off the main actor: recognition runs for as long as the consultation
+    /// did, and nothing about it may hold the interface.
+    ///
+    /// `recoveryID` is set when this is a retry of a stored capture: the
+    /// encounter keeps the original's identity and start time, so a retry
+    /// files one session rather than minting a second one.
+    private func transcribe(_ url: URL, startedAt: Date, capturedMs: UInt64? = nil, recoveryID: String? = nil) {
         let templateId = self.templateId
         let discipline = self.discipline
-        let patientRef = nextPatientRef()
+        let patientRef = recoveryID ?? nextPatientRef()
         // Capture the hold before the background task starts; the property is
         // main-actor state and the recording is over by the time we are here.
         let held = heldMs
@@ -883,97 +1265,337 @@ final class AppModel: ObservableObject {
                     file: url,
                     vocabulary: vocabulary
                 )
-
-                let result = try KlinoteCore.note(
-                    fromSegments: segments,
-                    // The recording goes back so the engine can measure where the
-                    // silences are: the recogniser's ranges are contiguous, so
-                    // the turn boundaries are not in the timings. Deleted after,
-                    // not before.
-                    audioPath: url,
-                    language: "en",
-                    engine: Transcriber.engineName,
+                await self.draft(
+                    segments: segments,
+                    audio: url,
+                    startedAt: startedAt,
+                    held: held,
                     templateId: templateId,
                     discipline: discipline,
-                    patientRef: patientRef
+                    patientRef: patientRef,
+                    recoveryID: recoveryID
                 )
-                try? FileManager.default.removeItem(at: url)
-                let template = await MainActor.run {
-                    self.templates.first(where: { $0.id == templateId }) ?? self.templates.first
-                }
-                // Vocabulary corrections the clinician accepted previously.
-                // Applied before drafting, and announced.
-                var (transcript, learned) = LearnedTerms.apply(to: result.transcript)
-                // Say that the gap was deliberate. Silence in a consult is
-                // ambiguous; a held stretch is a decision.
-                transcript.heldMs = held
-                let fallback = learned > 0
-                    ? (try? KlinoteCore.note(fromTranscript: transcript, templateId: templateId)) ?? result.note
-                    : result.note
-                let note = await Self.preferLocalDraft(
-                    transcript: transcript,
-                    template: template,
-                    fallback: fallback
-                )
-                await MainActor.run {
-                    let encounter = Encounter(
-                        id: result.note.encounterId,
-                        patientRef: patientRef,
-                        discipline: discipline,
-                        templateId: templateId,
-                        startedAt: startedAt,
-                        state: .draft,
-                        note: note,
-                        transcript: transcript,
-                        isSyntheticDemo: false
-                    )
-                    self.encounters.removeAll { $0.isSyntheticDemo }
-                    self.encounters.insert(encounter, at: 0)
-                    self.selection = encounter.id
-                    self.lastError = nil
-                    self.recordingState = .idle
-                    self.elapsed = 0
-                    self.persist(encounter)
-                    self.selectFirstEvidence()
-                    self.syncTasks(for: encounter)
-                    RecordingStripController.shared.hide()
-                    self.workspace = .letter
-                    ReviewWindowController.shared.show()
-                    if learned > 0 {
-                        self.copyBanner = learned == 1
-                            ? "1 learned correction applied."
-                            : "\(learned) learned corrections applied."
-                    } else {
-                        self.promptPasteIfReady()
-                    }
-                }
             } catch {
-                try? FileManager.default.removeItem(at: url)
+                // The recording is the one thing the clinician cannot re-live.
+                // It is sealed, encrypted, into the vault and offered for
+                // retry — deleting it here is what made a failed transcription
+                // a lost session.
+                let capture = RecoverableCapture(
+                    id: recoveryID ?? patientRef,
+                    patientRef: patientRef,
+                    discipline: discipline,
+                    templateId: templateId,
+                    startedAt: startedAt,
+                    heldMs: held,
+                    capturedMs: capturedMs,
+                    stage: .captured,
+                    failure: error.localizedDescription
+                )
+                let vaultError = await self.sealIntoVault(
+                    audio: url,
+                    capture: capture,
+                    segments: nil
+                )
                 await MainActor.run {
                     // Name the stage: recognition and the engine fail for
                     // different reasons, and "could not write this note" sent
                     // whoever read it looking in the wrong place.
                     let stage = (error is TranscriberError) ? "hear" : "write"
-                    self.lastError = stage == "hear"
-                        ? "Could not make out that recording. \(error.localizedDescription)"
-                        : "Could not write this note. Record again if you still need it."
+                    let saved = vaultError.isEmpty
+                    if stage == "hear" {
+                        self.lastError = saved
+                            ? "Could not make out that recording. It is saved encrypted on this Mac for 24 hours — Retry from the desk."
+                            : "Could not make out that recording, and it could not be saved.\(vaultError) Record again if you still need it."
+                    } else {
+                        self.lastError = saved
+                            ? "Could not write this note. The recording is saved encrypted on this Mac for 24 hours — Retry from the desk."
+                            : "Could not write this note, and the recording could not be saved.\(vaultError) Record again if you still need it."
+                    }
                     self.recordingState = .idle
                     self.elapsed = 0
+                    self.processingStage = nil
+                    self.retryingRecoveryID = nil
                     RecordingStripController.shared.hide()
                 }
             }
         }
     }
 
+    /// Draft and file a note from recognised segments. The second half of
+    /// the capture pipeline, split out so a retry can start here without
+    /// re-running recognition.
+    private func draft(
+        segments: [RecognisedSegment],
+        audio: URL,
+        startedAt: Date,
+        held: UInt64,
+        templateId: String,
+        discipline: String,
+        patientRef: String,
+        recoveryID: String? = nil
+    ) async {
+        await MainActor.run { self.processingStage = .writing }
+        do {
+            let result = try KlinoteCore.note(
+                fromSegments: segments,
+                // The recording goes back so the engine can measure where the
+                // silences are: the recogniser's ranges are contiguous, so
+                // the turn boundaries are not in the timings. Deleted after,
+                // not before.
+                audioPath: audio,
+                language: "en",
+                engine: Transcriber.engineName,
+                templateId: templateId,
+                discipline: discipline,
+                patientRef: patientRef
+            )
+            let template = await MainActor.run {
+                self.templates.first(where: { $0.id == templateId }) ?? self.templates.first
+            }
+            // Vocabulary corrections the clinician accepted previously.
+            // Applied before drafting, and announced.
+            var (transcript, learned) = LearnedTerms.apply(to: result.transcript)
+            // Say that the gap was deliberate. Silence in a consult is
+            // ambiguous; a held stretch is a decision.
+            transcript.heldMs = held
+            let fallback = learned > 0
+                ? (try? KlinoteCore.note(fromTranscript: transcript, templateId: templateId)) ?? result.note
+                : result.note
+            let note = await Self.preferLocalDraft(
+                transcript: transcript,
+                template: template,
+                fallback: fallback
+            )
+            try? FileManager.default.removeItem(at: audio)
+            await MainActor.run {
+                let encounter = Encounter(
+                    id: result.note.encounterId,
+                    patientRef: patientRef,
+                    discipline: discipline,
+                    templateId: templateId,
+                    startedAt: startedAt,
+                    state: .draft,
+                    note: note,
+                    transcript: transcript,
+                    isSyntheticDemo: false
+                )
+                self.encounters.removeAll { $0.isSyntheticDemo }
+                self.encounters.insert(encounter, at: 0)
+                self.selection = encounter.id
+                self.lastError = nil
+                self.recordingState = .idle
+                self.elapsed = 0
+                self.processingStage = nil
+                self.persist(encounter)
+                self.selectFirstEvidence()
+                self.syncTasks(for: encounter)
+                RecordingStripController.shared.hide()
+                self.workspace = .letter
+                ReviewWindowController.shared.show()
+                if let recoveryID {
+                    // The retry succeeded; the vault has served its purpose.
+                    // A failed removal is reported rather than shown as gone.
+                    if self.vault.destroy(id: recoveryID) {
+                        self.recoveries.removeAll { $0.id == recoveryID }
+                    } else {
+                        self.lastError = "The note was saved, but the saved recording could not be removed from this Mac."
+                    }
+                    self.retryingRecoveryID = nil
+                }
+                if learned > 0 {
+                    self.copyBanner = learned == 1
+                        ? "1 learned correction applied."
+                        : "\(learned) learned corrections applied."
+                } else {
+                    self.promptPasteIfReady()
+                }
+            }
+        } catch {
+            // The words were recognised but the draft failed. Both the audio
+            // and the segments are sealed: a retry resumes at drafting and
+            // never asks the clinician to record the session again.
+            let capture = RecoverableCapture(
+                id: recoveryID ?? patientRef,
+                patientRef: patientRef,
+                discipline: discipline,
+                templateId: templateId,
+                startedAt: startedAt,
+                heldMs: held,
+                capturedMs: segments.map(\.endMs).max(),
+                stage: .recognised,
+                failure: error.localizedDescription
+            )
+            let vaultError = await sealIntoVault(
+                audio: audio,
+                capture: capture,
+                segments: segments
+            )
+            await MainActor.run {
+                self.lastError = vaultError.isEmpty
+                    ? "Could not write this note. The words and the recording are saved encrypted on this Mac for 24 hours — Retry from the desk."
+                    : "Could not write this note, and the words could not be saved.\(vaultError) Record again if you still need it."
+                self.recordingState = .idle
+                self.elapsed = 0
+                self.processingStage = nil
+                self.retryingRecoveryID = nil
+                RecordingStripController.shared.hide()
+            }
+        }
+    }
+
+    /// Seal a failed capture into the vault and refresh the visible list.
+    /// Returns a sentence for the error message, or an empty string when the
+    /// vault took the capture cleanly.
+    private func sealIntoVault(
+        audio: URL,
+        capture: RecoverableCapture,
+        segments: [RecognisedSegment]?
+    ) async -> String {
+        do {
+            // Sealing reads and encrypts the whole recording; keep that off the
+            // main actor. The vault is a value with its own Keychain key.
+            let vault = self.vault
+            try await Task.detached {
+                try vault.seal(id: capture.id, audio: audio, capture: capture, segments: segments)
+            }.value
+            // The seal is now the only copy that matters; the plaintext temp
+            // file has no reason to outlive it.
+            try? FileManager.default.removeItem(at: audio)
+            await MainActor.run {
+                self.refreshRecoveries()
+            }
+            return ""
+        } catch {
+            // The plaintext temp file is the one thing the vault was meant to
+            // replace. If sealing failed, it must not be left in $TMPDIR.
+            try? FileManager.default.removeItem(at: audio)
+            return " The recording could not be saved for retry."
+        }
+    }
+
+    /// The recoveries the desk shows. Expiry is enforced here too, so a
+    /// launch-day list never offers a recovery the vault has just removed.
+    func refreshRecoveries() {
+        let removed = vault.enforceRetention()
+        recoveries = vault.list()
+        if removed > 0, copyBanner == nil {
+            copyBanner = removed == 1
+                ? "Removed 1 saved capture past its 24-hour recovery window."
+                : "Removed \(removed) saved captures past their 24-hour recovery window."
+        }
+    }
+
+    /// Retry a stored capture from where it failed. A recognition retry asks
+    /// the microphone's work of the saved audio; a drafting retry starts at
+    /// the words — the session is never re-recorded for either.
+    ///
+    /// The capture's own discipline, template and patient ref are reused, not
+    /// today's settings: a therapist who switched template after the failure
+    /// still gets their session filed as it was recorded.
+    func retryRecovery(_ id: String) {
+        guard recordingState.isIdle, retryingRecoveryID == nil else { return }
+        guard let capture = vault.capture(id: id) else {
+            refreshRecoveries()
+            return
+        }
+        var temporaryURL: URL?
+        do {
+            let audioData = try vault.unsealAudio(id: id)
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("klinote-retry-\(id).wav")
+            try audioData.write(to: url, options: .atomic)
+            temporaryURL = url
+            retryingRecoveryID = id
+            recordingState = .finalising
+            switch capture.stage {
+            case .captured:
+                transcribe(
+                    url,
+                    startedAt: capture.startedAt,
+                    capturedMs: capture.capturedMs,
+                    recoveryID: id
+                )
+            case .recognised:
+                let (_, segments) = try vault.openSegments(id: id)
+                Task.detached {
+                    await self.draft(
+                        segments: segments,
+                        audio: url,
+                        startedAt: capture.startedAt,
+                        held: capture.heldMs,
+                        templateId: capture.templateId,
+                        discipline: capture.discipline,
+                        patientRef: capture.patientRef,
+                        recoveryID: id
+                    )
+                }
+            }
+        } catch {
+            // Fail closed: an unopenable vault file is an error, never a
+            // half-decrypted recording presented as the session. Reset the
+            // retry state too, or one corrupt file disables every future retry
+            // and leaves the strip claiming it is still writing.
+            if let temporaryURL {
+                try? FileManager.default.removeItem(at: temporaryURL)
+            }
+            retryingRecoveryID = nil
+            recordingState = .idle
+            processingStage = nil
+            RecordingStripController.shared.hide()
+            lastError = "Could not open that saved recording: \(error.localizedDescription)"
+        }
+    }
+
+    /// The clinician chose to let a failed capture go. Everything the vault
+    /// kept — audio, segments, metadata — is destroyed.
+    func discardRecovery(_ id: String) {
+        if vault.destroy(id: id) {
+            recoveries.removeAll { $0.id == id }
+        } else {
+            lastError = "Could not remove that saved recording from this Mac."
+            refreshRecoveries()
+        }
+    }
+
+    /// Review is the clinician's claim: "I have read this revision and stand
+    /// behind it." The machine never reaches here on its own, and neither
+    /// does a note that still has something unresolved — an approval of an
+    /// incomplete note would be a signature over a gap, which is worse than
+    /// the gap.
+    ///
+    /// A blocked review names the fix and does not move the state. Reviewing
+    /// does not touch the clipboard receipt: copied and reviewed stay two
+    /// separate facts about two separate events.
     func fileSelectedNote() {
-        guard var encounter = selectedEncounter else { return }
+        guard var encounter = selectedEncounter, var note = encounter.note else { return }
+        guard encounter.state != .approved else { return }
+        switch OutputPolicy.decision(for: readiness(for: encounter)) {
+        case .blocked(let reason):
+            pendingReviewRequest = PendingOutput(
+                encounter: encounter,
+                kind: .review,
+                reason: reason
+            )
+            return
+        case .allowed:
+            break
+        }
         isFiling = true
+        // Approval is a claim about this revision. The stored JSON is what a
+        // relaunch reads, so the review state moves on the note itself — when
+        // this only moved the shell's own state, the approved note reopened
+        // as a draft and the clinician's act was quietly gone.
+        note.reviewState = "approved"
+        encounter.note = note
         encounter.state = .approved
         if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
             encounters[index] = encounter
         }
         persist(encounter)
         isFiling = false
+        // A save that failed leaves the approval unpublished: the encounter
+        // keeps its in-memory state, the letterhead says not saved, and the
+        // relaunch will read the last durable revision.
     }
 
     /// Local GGUF first, then Apple Foundation Models, then the rule-based note.
@@ -1000,7 +1622,15 @@ final class AppModel: ObservableObject {
             // goes back unmarked, which is a real caveat and not worth being
             // quiet about.
             do {
-                return try KlinoteCore.verify(note: drafted, against: transcript)
+                let verified = try KlinoteCore.verify(note: drafted, against: transcript)
+                if template.audience == "patient" {
+                    // Asking the model for plain language is not a guarantee.
+                    // Enforce it with the same core transformer the Rust
+                    // pipeline uses, or a patient summary can carry "q8h"
+                    // while claiming it was checked.
+                    return (try? KlinoteCore.simplifyForPatient(note: verified)) ?? verified
+                }
+                return verified
             } catch {
                 NSLog(
                     "Klinote: could not ground the on-device draft, leaving it unmarked: %@",
@@ -1020,12 +1650,38 @@ final class AppModel: ObservableObject {
     /// this logic is how the print guard came to be missing for a while.
     enum Output { case copy, print }
 
+    /// A refused output: which note, which action, and the named reason.
+    /// The sheet's buttons take the clinician to the fix rather than
+    /// leaving them with a dead end.
+    struct PendingOutput: Identifiable {
+        enum Kind { case copy, print, review }
+        let encounter: Encounter
+        let kind: Kind
+        let reason: String
+        var id: String { encounter.id + String(describing: kind) }
+    }
+    @Published var pendingReviewRequest: PendingOutput?
+
     func requestCopy(of encounterID: String) {
         request(.copy, of: encounterID)
     }
 
     func request(_ output: Output, of encounterID: String) {
         guard let encounter = encounters.first(where: { $0.id == encounterID }) else { return }
+        // The output policy runs on every route, before the wrong-session
+        // guard: a hotkey or a menu item is not a way past an incomplete
+        // note. The refusal names the fix and offers the jump.
+        switch OutputPolicy.decision(for: readiness(for: encounter)) {
+        case .blocked(let reason):
+            pendingReviewRequest = PendingOutput(
+                encounter: encounter,
+                kind: output == .print ? .print : .copy,
+                reason: reason
+            )
+            return
+        case .allowed:
+            break
+        }
         switch CopyGuard.decision(
             requested: encounterID,
             selection: selection,
@@ -1047,7 +1703,6 @@ final class AppModel: ObservableObject {
             }
         }
     }
-
     private func act(_ output: Output) {
         switch output {
         case .copy: copySelectedNote()
@@ -1057,8 +1712,26 @@ final class AppModel: ObservableObject {
 
     /// Puts paste-ready plain text on the clipboard. Section titles and bodies
     /// only: no Markdown, no engine name, no unfiled statements, no footer.
+    ///
+    /// The direct path — the toolbar, the signature block, the desk, the
+    /// menus — checks the output policy here, in the one function every
+    /// route reaches. A refused copy says what to fix and stays off the
+    /// clipboard: a status code is not proof, but a refusal is at least a
+    /// truth, and the alternative was a clinician pasting an incomplete
+    /// note believing the app had their back.
     func copySelectedNote() {
-        guard let note = selectedEncounter?.note else { return }
+        guard let encounter = selectedEncounter, let note = encounter.note else { return }
+        switch OutputPolicy.decision(for: readiness(for: encounter)) {
+        case .blocked(let reason):
+            pendingReviewRequest = PendingOutput(
+                encounter: encounter,
+                kind: .copy,
+                reason: reason
+            )
+            return
+        case .allowed:
+            break
+        }
         do {
             let text = try KlinoteCore.recordText(for: note)
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -1066,21 +1739,20 @@ final class AppModel: ObservableObject {
                 return
             }
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            isCopying = true
-            // Name the consult in the receipt, so a paste can be checked
-            // against what the clipboard actually holds.
-            if let encounter = selectedEncounter {
-                copyBanner = "On the clipboard. Paste it into the record you already use. Nothing left this Mac."
-            } else {
-                copyBanner = "On the clipboard. Paste it into the record you already use. Nothing left this Mac."
+            guard NSPasteboard.general.setString(text, forType: .string) else {
+                lastError = "Could not write to the clipboard."
+                return
             }
+            isCopying = true
+            // The receipt is the difference between "this left" and "I think
+            // this left". It is written only after a clipboard write that
+            // returned true; this used to ignore the Bool and record a receipt
+            // for a write that never happened.
+            copiedReceipts[encounter.id] = CopiedReceipt(encounterID: encounter.id, note: note)
+            copyBanner = "Copied. Paste it into the record you already use. Nothing left this Mac."
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 self.isCopying = false
-                if self.copyBanner?.hasPrefix("Copied") == true {
-                    self.copyBanner = nil
-                }
             }
         } catch {
             lastError = "Could not copy the note."
@@ -1088,31 +1760,51 @@ final class AppModel: ObservableObject {
     }
 
     /// Swap clinician and patient, then rebuild the note. Keyboard: ⌥⌘S.
+    ///
+    /// A rebuild replaces the prose, so it must carry the clinician's own work
+    /// across — corrections, added lines and excluded sentences — and it must
+    /// not overwrite an edit made while the model was working.
     func swapSpeakersAndRedraft() {
-        guard var encounter = selectedEncounter, var transcript = encounter.transcript else { return }
+        guard var encounter = selectedEncounter,
+              var transcript = encounter.transcript,
+              let existing = encounter.note
+        else { return }
         guard !encounter.isSyntheticDemo else { return }
         isSwapping = true
+        let startingRevision = existing.generatedAt
         transcript.swapClinicianAndPatient()
         let templateId = encounter.templateId
         let template = templates.first(where: { $0.id == templateId }) ?? templates.first
         Task.detached {
             do {
                 let rules = try KlinoteCore.note(fromTranscript: transcript, templateId: templateId)
-                let note = await Self.preferLocalDraft(
+                let drafted = await Self.preferLocalDraft(
                     transcript: transcript,
                     template: template,
                     fallback: rules
                 )
                 await MainActor.run {
+                    defer { self.isSwapping = false }
+                    guard let index = self.encounters.firstIndex(where: { $0.id == encounter.id })
+                    else { return }
+                    // Do not replace a revision the clinician changed while
+                    // the model was working. The swap can be retried; an edit
+                    // cannot be recovered from a silent overwrite.
+                    guard self.encounters[index].note?.generatedAt == startingRevision else {
+                        self.lastError = "The note changed while the voices were being swapped. Nothing was replaced."
+                        return
+                    }
+                    let note = NoteEditing.carryingAuthoredLines(
+                        from: existing,
+                        into: drafted,
+                        requiredKeys: self.requiredKeys(for: template)
+                    )
                     encounter.note = note
                     encounter.transcript = transcript
-                    encounter.state = .draft
-                    if let index = self.encounters.firstIndex(where: { $0.id == encounter.id }) {
-                        self.encounters[index] = encounter
-                    }
+                    self.markRedrafted(&encounter, note: note)
+                    self.encounters[index] = encounter
                     self.persist(encounter)
                     self.selectFirstEvidence()
-                    self.isSwapping = false
                 }
             } catch {
                 await MainActor.run {
@@ -1224,22 +1916,36 @@ final class AppModel: ObservableObject {
             }
             return false
         }
+        // A late result must not overwrite an edit made while the model was
+        // running. Human edits restamp `generatedAt`; if it moved, the draft
+        // is stale and the clinician's revision wins.
+        guard let current = encounters.first(where: { $0.id == id }),
+              let currentNote = current.note,
+              currentNote.generatedAt == existing.generatedAt
+        else {
+            if announceFailure {
+                lastError = "This note changed while it was being written again. Nothing was replaced."
+            }
+            return false
+        }
         // Anything the clinician typed is in no transcript, so the model cannot
         // have written it and replacing the note would delete it.
-        let note = NoteEditing.carryingAuthoredLines(from: existing, into: drafted)
+        let note = NoteEditing.carryingAuthoredLines(
+            from: currentNote,
+            into: drafted,
+            requiredKeys: requiredKeys(for: template)
+        )
 
-        var updated = stored
-        updated.note = note
-        if updated.state == .draft {
-            updated.state = .edited
-        }
+        var updated = current
+        markRedrafted(&updated, note: note)
         if let index = encounters.firstIndex(where: { $0.id == updated.id }) {
             encounters[index] = updated
         }
         persist(updated)
         syncTasks(for: updated)
         promptPasteIfReady()
-        copyBanner = "Quire wrote this note again from the transcript."
+        let writer = drafted.engine.contains("apple-foundation") ? "Apple's on-device model" : "Quire"
+        copyBanner = "\(writer) wrote this note again from the transcript."
         return true
     }
 
@@ -1264,8 +1970,7 @@ final class AppModel: ObservableObject {
             $0.heard.compare(heard, options: .caseInsensitive) == .orderedSame
         }
         encounter.transcript = transcript
-        encounter.note = note
-        encounter.state = .edited
+        markEdited(&encounter, note: note)
         if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
             encounters[index] = encounter
         }
@@ -1273,6 +1978,103 @@ final class AppModel: ObservableObject {
         // Accepting a suggestion teaches this practice's vocabulary.
         LearnedTerms.learn(heard: heard, replacement: suggest)
         promptPasteIfReady()
+    }
+
+    /// Apply the human-edit review rule to a note being changed, and keep the
+    /// shell's state word in step with the stored one.
+    ///
+    /// One function because four call sites used to do this by hand and two
+    /// of them (sentence edit, name check) forgot the review state entirely:
+    /// a clinician could approve a note, correct a sentence, and reopen a
+    /// note still marked reviewed — with the correction missing from the
+    /// disk. Machine redrafts do not come through here; they go through
+    /// `markRedrafted`, because a machine rewrite is a different claim.
+    ///
+    /// The revision is also restamped. `generated_at` is the engine's draft
+    /// timestamp, and without this an edit leaves it untouched — which made
+    /// a copied-then-edited note look like the same revision the clipboard
+    /// receipt described. The restamp is what makes a receipt go stale the
+    /// moment the words change, which is the whole property a receipt needs.
+    private func markEdited(_ encounter: inout Encounter, note: ClinicalNote) {
+        var revised = note
+        revised.reviewState = ReviewDecision.stateAfterHumanEdit(
+            current: note.reviewState
+        )
+        revised.generatedAt = Self.revisionStamp()
+        // A human edit ends the claim that this is a machine-written revision.
+        revised.machineGenerated = false
+        encounter.note = revised
+        encounter.state = NoteState(rawValue: revised.reviewState) ?? .edited
+    }
+
+    /// One revision stamp, one format. ISO-8601 like the engine writes it,
+    /// so the stored JSON stays homogeneous.
+    static func revisionStamp(now: Date = Date()) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: now)
+    }
+
+    // MARK: - Undo
+
+    /// One undoable step: the note as it was before an edit, and which kind
+    /// of edit it was. Per-encounter, newest first, capped — a note is a
+    /// document, not an infinite tape. Undo restores content only; the
+    /// append-only audit log is never rewritten, and undo never re-approves.
+    struct UndoStep {
+        let note: ClinicalNote
+        let kind: Kind
+
+        enum Kind { case edit, move, exclude }
+    }
+
+    private var undoStacks: [String: [UndoStep]] = [:]
+    private static let undoLimit = 20
+
+    @Published private(set) var canUndoEncounterID: String?
+
+    private func pushUndo(for encounter: Encounter, kind: UndoStep.Kind) {
+        guard let note = encounter.note else { return }
+        var stack = undoStacks[encounter.id] ?? []
+        stack.append(UndoStep(note: note, kind: kind))
+        if stack.count > Self.undoLimit { stack.removeFirst() }
+        undoStacks[encounter.id] = stack
+        canUndoEncounterID = encounter.id
+    }
+
+    /// Undo the newest note edit on the selected encounter. The restored
+    /// revision is a human action on a document, so it keeps the review
+    /// state the restored note had — which by construction is not "approved
+    /// with the new edits", because approval of a since-edited revision was
+    /// already invalidated when the edit landed.
+    func undoLastEdit() {
+        guard let id = selectedEncounter?.id,
+              var stack = undoStacks[id], let step = stack.popLast()
+        else { return }
+        undoStacks[id] = stack
+        canUndoEncounterID = stack.isEmpty ? nil : id
+        guard var encounter = selectedEncounter else { return }
+        var restored = step.note
+        restored.reviewState = ReviewDecision.stateAfterUndo(restored: step.note.reviewState)
+        encounter.note = restored
+        encounter.state = NoteState(rawValue: restored.reviewState) ?? .edited
+        if let index = encounters.firstIndex(where: { $0.id == id }) {
+            encounters[index] = encounter
+        }
+        persist(encounter)
+        syncTasks(for: encounter)
+        promptPasteIfReady()
+    }
+
+    /// Apply the machine-redraft review rule: the new revision is one no
+    /// human has seen, whatever the old one was. Applied to the Quire
+    /// redraft, the voice swap and the download-completion rewrite — the
+    /// paths that replace prose without a person in the loop.
+    private func markRedrafted(_ encounter: inout Encounter, note: ClinicalNote) {
+        var revised = note
+        revised.reviewState = ReviewDecision.stateAfterMachineRedraft()
+        encounter.note = revised
+        encounter.state = .draft
     }
 
     /// Correct one sentence of the note.
@@ -1300,9 +2102,7 @@ final class AppModel: ObservableObject {
         ) else { return false }
 
         encounter.note = updated
-        if encounter.state == .draft {
-            encounter.state = .edited
-        }
+        markEdited(&encounter, note: updated)
         if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
             encounters[index] = encounter
         }
@@ -1328,6 +2128,22 @@ final class AppModel: ObservableObject {
                     return
                 }
                 note.sections[sectionIndex].sentences[sentenceIndex].text = trimmed
+                // Provenance: the person rewrote this line. It is no longer
+                // the engine's sentence, and the margin must say so — this
+                // used to clear the machine's flags while leaving the line
+                // looking machine-written, which is a fact nobody could see.
+                note.sections[sectionIndex].sentences[sentenceIndex].authored = LineAuthorship.clinicianEdited
+                // A stable id survives the text change, so selection and the
+                // margin keep following the line they were following.
+                if note.sections[sectionIndex].sentences[sentenceIndex].lineId == nil {
+                    note.sections[sectionIndex].sentences[sentenceIndex].lineId = UUID().uuidString
+                }
+                if selectedSentenceID == sentenceID,
+                   let minted = note.sections[sectionIndex].sentences[sentenceIndex].lineId {
+                    // The sentence's identity just became stable. Follow it,
+                    // or the margin clears itself the moment the edit saves.
+                    selectedSentenceID = minted
+                }
                 // A human correction *clears* the machine's verdict; it does not
                 // replace it with a pass. "supported" means "we checked this
                 // against the words heard and its figures and drug names were
@@ -1339,19 +2155,16 @@ final class AppModel: ObservableObject {
                 // clinician's own now agree.
                 note.sections[sectionIndex].sentences[sentenceIndex].support = nil
                 note.sections[sectionIndex].sentences[sentenceIndex].wording = "plain"
-                note.sections[sectionIndex].body = note.sections[sectionIndex]
-                    .sentences
-                    .map(\.text)
-                    .joined(separator: " ")
                 changed = true
             }
         }
         guard changed else { return }
 
-        encounter.note = note
-        if encounter.state == .draft {
-            encounter.state = .edited
+        pushUndo(for: encounter, kind: .edit)
+        for sectionIndex in note.sections.indices {
+            NoteEditing.rebuildSection(&note.sections[sectionIndex])
         }
+        markEdited(&encounter, note: note)
         if let index = encounters.firstIndex(where: { $0.id == encounter.id }) {
             encounters[index] = encounter
         }

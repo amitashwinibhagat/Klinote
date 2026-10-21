@@ -29,7 +29,6 @@ struct SettingsRootView: View {
 
 private struct GeneralSettings: View {
     @ObservedObject var model: AppModel
-    @AppStorage("klinote.showMarginByDefault") private var showMarginByDefault = true
 
     var body: some View {
         Form {
@@ -78,8 +77,13 @@ private struct GeneralSettings: View {
             }
 
             Section("Review window") {
-                Toggle("Show the evidence margin", isOn: $showMarginByDefault)
-                Text("Click a sentence to see the words that produced it.")
+                // There is deliberately no "hide the evidence" switch. The
+                // margin is not a panel: tracing a sentence to the words that
+                // produced it is the product's whole claim, and the plan's
+                // Phase 5 removed the toggle rather than keep a setting that
+                // did nothing. On a narrow window the margin becomes a sheet
+                // instead of disappearing.
+                Text("Click a sentence to see the words that produced it. On a narrow window the words open over the note.")
                     .font(KlinoteFont.caption())
                     .foregroundStyle(KlinoteColor.secondary)
             }
@@ -226,6 +230,7 @@ private struct RecordingSettings: View {
                     Text("Speech is transcribed on this Mac by the system's own speech model. There is nothing to download, and the audio is never uploaded.")
                         .font(KlinoteFont.caption())
                         .foregroundStyle(KlinoteColor.secondary)
+                    MicrophoneCheck()
                 }
             }
             Section("Shortcuts") {
@@ -235,6 +240,8 @@ private struct RecordingSettings: View {
                 LabeledContent("Swap therapist and client", value: "⌥⌘S")
                 LabeledContent("Open Klinote", value: "⌘⇧N")
                 LabeledContent("File a note", value: "⌘↩")
+                LabeledContent("Correct the selected sentence", value: "⌘E")
+                LabeledContent("Next / previous sentence", value: "↓ / ↑")
             }
             Section("Quire") {
                 LabeledContent("Status", value: downloader.noteState.word)

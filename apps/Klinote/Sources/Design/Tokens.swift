@@ -241,6 +241,10 @@ enum KlinoteMetrics {
     static let wordmarkTracking: CGFloat = -0.03
 
     static let marginColumnWidth: CGFloat = 300
+    /// Below this the evidence column becomes a sheet over the document
+    /// instead of a squeezed column (UX-PLAN §9, DESIGN.md). The 13-inch
+    /// MacBook is 1280 pt wide, so a half-screen window lands here.
+    static let marginSideBySideMinWidth: CGFloat = 1000
     static let sidebarWidth: CGFloat = 220
     /// 68 characters at 14 pt New York, in points.
     static let documentMeasure: CGFloat = 560

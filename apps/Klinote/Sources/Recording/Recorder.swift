@@ -19,6 +19,35 @@ final class Recorder: ObservableObject {
     @Published var inputLevel: Double = 0
     /// Oldest-first RMS samples for the strip's trace. Silence sits at zero.
     @Published var trace: [Double] = Array(repeating: 0, count: 64)
+    /// A microphone check is running: the engine is live but nothing is
+    /// being kept. Distinct from recording, because it must never look like
+    /// a session is being captured.
+    @Published private(set) var isPreviewing = false
+
+    /// The input macOS will actually capture from. Shown before a first
+    /// session: "listening is ready" is not the same fact as "the right
+    /// microphone is selected", and the second is checkable before a patient
+    /// is in the room.
+    nonisolated static var inputDeviceName: String {
+        AVCaptureDevice.default(for: .audio)?.localizedName ?? "the system default input"
+    }
+
+    /// A short level check before a first session. It confirms signal, never
+    /// accuracy, and the screen that offers it says exactly that. The audio
+    /// is a temp file deleted the moment the check stops — this is not a
+    /// recording and never becomes one.
+    func startPreview() throws {
+        guard !isPreviewing else { return }
+        _ = try start()
+        isPreviewing = true
+    }
+
+    func stopPreview() {
+        guard isPreviewing else { return }
+        stop()
+        cleanup()
+        isPreviewing = false
+    }
 
     private let engine = AVAudioEngine()
     private var file: AVAudioFile?
@@ -93,6 +122,7 @@ final class Recorder: ObservableObject {
         tempURL = url
         isRecording = true
         isPaused = false
+        isPreviewing = false
         return url
     }
 
@@ -125,6 +155,18 @@ final class Recorder: ObservableObject {
         isRecording = false
         isPaused = false
         inputLevel = 0
+    }
+
+    /// Milliseconds of audio actually written, from the file's own length —
+    /// not the wall clock, which runs during a pause. This is the number a
+    /// failed capture shows: "how much of the session do I have?"
+    var capturedMilliseconds: UInt64? {
+        guard let file else { return nil }
+        let length = AVAudioFramePosition(file.length)
+        guard length > 0 else { return nil }
+        let rate = file.processingFormat.sampleRate
+        guard rate > 0 else { return nil }
+        return UInt64((Double(length) / rate) * 1000)
     }
 
     func capturedFile() -> URL? {

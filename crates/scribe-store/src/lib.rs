@@ -11,6 +11,7 @@
 //! - **Retention policy.** Rows are never deleted. The shell must offer
 //!   per-practice retention and a real delete that also vacuums.
 
+use std::io::Read;
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
@@ -162,75 +163,64 @@ impl Store {
     }
 
     pub fn save_encounter(&self, encounter: &Encounter) -> Result<()> {
-        self.conn
-            .execute(
-                r#"INSERT INTO encounters
-                   (id, patient_ref, clinician_ref, discipline, template_id, started_at, ended_at, language, site_ref, created_at)
-                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
-                   ON CONFLICT(id) DO UPDATE SET
-                     patient_ref = excluded.patient_ref,
-                     clinician_ref = excluded.clinician_ref,
-                     discipline = excluded.discipline,
-                     template_id = excluded.template_id,
-                     ended_at = excluded.ended_at,
-                     language = excluded.language,
-                     site_ref = excluded.site_ref"#,
-                params![
-                    encounter.id.to_string(),
-                    encounter.patient_ref,
-                    encounter.clinician_ref,
-                    encounter.discipline.as_str(),
-                    encounter.template_id.as_str(),
-                    encounter.started_at.to_rfc3339(),
-                    encounter.ended_at.map(|t| t.to_rfc3339()),
-                    encounter.language,
-                    encounter.site_ref,
-                    Utc::now().to_rfc3339(),
-                ],
-            )
-            .map_err(storage_error)?;
-        Ok(())
+        upsert_encounter(&self.conn, encounter)
     }
 
     pub fn save_transcript(&self, transcript: &Transcript) -> Result<()> {
-        let json = serde_json::to_string(transcript).map_err(store_json_error)?;
-        self.conn
-            .execute(
-                r#"INSERT INTO transcripts (encounter_id, engine, language, json, created_at)
-                   VALUES (?1, ?2, ?3, ?4, ?5)"#,
-                params![
-                    transcript.encounter_id.to_string(),
-                    transcript.engine,
-                    transcript.language,
-                    json,
-                    Utc::now().to_rfc3339(),
-                ],
-            )
-            .map_err(storage_error)?;
-        Ok(())
+        insert_transcript(&self.conn, transcript)
     }
 
     pub fn save_note(&self, note: &ClinicalNote) -> Result<()> {
-        let json = serde_json::to_string(note).map_err(store_json_error)?;
-        self.conn
-            .execute(
-                r#"INSERT INTO notes (id, encounter_id, template_id, engine, review_state, json, created_at)
-                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                   ON CONFLICT(id) DO UPDATE SET
-                     review_state = excluded.review_state,
-                     json = excluded.json"#,
-                params![
-                    note.id.to_string(),
-                    note.encounter_id.to_string(),
-                    note.template_id.as_str(),
-                    note.engine,
-                    note.review_state.as_str(),
-                    json,
-                    Utc::now().to_rfc3339(),
-                ],
-            )
-            .map_err(storage_error)?;
-        Ok(())
+        upsert_note(&self.conn, note)
+    }
+
+    /// Persist one consultation as a unit: encounter, transcript, note and
+    /// audit entry commit together or not at all.
+    ///
+    /// Three properties this exists to guarantee, because the shell relies on
+    /// each of them and none of them held before:
+    ///
+    /// * **Atomic.** A crash or a constraint failure halfway through leaves
+    ///   the previous version of the session on disk, never a half-written
+    ///   one — an encounter with no note, or a note whose transcript never
+    ///   arrived.
+    /// * **Idempotent in the transcript.** Saving a session again replaces its
+    ///   transcript row instead of appending one. The shell re-saves on every
+    ///   edit and every review; the blind `INSERT` this replaces grew one row
+    ///   per save, and `latest_transcript` merely masked the growth.
+    /// * **The note owns its review state.** The `review_state` column and the
+    ///   JSON are both written from the note itself, so an approval made in
+    ///   the shell survives a relaunch: the shell reloads the session from the
+    ///   stored JSON, and the JSON now says what the clinician did.
+    ///
+    /// The audit entry records the actor and the note id — never the content.
+    pub fn save_session(
+        &self,
+        encounter: &Encounter,
+        transcript: &Transcript,
+        note: &ClinicalNote,
+        actor: &str,
+    ) -> Result<()> {
+        let tx = self.conn.unchecked_transaction().map_err(storage_error)?;
+        upsert_encounter(&tx, encounter)?;
+        // Replace, not append. The transcript is one consultation's words; a
+        // second row would be a second copy of the same consultation.
+        tx.execute(
+            "DELETE FROM transcripts WHERE encounter_id = ?1",
+            params![encounter.id.to_string()],
+        )
+        .map_err(storage_error)?;
+        // The transcript belongs to the encounter that is being saved, not to
+        // whichever encounter it was copied from. A derived document (referral
+        // letter, client copy) carries the source consultation's transcript;
+        // storing it under the source id left the derived encounter with no
+        // transcript, and the shell drops a session without one on reload.
+        let mut stored_transcript = transcript.clone();
+        stored_transcript.encounter_id = encounter.id;
+        insert_transcript(&tx, &stored_transcript)?;
+        upsert_note(&tx, note)?;
+        audit_on(&tx, actor, "note.saved", Some(&note.id.to_string()), None)?;
+        tx.commit().map_err(storage_error)
     }
 
     pub fn note(&self, id: NoteId) -> Result<Option<ClinicalNote>> {
@@ -315,16 +305,30 @@ impl Store {
     }
 
     /// Hard delete. Cascades transcripts and notes. Audit records the id, not the content.
+    ///
+    /// The delete and its audit entry commit together. They used to be separate
+    /// statements: a failed audit insert left the encounter deleted and returned
+    /// an error, so the shell kept showing a session that was already gone and
+    /// told the clinician it was still on the Mac. A failed delete-plus-audit
+    /// now leaves the row in place, which is what the error message says.
+    ///
+    /// Reclaiming the freed pages is best-effort and runs after the commit:
+    /// `VACUUM` cannot run inside a transaction, and a failure to reclaim space
+    /// does not make the logical delete untrue. It is logged rather than
+    /// reported as a failed delete.
     pub fn delete_encounter(&self, id: &str) -> Result<()> {
-        let removed = self
-            .conn
+        let tx = self.conn.unchecked_transaction().map_err(storage_error)?;
+        let removed = tx
             .execute("DELETE FROM encounters WHERE id = ?1", params![id])
             .map_err(storage_error)?;
         if removed == 0 {
             return Err(ScribeError::Storage(format!("no encounter {id}")));
         }
-        self.audit("shell", "encounter.deleted", Some(id), None)?;
-        self.reclaim_freed_pages()?;
+        audit_on(&tx, "shell", "encounter.deleted", Some(id), None)?;
+        tx.commit().map_err(storage_error)?;
+        if let Err(err) = self.reclaim_freed_pages() {
+            eprintln!("store: deleted {id} but could not reclaim pages: {err}");
+        }
         Ok(())
     }
 
@@ -480,23 +484,34 @@ impl Store {
             stale
         };
 
+        if ids.is_empty() {
+            return Ok(0);
+        }
+        // Same rule as `delete_encounter`: the rows and their audit entry
+        // commit together. A failed audit rolls the purge back, so the shell's
+        // "nothing was deleted" is true.
+        let tx = self.conn.unchecked_transaction().map_err(storage_error)?;
         for id in &ids {
-            self.conn
-                .execute("DELETE FROM encounters WHERE id = ?1", params![id])
+            tx.execute("DELETE FROM encounters WHERE id = ?1", params![id])
                 .map_err(storage_error)?;
         }
-        if !ids.is_empty() {
-            self.audit(
-                "shell",
-                "encounter.purged",
-                None,
-                Some(&format!(
-                    "count={} before={}",
-                    ids.len(),
-                    cutoff.to_rfc3339()
-                )),
-            )?;
-            self.reclaim_freed_pages()?;
+        audit_on(
+            &tx,
+            "shell",
+            "encounter.purged",
+            None,
+            Some(&format!(
+                "count={} before={}",
+                ids.len(),
+                cutoff.to_rfc3339()
+            )),
+        )?;
+        tx.commit().map_err(storage_error)?;
+        if let Err(err) = self.reclaim_freed_pages() {
+            eprintln!(
+                "store: purged {} encounters but could not reclaim pages: {err}",
+                ids.len()
+            );
         }
         Ok(ids.len())
     }
@@ -651,8 +666,14 @@ fn retire_plaintext_sqlite(path: &Path) -> Result<()> {
     if !path.exists() {
         return Ok(());
     }
-    let header = std::fs::read(path).map_err(|err| ScribeError::Storage(err.to_string()))?;
-    if header.starts_with(b"SQLite format 3") {
+    // Only the SQLite header is needed. This used to read the whole database
+    // on every keyed open — and every FFI call opens the store — so a large
+    // practice database was copied into memory once per save.
+    let mut header = [0u8; 16];
+    let read = std::fs::File::open(path)
+        .and_then(|mut file| file.read(&mut header))
+        .map_err(|err| ScribeError::Storage(err.to_string()))?;
+    if header[..read].starts_with(b"SQLite format 3") {
         let backup = path.with_extension("sqlite.unencrypted-bak");
         std::fs::rename(path, backup).map_err(|err| ScribeError::Storage(err.to_string()))?;
     }
@@ -661,6 +682,99 @@ fn retire_plaintext_sqlite(path: &Path) -> Result<()> {
 
 fn storage_error(err: rusqlite::Error) -> ScribeError {
     ScribeError::Storage(err.to_string())
+}
+
+/// Insert an encounter row, updating the mutable columns when the id already
+/// exists. `created_at` is written once and never updated.
+fn upsert_encounter(conn: &rusqlite::Connection, encounter: &Encounter) -> Result<()> {
+    conn.execute(
+        r#"INSERT INTO encounters
+           (id, patient_ref, clinician_ref, discipline, template_id, started_at, ended_at, language, site_ref, created_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+           ON CONFLICT(id) DO UPDATE SET
+             patient_ref = excluded.patient_ref,
+             clinician_ref = excluded.clinician_ref,
+             discipline = excluded.discipline,
+             template_id = excluded.template_id,
+             ended_at = excluded.ended_at,
+             language = excluded.language,
+             site_ref = excluded.site_ref"#,
+        params![
+            encounter.id.to_string(),
+            encounter.patient_ref,
+            encounter.clinician_ref,
+            encounter.discipline.as_str(),
+            encounter.template_id.as_str(),
+            encounter.started_at.to_rfc3339(),
+            encounter.ended_at.map(|t| t.to_rfc3339()),
+            encounter.language,
+            encounter.site_ref,
+            Utc::now().to_rfc3339(),
+        ],
+    )
+    .map_err(storage_error)?;
+    Ok(())
+}
+
+/// Append one transcript row. The caller decides replace-versus-append:
+/// `save_session` removes the previous row first, so a re-save never
+/// multiplies copies of the same consultation.
+fn insert_transcript(conn: &rusqlite::Connection, transcript: &Transcript) -> Result<()> {
+    let json = serde_json::to_string(transcript).map_err(store_json_error)?;
+    conn.execute(
+        r#"INSERT INTO transcripts (encounter_id, engine, language, json, created_at)
+           VALUES (?1, ?2, ?3, ?4, ?5)"#,
+        params![
+            transcript.encounter_id.to_string(),
+            transcript.engine,
+            transcript.language,
+            json,
+            Utc::now().to_rfc3339(),
+        ],
+    )
+    .map_err(storage_error)?;
+    Ok(())
+}
+
+/// Insert or replace one note row. `review_state` is written from the note
+/// itself — same value in the column and in the JSON — so the column can
+/// never disagree with the JSON the shell reloads.
+fn upsert_note(conn: &rusqlite::Connection, note: &ClinicalNote) -> Result<()> {
+    let json = serde_json::to_string(note).map_err(store_json_error)?;
+    conn.execute(
+        r#"INSERT INTO notes (id, encounter_id, template_id, engine, review_state, json, created_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+           ON CONFLICT(id) DO UPDATE SET
+             review_state = excluded.review_state,
+             json = excluded.json"#,
+        params![
+            note.id.to_string(),
+            note.encounter_id.to_string(),
+            note.template_id.as_str(),
+            note.engine,
+            note.review_state.as_str(),
+            json,
+            Utc::now().to_rfc3339(),
+        ],
+    )
+    .map_err(storage_error)?;
+    Ok(())
+}
+
+/// One audit insert on a given connection, so a transaction can carry it.
+fn audit_on(
+    conn: &rusqlite::Connection,
+    actor: &str,
+    action: &str,
+    subject: Option<&str>,
+    detail: Option<&str>,
+) -> Result<()> {
+    conn.execute(
+        "INSERT INTO audit_log (at, actor, action, subject, detail) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![Utc::now().to_rfc3339(), actor, action, subject, detail],
+    )
+    .map_err(storage_error)?;
+    Ok(())
 }
 
 fn store_json_error(err: serde_json::Error) -> ScribeError {
@@ -677,6 +791,10 @@ mod tests {
     }
 
     fn transcript(encounter: &Encounter) -> Transcript {
+        fresh_transcript(encounter)
+    }
+
+    fn fresh_transcript(encounter: &Encounter) -> Transcript {
         let mut transcript = Transcript::new(encounter.id, "test");
         transcript.push_speaker(Speaker::new(SpeakerId::CLINICIAN, SpeakerRole::Clinician));
         transcript.push_segment(scribe_core::Segment::new(
@@ -716,6 +834,176 @@ mod tests {
         assert_eq!(loaded.review_state, ReviewState::Draft);
     }
 
+    /// A session save is one unit: the shell re-saves on every edit and every
+    /// review, so the store must not multiply transcript rows, must not leave
+    /// a half-written session behind, and must record the review state the
+    /// clinician actually chose — that is the field a relaunch reads.
+    #[test]
+    fn save_session_is_atomic_idempotent_and_carries_review_state() {
+        let store = Store::open_in_memory().unwrap();
+        let encounter = encounter();
+        let mut transcript = transcript(&encounter);
+        let mut note = scribe_pipeline_stub_note(&encounter);
+
+        store
+            .save_session(&encounter, &transcript, &note, "clinician:test")
+            .unwrap();
+
+        // An approval in the shell becomes an approval on the disk.
+        note.review_state = ReviewState::Approved;
+        transcript.push_segment(scribe_core::Segment::new(
+            scribe_core::SpeakerId::CLINICIAN,
+            1000,
+            2000,
+            "more words",
+        ));
+        store
+            .save_session(&encounter, &transcript, &note, "clinician:test")
+            .unwrap();
+
+        let sessions = store.list_sessions().unwrap();
+        assert_eq!(sessions.len(), 1, "one save per session, not one per edit");
+        let loaded_note = sessions[0].note.as_ref().unwrap();
+        assert_eq!(loaded_note.review_state, ReviewState::Approved);
+        assert_eq!(
+            sessions[0].transcript.as_ref().unwrap().segments.len(),
+            2,
+            "the re-save replaced the transcript instead of appending a row"
+        );
+
+        let trail = store.audit_trail(&note.id.to_string()).unwrap();
+        assert_eq!(
+            trail.len(),
+            2,
+            "one audit entry per save, never the content"
+        );
+        assert!(trail.iter().all(|entry| entry.detail.is_none()));
+
+        // A failed save must not overwrite the good one. The note claims an
+        // encounter id that is not in the encounters table, so the foreign
+        // key fails and the whole transaction rolls back.
+        let orphan_id = scribe_core::EncounterId::new();
+        let bad_note = scribe_pipeline_stub_note(&encounter);
+        let mut bad_note = bad_note;
+        bad_note.encounter_id = orphan_id;
+        let result = store.save_session(
+            &encounter,
+            &fresh_transcript(&encounter),
+            &bad_note,
+            "clinician:test",
+        );
+        assert!(result.is_err());
+        let after = store.list_sessions().unwrap();
+        assert_eq!(after.len(), 1);
+        assert_eq!(
+            after[0].note.as_ref().unwrap().review_state,
+            ReviewState::Approved,
+            "the rolled-back write must not clobber the stored note"
+        );
+    }
+
+    /// A derived document reuses the source transcript. The stored row must
+    /// belong to the document's own encounter, or the reload has no transcript
+    /// for it and the shell silently drops the document.
+    #[test]
+    fn save_session_binds_a_reused_transcript_to_the_derived_encounter() {
+        let store = Store::open_in_memory().unwrap();
+        let source = encounter();
+        store
+            .save_session(
+                &source,
+                &transcript(&source),
+                &scribe_pipeline_stub_note(&source),
+                "shell",
+            )
+            .unwrap();
+
+        let derived = encounter();
+        let mut derived_note = scribe_pipeline_stub_note(&derived);
+        derived_note.encounter_id = derived.id;
+        store
+            .save_session(&derived, &transcript(&source), &derived_note, "shell")
+            .unwrap();
+
+        let sessions = store.list_sessions().unwrap();
+        let reloaded = sessions
+            .iter()
+            .find(|session| session.encounter.id == derived.id)
+            .expect("the derived encounter is listed");
+        let reloaded_transcript = reloaded
+            .transcript
+            .as_ref()
+            .expect("a derived document must reload with its transcript");
+        assert_eq!(
+            reloaded_transcript.encounter_id, derived.id,
+            "the transcript row is bound to the derived encounter"
+        );
+        assert!(
+            sessions
+                .iter()
+                .find(|session| session.encounter.id == source.id)
+                .and_then(|session| session.transcript.as_ref())
+                .is_some(),
+            "the source encounter keeps its own transcript"
+        );
+    }
+
+    /// The shell writes provenance fields the engine now owns too. This is
+    /// the regression they were added for: the store decoded the note into
+    /// Rust and re-serialised it, silently dropping any field the struct did
+    /// not carry — so a clinician's authored line reloads as machine text,
+    /// and the next redraft deleted it. Provenance must round-trip.
+    #[test]
+    fn provenance_fields_survive_the_store_round_trip() {
+        let store = Store::open_in_memory().unwrap();
+        let encounter = encounter();
+        let mut note = scribe_pipeline_stub_note(&encounter);
+        let mut sentence = scribe_core::NoteSentence {
+            text: "The plan is to review in one week.".to_owned(),
+            evidence: vec![scribe_core::SegmentId::new()],
+            ambiguous: false,
+            // A clinician's line: the machine has not judged it. This must
+            // survive the store round trip as `None`, not become a pass.
+            support: None,
+            wording: None,
+            authored: Some("clinician".to_owned()),
+            line_id: Some("line-1234".to_owned()),
+            excluded: false,
+        };
+        let mut section = scribe_core::NoteSection::empty("plan", "Plan");
+        section.sentences.push(sentence.clone());
+        section.body = sentence.text.clone();
+        section.complete = true;
+        note.sections.push(section);
+        note.excluded.push(scribe_core::ExcludedItem {
+            text: "The weather was terrible.".to_owned(),
+            speaker_role: "patient".to_owned(),
+            evidence: vec![scribe_core::SegmentId::new()],
+        });
+        let _ = &mut sentence;
+
+        store
+            .save_session(&encounter, &transcript(&encounter), &note, "shell")
+            .unwrap();
+
+        let loaded = store.list_sessions().unwrap();
+        let loaded_note = loaded[0].note.as_ref().unwrap();
+        let loaded_sentence = &loaded_note.sections[0].sentences[0];
+        assert_eq!(loaded_sentence.authored.as_deref(), Some("clinician"));
+        assert_eq!(loaded_sentence.line_id.as_deref(), Some("line-1234"));
+        assert_eq!(
+            loaded_sentence.support, None,
+            "a human line must not reload as a machine pass"
+        );
+        assert_eq!(
+            loaded_sentence.wording, None,
+            "a human line must not reload as machine-judged plain language"
+        );
+        assert!(!loaded_sentence.excluded);
+        assert_eq!(loaded_note.excluded.len(), 1);
+        assert_eq!(loaded_note.excluded[0].text, "The weather was terrible.");
+    }
+
     #[test]
     fn deletes_an_encounter() {
         let store = Store::open_in_memory().unwrap();
@@ -723,6 +1011,30 @@ mod tests {
         store.save_encounter(&encounter).unwrap();
         store.delete_encounter(&encounter.id.to_string()).unwrap();
         assert_eq!(store.encounter_count().unwrap(), 0);
+    }
+
+    /// A failed audit used to leave the encounter deleted while returning an
+    /// error, and the shell told the clinician it was still on this Mac. The
+    /// delete must roll back instead.
+    #[test]
+    fn a_failed_delete_audit_leaves_the_encounter_in_place() {
+        let store = Store::open_in_memory().unwrap();
+        let encounter = encounter();
+        store.save_encounter(&encounter).unwrap();
+        store
+            .conn
+            .execute_batch(
+                "CREATE TRIGGER block_audit BEFORE INSERT ON audit_log
+                 BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END;",
+            )
+            .unwrap();
+
+        assert!(store.delete_encounter(&encounter.id.to_string()).is_err());
+        assert_eq!(
+            store.encounter_count().unwrap(),
+            1,
+            "the row stayed because the delete and its receipt are one transaction"
+        );
     }
 
     #[test]
@@ -928,6 +1240,7 @@ mod tests {
             template_id: encounter.template_id.clone(),
             sections: Vec::new(),
             unassigned: Vec::new(),
+            excluded: Vec::new(),
             generated_at: Utc::now(),
             engine: "test".to_owned(),
             review_state: ReviewState::Draft,

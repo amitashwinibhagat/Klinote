@@ -130,6 +130,11 @@ targets:
     sources:
       - path: Tests
       - path: Sources/Domain
+      # The vault is pure Foundation + CryptoKit: no FFI, no UI, no
+      # Keychain at test time (the tests pass their own key and directory).
+      # It is compiled in so its promises are testable headless — the same
+      # reasoning as Sources/Domain.
+      - path: Sources/Core/CaptureVault.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: one.klinote.mac.tests

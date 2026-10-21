@@ -67,11 +67,51 @@ struct DeskView: View {
                             .foregroundStyle(KlinoteColor.primary)
                     }
                     Spacer(minLength: 0)
+                    if model.unsavedEncounterIDs.contains(waiting.id) {
+                        // The copy exists on screen but never reached the
+                        // store. Retry before copy: a paste from an unsaved
+                        // session is exactly the wrong-session risk the copy
+                        // guard exists for, with no record to check against.
+                        Button("Retry saving") { model.retrySave(of: waiting.id) }
+                            .buttonStyle(.plain)
+                            .font(KlinoteFont.ui())
+                            .foregroundStyle(KlinoteColor.caution)
+                    }
                     Button("Copy it") {
                         model.openLetter(waiting.id)
                         model.copySelectedNote()
                     }
                     .buttonStyle(KlinotePrimaryButtonStyle())
+                }
+            }
+
+            if !model.recoveries.isEmpty {
+                Hairline()
+                ForEach(model.recoveries) { capture in
+                    HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space12) {
+                        VStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
+                            TabLabel(text: "Saved for retry")
+                            Text(recoveryLine(capture))
+                                .font(KlinoteFont.caption())
+                                .foregroundStyle(KlinoteColor.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("Encrypted on this Mac · kept 24 hours")
+                                .font(KlinoteFont.label())
+                                .foregroundStyle(KlinoteColor.tertiary)
+                        }
+                        Spacer(minLength: 0)
+                        Button("Discard", role: .destructive) {
+                            model.discardRecovery(capture.id)
+                        }
+                        .controlSize(.small)
+                        Button("Retry") {
+                            model.retryRecovery(capture.id)
+                        }
+                        .buttonStyle(KlinotePrimaryButtonStyle())
+                        .controlSize(.small)
+                        .disabled(!model.recordingState.isIdle || model.retryingRecoveryID != nil)
+                    }
+                    .padding(.vertical, KlinoteMetrics.space4)
                 }
             }
 
@@ -96,6 +136,24 @@ struct DeskView: View {
                 .strokeBorder(KlinoteColor.hairline, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+    }
+
+    /// One line for a saved capture: what it is, how much survived, and what
+    /// went wrong — in the product's voice, never an error code.
+    private func recoveryLine(_ capture: RecoverableCapture) -> String {
+        let time = EncounterSpine.time(capture.startedAt)
+        switch capture.stage {
+        case .captured:
+            let span = capture.capturedMs.map {
+                " · \(RecordingStripView.clock(Double($0) / 1000)) captured"
+            } ?? ""
+            return "\(time)\(span) — could not transcribe: \(capture.failure)"
+        case .recognised:
+            let span = capture.capturedMs.map {
+                " · \(RecordingStripView.clock(Double($0) / 1000)) of words"
+            } ?? ""
+            return "\(time)\(span) — could not write the note: \(capture.failure)"
+        }
     }
 
     private var paths: some View {

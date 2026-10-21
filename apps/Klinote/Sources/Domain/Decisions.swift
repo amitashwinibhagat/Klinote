@@ -77,6 +77,85 @@ enum Readiness: Equatable {
     }
 }
 
+// MARK: - The output policy
+
+/// Whether the note in front of the clinician may leave as a finished note —
+/// copied, printed, or marked reviewed.
+///
+/// The wrong-session guard (below) answers "is this the consult you meant?".
+/// This answers "is this note done enough to leave?". They are different
+/// questions and both are asked, on every route: a global hotkey is not a
+/// loophole, and neither is a menu item.
+///
+/// The precedence is Readiness's own: a wrong drug outranks a missing
+/// paragraph, which outranks shorthand. Unfiled statements do not block —
+/// routine conversational leftovers are reported, not a ritual — and a
+/// deliberately excluded statement blocks nobody, because the clinician
+/// already decided about it.
+enum OutputPolicy: Equatable {
+    case allowed
+    case blocked(String)
+
+    static func decision(for readiness: Readiness) -> OutputPolicy {
+        switch readiness {
+        case .ready, .empty:
+            .allowed
+        case .namesToCheck(let count):
+            .blocked(
+                count == 1
+                    ? "1 name still needs checking."
+                    : "\(count) names still need checking."
+            )
+        case .missingRequired:
+            .blocked("A required section has nothing in it.")
+        case .wording:
+            .blocked("A sentence still carries shorthand to check.")
+        }
+    }
+
+    /// The sentence the refusal says next. Naming the fix is the point: a
+    /// bare "blocked" sends the clinician hunting.
+    var reason: String? {
+        if case .blocked(let reason) = self { return reason }
+        return nil
+    }
+}
+
+// MARK: - The copied receipt
+
+/// Proof of what the clipboard last carried for a consult: which revision,
+/// and when. The difference between "reviewed" and "copied" is the whole
+/// point of this type — an approved note is a claim about reading; a copied
+/// note is a claim about the clipboard, and the two do not imply each other.
+///
+/// A receipt holds opaque identifiers and a timestamp only — never note
+/// text, never a patient reference beyond the pseudonym the rest of the
+/// shell already shows.
+struct CopiedReceipt: Codable, Equatable {
+    let encounterID: String
+    /// The revision copied: the note's own identity plus when the engine
+    /// finished it. An edit or a redraft changes one of the two, and the
+    /// receipt goes stale — the desk then says the session is still here.
+    let noteID: String
+    let generatedAt: String
+    let at: Date
+
+    init(encounterID: String, note: ClinicalNote, at: Date = Date()) {
+        self.encounterID = encounterID
+        self.noteID = note.id
+        self.generatedAt = note.generatedAt
+        self.at = at
+    }
+
+    /// Whether this receipt still describes the note as it stands. A note
+    /// edited after the copy is a different revision; the old receipt does
+    /// not cover it, and pretending otherwise would let the clinician paste
+    /// yesterday's text believing it was today's.
+    func isCurrent(for note: ClinicalNote) -> Bool {
+        noteID == note.id && generatedAt == note.generatedAt
+    }
+}
+
 // MARK: - The copy guard
 
 /// Whether copying or printing this consult needs confirming first.

@@ -139,10 +139,13 @@ struct ReviewWindow: View {
         .sheet(item: $model.pendingPrint) { encounter in
             CopyConfirmSheet(encounter: encounter, model: model, isPrinting: true)
         }
+        .sheet(item: $model.pendingReviewRequest) { pending in
+            OutputRefusalSheet(pending: pending, model: model)
+        }
         .environment(\.klinoteReduceMotion, NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         .background(KlinoteColor.desk)
         .frame(
-            minWidth: model.workspace == .letter || model.workspace == .sample ? 1040 : 640,
+            minWidth: model.workspace == .letter || model.workspace == .sample ? 720 : 640,
             minHeight: 640
         )
     }
@@ -178,17 +181,62 @@ struct ReviewWindow: View {
         )
     }
 
-    /// The letter and the words. No caseload. Margin cannot hide: that column
-    /// is the job "I did not say that."
+    /// The letter and the words. No caseload.
+    ///
+    /// Source access must stay obvious, but a 13-inch Mac in a half-screen
+    /// window cannot hold a 56-character measure *and* a 300 pt evidence
+    /// column. UX-PLAN's rule is the one implemented here: below 1,000 pt
+    /// the margin becomes a sheet over the document rather than a squeezed
+    /// column — the words are one obvious click away, and the note never
+    /// narrows below its measure.
+    @State private var showingSourceSheet = false
+
     private var letterPane: some View {
-        HStack(spacing: 0) {
-            DocumentView(model: model)
-            Rectangle()
-                .fill(KlinoteColor.hairline)
-                .frame(width: 1)
-            MarginView(model: model)
-                .frame(minWidth: 300, idealWidth: KlinoteMetrics.marginColumnWidth, maxWidth: 420)
-                .background(KlinoteColor.margin, ignoresSafeAreaEdges: .all)
+        GeometryReader { geometry in
+            if geometry.size.width >= KlinoteMetrics.marginSideBySideMinWidth {
+                HStack(spacing: 0) {
+                    DocumentView(model: model)
+                    Rectangle()
+                        .fill(KlinoteColor.hairline)
+                        .frame(width: 1)
+                    MarginView(model: model)
+                        .frame(minWidth: 300, idealWidth: KlinoteMetrics.marginColumnWidth, maxWidth: 420)
+                        .background(KlinoteColor.margin, ignoresSafeAreaEdges: .all)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                DocumentView(model: model)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .topTrailing) {
+                        Button {
+                            showingSourceSheet = true
+                        } label: {
+                            Label("Show the words", systemImage: "text.magnifyingglass")
+                                .font(KlinoteFont.emphasis())
+                        }
+                        .buttonStyle(KlinotePrimaryButtonStyle())
+                        .padding(KlinoteMetrics.space16)
+                        .help("The words behind the selected sentence")
+                    }
+                    .sheet(isPresented: $showingSourceSheet) {
+                        MarginView(model: model)
+                            .frame(minWidth: 420, minHeight: 520)
+                            .background(KlinoteColor.margin)
+                    }
+            }
+        }
+        .focusable()
+        .onKeyPress(.downArrow) {
+            // The editor owns the arrow keys while it is open; otherwise an
+            // arrow walks the note and the margin follows.
+            guard model.editingSentenceID == nil else { return .ignored }
+            model.selectAdjacentSentence(1)
+            return .handled
+        }
+        .onKeyPress(.upArrow) {
+            guard model.editingSentenceID == nil else { return .ignored }
+            model.selectAdjacentSentence(-1)
+            return .handled
         }
     }
 

@@ -199,6 +199,24 @@ enum KlinoteCore {
         return note
     }
 
+    /// Put a note into the patient-facing register.
+    ///
+    /// The Rust pipeline does this when it generates a note. A note drafted in
+    /// the shell by `NoteDrafter` does not pass through that pipeline, so this
+    /// is the same core transformation across the boundary.
+    static func simplifyForPatient(note: ClinicalNote) throws -> ClinicalNote {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(note)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw KlinoteCoreError.malformedResponse
+        }
+        let payload: NoteEnvelope = try envelope(from: scribe_simplify_for_patient(json))
+        guard payload.ok else { throw KlinoteCoreError.engine(payload.error ?? "unknown error") }
+        guard let simplified = payload.note else { throw KlinoteCoreError.malformedResponse }
+        return simplified
+    }
+
     /// Ground a note the shell drafted, against the transcript it cites.
     ///
     /// Every Rust drafting path runs this inside the pipeline. A note built by

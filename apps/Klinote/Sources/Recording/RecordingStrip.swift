@@ -83,7 +83,15 @@ struct RecordingStripView: View {
         switch model.recordingState {
         case .paused: "Paused — not recording"
         case .holding: "Held — this part is not being recorded"
-        case .finalising: "Writing the note on this Mac"
+        case .finalising:
+            // Real stages, named. The recogniser reports no percentage, so
+            // there is a step name and the elapsed clock — never a progress
+            // figure nobody can substantiate.
+            switch model.processingStage {
+            case .transcribing: "Transcribing on this Mac"
+            case .writing: "Writing the note on this Mac"
+            case nil: "Finishing on this Mac"
+            }
         default:
             model.captureKind == .dictate
                 ? "Dictating the note. Audio stays on this Mac."

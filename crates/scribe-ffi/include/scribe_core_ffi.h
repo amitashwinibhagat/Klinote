@@ -31,7 +31,7 @@
 extern "C" {
 #endif
 
-/* Engine contract version, e.g. "0.1.0". Assert at launch. */
+/* Engine contract version, e.g. "0.2.0". Assert at launch. */
 char *scribe_schema_version(void);
 
 /*
@@ -76,6 +76,16 @@ char *scribe_note_to_markdown(const char *note_json);
  *         metadata, no unfiled statements, no footer.
  */
 char *scribe_note_to_record_text(const char *note_json);
+
+/*
+ * Put a note into the patient-facing register: expand lossless shorthand
+ * (`tds` -> "three times a day", `q8h` -> "every 8 hours") and flag the
+ * ambiguous kind (`od`), without rewriting anything that could change a fact.
+ *
+ * Input:  a serialised ClinicalNote.
+ * Output: {"ok":true,"note":{...}} | {"ok":false,"error":"..."}
+ */
+char *scribe_simplify_for_patient(const char *note_json);
 
 /*
  * The plain-text path: a pasted or human-typed transcript in, a note out.

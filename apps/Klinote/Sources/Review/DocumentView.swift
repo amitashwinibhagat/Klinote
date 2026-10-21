@@ -32,8 +32,8 @@ struct DocumentView: View {
                         if let checks = encounter.transcript?.nameChecks, !checks.isEmpty {
                             NameCheckBlock(checks: checks, model: model)
                         }
-                        if !note.unassigned.isEmpty {
-                            UnfiledBlock(items: note.unassigned)
+                        if !note.unassigned.isEmpty || !(note.excluded ?? []).isEmpty {
+                            UnfiledBlock(model: model, items: note.unassigned, excluded: note.excluded ?? [])
                         }
                         SignatureBlock(model: model, note: note)
                     }
@@ -116,6 +116,9 @@ struct Letterhead: View {
                         value: RecordingStripView.clock(Double(held) / 1000)
                     )
                 }
+                if let save = saveField {
+                    Field(label: "Saved", value: save.word)
+                }
             }
 
             ProvisionanceLine(
@@ -161,6 +164,23 @@ struct Letterhead: View {
     /// in Readiness, which is how the two could drift apart unnoticed.
     private var readinessLabel: String {
         model.readiness(for: encounter).label
+    }
+
+    /// The persistence status of this session, only when it has something to
+    /// say. A save that failed is the one thing worse than a missing section,
+    /// because the screen is the only copy; it is shown as a word, in the
+    /// same row as the other facts, and the reason is in the error banner.
+    private var saveField: SaveStatus? {
+        switch model.saveOutcomes[encounter.id] {
+        case .failed:
+            .unsaved("the store refused this save")
+        case .saved:
+            // A steady "Saved" on every letter is noise; silence is the
+            // saved state. The word appears only when it is missing.
+            nil
+        case nil:
+            nil
+        }
     }
 }
 
@@ -322,16 +342,28 @@ struct SectionBlock: View {
     let section: NoteSection
     @ObservedObject var model: AppModel
     @State private var isAdding = false
+    @Environment(\.klinoteReduceMotion) private var reduceMotion
 
-    private var state: SectionState {
-        if !section.complete { return .missingRequired }
-        if section.sentences.isEmpty { return .emptyOptional }
-        return .filled
+    /// The refusal sheet's "Write the … section" jump lands here: the editor
+    /// opens on arrival, so the way past a refusal is one click from the
+    /// refusal itself.
+    var body: some View {
+        sectionBody
+            .onAppear {
+                if model.focusedSectionKey == section.key {
+                    isAdding = true
+                    model.focusedSectionKey = nil
+                }
+            }
+            .onChange(of: model.focusedSectionKey) { _, newValue in
+                if newValue == section.key {
+                    isAdding = true
+                    model.focusedSectionKey = nil
+                }
+            }
     }
 
-    private var encounterID: String { model.selectedEncounter?.id ?? "" }
-
-    var body: some View {
+    private var sectionBody: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
             SectionHeader(title: section.title, state: state)
 
@@ -355,6 +387,23 @@ struct SectionBlock: View {
                         .font(KlinoteFont.label())
                         .foregroundStyle(KlinoteColor.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if isRequiredSection {
+                        // The one honest completion when the consult genuinely
+                        // never covered a required field — Risk above all. The
+                        // machine never writes it: the words are the
+                        // clinician's, authored as such, and the section stops
+                        // being missing only when a person has said so.
+                        Button("The session did not cover this — record that") {
+                            model.addSentence(
+                                toSection: section.key,
+                                text: "Not discussed this session."
+                            )
+                        }
+                        .controlSize(.small)
+                        .accessibilityLabel(
+                            "Record that \(section.title) was not discussed this session"
+                        )
+                    }
                 }
             } else {
                 LazyVStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
@@ -363,9 +412,12 @@ struct SectionBlock: View {
                             SentenceEditor(sentence: sentence, model: model)
                         } else {
                             SentenceRow(
+                                model: model,
                                 sentence: sentence,
                                 number: index + 1,
                                 isSelected: model.selectedSentenceID == sentence.id,
+                                sectionKey: section.key,
+                                sectionTitles: model.selectedEncounter?.note?.sections.map { ($0.key, $0.title) } ?? [],
                                 task: model.task(
                                     for: encounterID,
                                     sentence: sentence.text
@@ -394,6 +446,22 @@ struct SectionBlock: View {
         }
         .padding(.bottom, KlinoteMetrics.space32)
     }
+
+    private var state: SectionState {
+        if section.complete { return .filled }
+        // Emptiness is only "missing" when the template says this section is
+        // required. An optional section the consult did not cover is optional,
+        // not a caution chip.
+        return isRequiredSection ? .missingRequired : .emptyOptional
+    }
+
+    /// Whether the template marks this section required — the "not discussed"
+    /// affordance only belongs on a section whose emptiness blocks the note.
+    private var isRequiredSection: Bool {
+        model.selectedEncounter.map { model.requiredKeys(for: $0).contains(section.key) } ?? false
+    }
+
+    private var encounterID: String { model.selectedEncounter?.id ?? "" }
 }
 
 /// A sentence with its margin reference. The reference is a number, not a
@@ -495,9 +563,14 @@ struct AddedLineEditor: View {
 }
 
 struct SentenceRow: View {
+    @ObservedObject var model: AppModel
     let sentence: NoteSentence
     let number: Int
     let isSelected: Bool
+    /// The section this row lives in, and every section's key/title — the
+    /// move menu's source and destinations.
+    let sectionKey: String
+    let sectionTitles: [(key: String, title: String)]
     /// Present when this sentence is work to do — the consult's checklist.
     var task: ConsultTask?
     var onToggleTask: (ConsultTask) -> Void = { _ in }
@@ -517,7 +590,7 @@ struct SentenceRow: View {
                 }
                 .buttonStyle(.borderless)
                 .help(task.done ? "Done. Click to reopen." : "Tick when you have done this.")
-                .accessibilityLabel(task.done ? "ConsultTask done" : "ConsultTask not done")
+                .accessibilityLabel(task.done ? "Task done" : "Task not done")
             }
             Text(sentence.ambiguous ? "\(number)?" : "\(number)")
                 .font(KlinoteFont.microNumber())
@@ -526,7 +599,7 @@ struct SentenceRow: View {
 
             Text(sentence.text)
                 .font(KlinoteFont.document(weight: isSelected ? .semibold : .regular))
-                .foregroundStyle(KlinoteColor.primary)
+                .foregroundStyle(sentence.isExcluded ? KlinoteColor.tertiary : KlinoteColor.primary)
                 .strikethrough(task?.done == true, color: KlinoteColor.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -548,6 +621,17 @@ struct SentenceRow: View {
                     help: "A figure or drug name here is not in the words that were heard."
                 )
             }
+            // Visible on hover, so correcting a line does not depend on
+            // discovering a double-click. The context menu keeps the same
+            // action for muscle memory and for VoiceOver.
+            if hovering && !sentence.isExcluded {
+                Button("Edit", action: onEdit)
+                    .buttonStyle(.plain)
+                    .font(KlinoteFont.flag())
+                    .foregroundStyle(KlinoteColor.ink)
+                    .help("Correct this sentence")
+                    .accessibilityLabel("Edit this sentence")
+            }
         }
         .padding(.vertical, KlinoteMetrics.inline2)
         .padding(.horizontal, KlinoteMetrics.inline6)
@@ -568,6 +652,24 @@ struct SentenceRow: View {
         .contextMenu {
             Button("Correct this sentence…", action: onEdit)
             Button("Show the words behind it", action: onSelect)
+            Menu("Move to section…") {
+                ForEach(sectionTitles, id: \.key) { section in
+                    if section.key != sectionKey {
+                        Button(section.title) {
+                            model.moveSentence(sentence.id, toSection: section.key)
+                        }
+                    }
+                }
+            }
+            if sentence.isPresent {
+                Button("Exclude from note", role: .destructive) {
+                    model.excludeSentence(sentence.id)
+                }
+            } else {
+                Button("Restore to note") {
+                    model.restoreSentence(sentence.id)
+                }
+            }
         }
         .animation(.easeOut(duration: KlinoteMetrics.motionState), value: isSelected)
         .animation(.easeOut(duration: 0.12), value: hovering)
@@ -592,6 +694,12 @@ struct SentenceRow: View {
 /// improvement.
 private func spokenSentenceText(number: Int, sentence: NoteSentence) -> String {
     var parts = ["Sentence \(number).", sentence.text]
+    if sentence.isExcluded {
+        parts.append("Excluded from the note. It is not copied.")
+    }
+    if sentence.isAuthored {
+        parts.append("Written by you.")
+    }
     if sentence.ambiguous {
         parts.append("Source unclear: this cites more than one thing that was said.")
     }
@@ -672,29 +780,90 @@ struct NameCheckBlock: View {
 
 /// the clinician must resolve before signing.
 struct UnfiledBlock: View {
+    @ObservedObject var model: AppModel
     let items: [UnassignedStatement]
+    /// Statements the clinician already excluded. Shown collapsed-by-word so
+    /// the decision is visible and reversible, never a silent disappearance.
+    let excluded: [ExcludedStatement]
+    @State private var showingExcluded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space12) {
             SectionHeader(title: "Not filed to a section", state: .missingRequired)
-            Text("Heard, not placed. File them or drop them before you copy.")
+            Text("Heard, not placed. File each one where it belongs, or exclude it — excluded statements are kept and can be restored.")
                 .font(KlinoteFont.caption())
                 .foregroundStyle(KlinoteColor.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             ForEach(items) { item in
-                HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
-                    Text(item.speakerRole.uppercased())
-                        .font(KlinoteFont.micro())
-                        .foregroundStyle(KlinoteColor.tertiary)
-                        .frame(width: 62, alignment: .leading)
-                    Text(item.text)
-                        .font(KlinoteFont.documentMinor())
-                        .foregroundStyle(KlinoteColor.primary)
-                        .fixedSize(horizontal: false, vertical: true)
+                UnfiledRow(model: model, item: item)
+            }
+            if !excluded.isEmpty {
+                Button(showingExcluded ? "Hide excluded" : "Excluded: \(excluded.count)") {
+                    showingExcluded.toggle()
+                }
+                .buttonStyle(.plain)
+                .font(KlinoteFont.label())
+                .foregroundStyle(KlinoteColor.tertiary)
+                if showingExcluded {
+                    ForEach(excluded) { item in
+                        HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
+                            Text(item.speakerRole.uppercased())
+                                .font(KlinoteFont.micro())
+                                .foregroundStyle(KlinoteColor.tertiary)
+                                .frame(width: 62, alignment: .leading)
+                            Text(item.text)
+                                .font(KlinoteFont.documentMinor())
+                                .foregroundStyle(KlinoteColor.tertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                            Button("Restore") { model.restoreUnfiled(item.id) }
+                                .controlSize(.small)
+                        }
+                    }
                 }
             }
         }
         .padding(.bottom, KlinoteMetrics.space32)
+    }
+}
+
+/// One unfiled statement with its resolutions. "Show source" jumps the
+/// margin to the words that were said — the same trust move as the rest of
+/// the product: the clinician decides with the evidence in view.
+private struct UnfiledRow: View {
+    @ObservedObject var model: AppModel
+    let item: UnassignedStatement
+    @State private var isChoosingSection = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KlinoteMetrics.inline2) {
+            HStack(alignment: .firstTextBaseline, spacing: KlinoteMetrics.space8) {
+                Text(item.speakerRole.uppercased())
+                    .font(KlinoteFont.micro())
+                    .foregroundStyle(KlinoteColor.tertiary)
+                    .frame(width: 62, alignment: .leading)
+                Text(item.text)
+                    .font(KlinoteFont.documentMinor())
+                    .foregroundStyle(KlinoteColor.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Menu("File to…") {
+                    ForEach(model.selectedEncounter?.note?.sections ?? []) { section in
+                        Button(section.title) {
+                            model.fileUnfiled(item.id, toSection: section.key)
+                        }
+                    }
+                }
+                .controlSize(.small)
+                .fixedSize()
+                Button("Exclude") { model.excludeUnfiled(item.id) }
+                    .controlSize(.small)
+                Button("Show source") { model.showSource(of: item) }
+                    .controlSize(.small)
+                    .help("The words behind this statement, in the margin")
+            }
+        }
+        .padding(.vertical, KlinoteMetrics.space4)
     }
 }
 
@@ -723,6 +892,20 @@ struct SignatureBlock: View {
             : "Reviewed by \(who) · \(registration)"
     }
 
+    /// The copied revision, when the clipboard provably holds one. Review
+    /// and copy are different claims: this is the copy fact, next to the
+    /// review fact above, and neither implies the other.
+    private var copiedLine: String? {
+        guard let encounter = model.selectedEncounter,
+              let note = encounter.note,
+              let receipt = model.copiedReceipts[encounter.id]
+        else { return nil }
+        if receipt.isCurrent(for: note) {
+            return "Copied this revision."
+        }
+        return "The clipboard holds an older revision — copy again after your edits."
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: KlinoteMetrics.space16) {
             Hairline()
@@ -735,6 +918,11 @@ struct SignatureBlock: View {
                     Text(isReviewed ? "On this Mac. Not in the record until you paste." : "Paste into the record. Then mark reviewed here.")
                         .font(KlinoteFont.document())
                         .foregroundStyle(KlinoteColor.tertiary)
+                    if let copiedLine {
+                        Text(copiedLine)
+                            .font(KlinoteFont.label())
+                            .foregroundStyle(KlinoteColor.ink)
+                    }
                 }
 
                 Spacer(minLength: 0)

@@ -91,13 +91,27 @@ fn expansion(token: &str) -> Option<&'static str> {
     if token.chars().count() < 2 {
         return None;
     }
-    if token.chars().any(|c| c.is_ascii_digit()) {
+    // A number with a unit ("400mg") is not an abbreviation. The one
+    // exception is the interval shorthand the table itself defines — q4h,
+    // q6h, q8h, q12h — which contains a digit and used to be skipped by the
+    // guard below, leaving "q8h" in a patient's copy.
+    if token.chars().any(|c| c.is_ascii_digit()) && !is_interval_shorthand(&lower) {
         return None;
     }
     EXPAND
         .iter()
         .find(|(abbreviation, _)| *abbreviation == lower)
         .map(|(_, replacement)| *replacement)
+}
+
+fn is_interval_shorthand(lower: &str) -> bool {
+    let Some(rest) = lower.strip_prefix('q') else {
+        return false;
+    };
+    let Some(hours) = rest.strip_suffix('h') else {
+        return false;
+    };
+    !hours.is_empty() && hours.chars().all(|c| c.is_ascii_digit())
 }
 
 fn tokens(text: &str) -> Vec<String> {
@@ -143,6 +157,18 @@ mod tests {
         assert!(text.contains("four times a day"), "{text}");
         assert!(text.contains("as needed"), "{text}");
         assert!(text.contains("twice a day"), "{text}");
+    }
+
+    #[test]
+    fn expands_interval_shorthand_for_patients() {
+        let (text, expanded) = expand("Paracetamol 1g q8h, review in one week.");
+        assert!(text.contains("every 8 hours"), "{text}");
+        assert!(!text.contains("q8h"), "{text}");
+        assert_eq!(expanded, vec!["q8h"]);
+        // A dose with a unit is still not an abbreviation.
+        let (unchanged, none) = expand("Ibuprofen 400mg tds");
+        assert!(unchanged.contains("400mg"), "{unchanged}");
+        assert_eq!(none, vec!["tds"]);
     }
 
     #[test]

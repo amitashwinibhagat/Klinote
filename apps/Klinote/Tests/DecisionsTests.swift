@@ -76,6 +76,18 @@ extension DecisionsTests {
         return note
     }
 
+    /// A session code is a pseudonym, not a free-text field. A space or a
+    /// name must be refused before it reaches the Rust store.
+    func testPatientReferenceRejectsNamesAndSpaces() {
+        XCTAssertTrue(PatientReference.isOpaqueCode("enc-1234abcd"))
+        XCTAssertTrue(PatientReference.isOpaqueCode("pasted-abc123"))
+        XCTAssertFalse(PatientReference.isOpaqueCode("John Smith"))
+        XCTAssertFalse(PatientReference.isOpaqueCode("John"))
+        XCTAssertFalse(PatientReference.isOpaqueCode(""))
+        XCTAssertFalse(PatientReference.isOpaqueCode("  "))
+        XCTAssertFalse(PatientReference.isOpaqueCode("client/1"))
+    }
+
     func testARedraftKeepsTheLineTheClinicianTyped() {
         // The model never saw it, so it cannot reproduce it, so replacing the
         // note deleted it — silently, and with the record marked "Edited".

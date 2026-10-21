@@ -51,6 +51,11 @@ pub enum Wording {
 /// Sentence-level evidence is what makes the note checkable rather than
 /// merely plausible: a clinician can select any sentence and see the exact
 /// words that produced it.
+///
+/// Provenance travels with the sentence, because the store round-trips every
+/// note through this struct: fields that exist only in the shell are dropped
+/// on the first save, and a clinician's line reloads as machine text. The
+/// shell's `NoteSentence` mirrors these exactly.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NoteSentence {
     pub text: String,
@@ -60,12 +65,34 @@ pub struct NoteSentence {
     /// sentence. Surfaced to the reviewer rather than silently decided.
     #[serde(default)]
     pub ambiguous: bool,
-    /// Set by [`ClinicalNote::verify_support`].
+    /// Set by [`ClinicalNote::verify_support`]. `None` means the machine has
+    /// not judged this line — which is the honest state for a sentence a
+    /// person wrote, and must survive the store round trip. A non-optional
+    /// field here defaulted to `Supported` and turned every human edit into a
+    /// pass the check never made.
     #[serde(default)]
-    pub support: Support,
-    /// Set by [`ClinicalNote::simplify_for_patient`].
+    pub support: Option<Support>,
+    /// Set by [`ClinicalNote::simplify_for_patient`]. `None` on a line the
+    /// machine has not judged, for the same reason as `support`.
     #[serde(default)]
-    pub wording: Wording,
+    pub wording: Option<Wording>,
+    /// How a person produced this line, carried verbatim from the shell:
+    /// `"clinician"` when typed outright, `"clinician-edited"` when the
+    /// clinician rewrote a line the engine drafted. `None` for machine text.
+    /// The grounding check never judges a human's words, so it skips these.
+    #[serde(default)]
+    pub authored: Option<String>,
+    /// Stable identity across edits, minted by the shell. Without it the
+    /// sentence's identity is its own text, which changes the moment the
+    /// clinician corrects it — and selection, undo and redraft protection
+    /// lose track of the line they were following.
+    #[serde(default)]
+    pub line_id: Option<String>,
+    /// Removed from the note by the clinician — a decision, reversible, not
+    /// a silent drop: the sentence stays in the JSON with its evidence, and
+    /// rendering, completeness and the clipboard skip it.
+    #[serde(default)]
+    pub excluded: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,6 +139,19 @@ pub struct UnassignedItem {
     pub evidence: Vec<SegmentId>,
 }
 
+/// An unfiled statement the clinician deliberately decided is not part of
+/// the note. Kept on the note itself so the decision survives a relaunch and
+/// a redraft — otherwise the next model pass would quietly revive content a
+/// clinician had already excluded, and the exclusion would have been theatre.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExcludedItem {
+    pub text: String,
+    #[serde(default)]
+    pub speaker_role: String,
+    #[serde(default)]
+    pub evidence: Vec<SegmentId>,
+}
+
 /// The generated note.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClinicalNote {
@@ -128,6 +168,11 @@ pub struct ClinicalNote {
     /// Required section keys that came back empty.
     #[serde(default)]
     pub missing_required: Vec<String>,
+    /// Unfiled statements the clinician excluded from the note. See
+    /// [`ExcludedItem`] for why this lives on the note rather than in the
+    /// shell's memory.
+    #[serde(default)]
+    pub excluded: Vec<ExcludedItem>,
     /// True when a machine produced this without human editing.
     #[serde(default)]
     pub machine_generated: bool,
@@ -161,6 +206,11 @@ impl ClinicalNote {
 
     /// Mark every sentence whose own evidence does not contain its figures or
     /// drug names. Deterministic, local, and never rewrites the text.
+    ///
+    /// A line a person wrote is skipped: `supported` means "we checked this
+    /// against the words heard", and a clinician's own words are not a claim
+    /// the machine made. Re-judging them here would either manufacture a pass
+    /// or brand their edit unverified — both are lies about who said what.
     pub fn verify_support(&mut self, transcript: &crate::transcript::Transcript) {
         if transcript.segments.is_empty() {
             return;
@@ -172,13 +222,16 @@ impl ClinicalNote {
             .collect();
         for section in &mut self.sections {
             for sentence in &mut section.sentences {
+                if sentence.authored.is_some() {
+                    continue;
+                }
                 let cited = sentence
                     .evidence
                     .iter()
                     .filter_map(|id| cited_by_id.get(id).copied())
                     .collect::<Vec<_>>()
                     .join(" ");
-                sentence.support = crate::support::judge(&sentence.text, &cited);
+                sentence.support = Some(crate::support::judge(&sentence.text, &cited));
             }
         }
     }
@@ -194,11 +247,11 @@ impl ClinicalNote {
             for sentence in &mut section.sentences {
                 let (expanded, _) = crate::register::expand(&sentence.text);
                 sentence.text = expanded;
-                sentence.wording = if crate::register::jargon_in(&sentence.text).is_empty() {
+                sentence.wording = Some(if crate::register::jargon_in(&sentence.text).is_empty() {
                     Wording::Plain
                 } else {
                     Wording::Jargon
-                };
+                });
             }
             section.body = section
                 .sentences
@@ -216,7 +269,7 @@ impl ClinicalNote {
         self.sections
             .iter()
             .flat_map(|section| section.sentences.iter())
-            .filter(|sentence| sentence.wording == Wording::Jargon)
+            .filter(|sentence| sentence.wording == Some(Wording::Jargon))
             .count()
     }
 
@@ -225,10 +278,10 @@ impl ClinicalNote {
     fn recheck_wording_only(&mut self) {
         for section in &mut self.sections {
             for sentence in &mut section.sentences {
-                if sentence.wording == Wording::Jargon
+                if sentence.wording == Some(Wording::Jargon)
                     && crate::register::jargon_in(&sentence.text).is_empty()
                 {
-                    sentence.wording = Wording::Plain;
+                    sentence.wording = Some(Wording::Plain);
                 }
             }
         }
@@ -239,7 +292,7 @@ impl ClinicalNote {
         self.sections
             .iter()
             .flat_map(|section| section.sentences.iter())
-            .filter(|sentence| sentence.support == Support::Unverified)
+            .filter(|sentence| sentence.support == Some(Support::Unverified))
             .count()
     }
 
@@ -387,6 +440,7 @@ mod tests {
             template_id: TemplateId::new("soap"),
             sections,
             unassigned: Vec::new(),
+            excluded: Vec::new(),
             generated_at: Utc::now(),
             engine: "test".to_owned(),
             review_state: ReviewState::Draft,

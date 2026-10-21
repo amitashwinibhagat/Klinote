@@ -21,15 +21,6 @@ import CoreMedia
 import Foundation
 import Speech
 
-/// One recognised span. Milliseconds from the start of the recording, because
-/// that is the unit `AsrSegment` and the diariser work in.
-struct RecognisedSegment {
-    let startMs: UInt64
-    let endMs: UInt64
-    let text: String
-    let confidence: Double?
-}
-
 enum TranscriberError: LocalizedError {
     case needsNewerMac
     case notInstalled

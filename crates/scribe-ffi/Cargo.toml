@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "C ABI for the Local Clinical Scribe engine, consumed by the Swift shell."
 
 [lib]

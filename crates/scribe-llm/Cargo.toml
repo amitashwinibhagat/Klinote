@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 description = "Local GGUF note drafter (llama.cpp). Separate binary so ggml does not clash with whisper.cpp."
 
 [[bin]]

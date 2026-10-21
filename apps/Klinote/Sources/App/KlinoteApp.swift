@@ -59,15 +59,25 @@ struct KlinoteApp: App {
                 Divider()
                 Button("Copy note") { model.copySelectedNote() }
                     .disabled(model.selectedEncounter?.note == nil)
+                Button("Correct the selected sentence…") {
+                    if let id = model.selectedSentenceID { model.editingSentenceID = id }
+                }
+                .keyboardShortcut("e", modifiers: .command)
+                .disabled(model.selectedSentenceID == nil || model.editingSentenceID != nil)
                 Button("Print…") { model.requestPrintFromSelection() }
                     .disabled(model.selectedEncounter?.note == nil)
                 Button("Mark as reviewed") { model.fileSelectedNote() }
+                    .keyboardShortcut(.return, modifiers: .command)
                     .disabled(model.selectedEncounter?.state == .approved)
                 Divider()
                 Button("Make a referral letter") { model.makeDocumentFromSelection("referral_letter") }
                 Button("Make the client's copy") { model.makeDocumentFromSelection("patient_summary") }
                 Button("Swap therapist and client") { model.swapSpeakersAndRedraft() }
                     .disabled(model.selectedEncounter?.isSyntheticDemo != false)
+                Divider()
+                Button("Undo last note edit") { model.undoLastEdit() }
+                    .keyboardShortcut("z", modifiers: .command)
+                    .disabled(model.selectedEncounter == nil)
             }
         }
 
@@ -165,6 +175,74 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    /// Quitting discards the in-memory copy — which, after a save failure, is
+    /// the *only* copy. A silent quit here would destroy exactly the work the
+    /// save status just told the clinician was at risk, so the app asks, and
+    /// the retry it offers is the same one the desk offers.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // A live recording is work that exists nowhere else. Quitting used to
+        // ask only about unsaved notes, so ⌘Q during a session discarded the
+        // recording and left its plaintext temp file behind.
+        let state = MainActor.assumeIsolated { AppModel.shared.recordingState }
+        if state.isActive || state.isDrafting {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = state.isDrafting
+                ? "A note is still being written"
+                : "A session is still recording"
+            alert.informativeText = state.isDrafting
+                ? "Quitting now discards the note being written. Let it finish, or quit and lose this draft."
+                : "Quitting now discards the recording and the words not yet written. Stop the recording and let the note finish first, or quit and lose this part of the session."
+            alert.addButton(withTitle: state.isDrafting ? "Keep working" : "Stop recording and stay open")
+            alert.addButton(withTitle: "Quit anyway")
+            alert.addButton(withTitle: "Cancel")
+            switch alert.runModal() {
+            case .alertFirstButtonReturn:
+                if !state.isDrafting {
+                    MainActor.assumeIsolated { AppModel.shared.stopAndDraft() }
+                }
+                return .terminateCancel
+            case .alertSecondButtonReturn:
+                MainActor.assumeIsolated {
+                    Recorder.shared.stop()
+                    Recorder.shared.cleanup()
+                }
+                return .terminateNow
+            default:
+                return .terminateCancel
+            }
+        }
+
+        let unsaved = MainActor.assumeIsolated { () -> [String] in
+            AppModel.shared.unsavedEncounterIDs.sorted()
+        }
+        guard !unsaved.isEmpty else { return .terminateNow }
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = unsaved.count == 1
+            ? "1 session has not been saved"
+            : "\(unsaved.count) sessions have not been saved"
+        alert.informativeText = "Quitting now loses the changes on screen. The encrypted store refused the last save, so this Mac holds no copy of them."
+        alert.addButton(withTitle: "Retry saving")
+        alert.addButton(withTitle: "Quit anyway")
+        alert.addButton(withTitle: "Cancel")
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            let stillUnsaved = MainActor.assumeIsolated { () -> Set<String> in
+                let model = AppModel.shared
+                for id in unsaved { model.retrySave(of: id) }
+                return model.unsavedEncounterIDs
+            }
+            // The retry either made the disk true or it did not. Quitting on
+            // a failed retry would be the same destruction with one extra
+            // step; staying open keeps the work alive and the banner honest.
+            return stillUnsaved.isEmpty ? .terminateNow : .terminateCancel
+        }
+        return response == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
     }
 }
 

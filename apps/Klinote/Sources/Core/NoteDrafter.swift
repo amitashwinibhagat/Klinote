@@ -481,7 +481,10 @@ enum NoteDrafter {
         encounterId: String
     ) -> ClinicalNote {
         let byIndex = Dictionary(uniqueKeysWithValues: utterances.map { ($0.index, $0) })
-        var used = Set<String>()
+        // Words of each cited utterance accounted for by a drafted sentence.
+        // A segment cited by one short sentence may still carry content the
+        // model missed; whole-segment membership hid that.
+        var coverage: [String: Int] = [:]
         var missingRequired: [String] = []
 
         // One statement, one field — and the field's own cues decide which.
@@ -532,33 +535,34 @@ enum NoteDrafter {
             for (index, claim) in claims.enumerated() where placement[index] == sectionIndex {
                 let item = claim.sentence
                 let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard text.split(separator: " ").count >= 2 else { continue }
+                guard !text.isEmpty else { continue }
                 let evidence = item.evidence.compactMap { byIndex[$0]?.segmentID }
                 guard !evidence.isEmpty else { continue }
 
-                evidence.forEach { used.insert($0) }
+                let words = text.split(separator: " ").count
+                evidence.forEach { coverage[$0, default: 0] += words }
                 sentences.append(
                     NoteSentence(
                         text: text,
                         evidence: evidence,
                         ambiguous: evidence.count != 1,
-                        // `support` is set to supported here and then *corrected*
-                        // before anyone sees it: the draft goes back through the
-                        // core's grounding check in `AppModel.preferLocalDraft`
-                        // (`KlinoteCore.verify`), which is the same
-                        // `verify_support` every Rust drafting path runs.
+                        // `support` and `wording` are left unset: this file has
+                        // not judged the sentence. The draft goes back through
+                        // the core's grounding check in
+                        // `AppModel.preferLocalDraft` (`KlinoteCore.verify`),
+                        // which is the same `verify_support` every Rust drafting
+                        // path runs. If that check cannot run, nil is the honest
+                        // state — it must not default to "supported".
                         //
-                        // This line is the default, not the verdict. Demonstrated
-                        // on macOS 27: the extractor produced "Plan to review in
-                        // follow-up.", a sentence in no utterance, citing one that
-                        // does not contain it. Nothing in this file catches that —
-                        // the brevity-pass count guard covers the *polish* step and
-                        // the invention happened before it. What catches it is the
-                        // check across the boundary, plus the evidence margin: a
-                        // clinician clicking the sentence sees the words it claims
-                        // and they do not match.
-                        support: "supported",
-                        wording: "plain"
+                        // Demonstrated on macOS 27: the extractor produced "Plan
+                        // to review in follow-up.", a sentence in no utterance,
+                        // citing one that does not contain it. Nothing in this
+                        // file catches that — the brevity-pass count guard covers
+                        // the *polish* step and the invention happened before it.
+                        // What catches it is the check across the boundary, plus
+                        // the evidence margin.
+                        support: nil,
+                        wording: nil
                     )
                 )
             }
@@ -578,8 +582,10 @@ enum NoteDrafter {
         }
 
         let unassigned: [UnassignedStatement] = utterances.compactMap { item in
-            guard !used.contains(item.segmentID) else { return nil }
-            guard item.text.split(separator: " ").count >= 2 else { return nil }
+            let words = max(item.text.split(separator: " ").count, 1)
+            let covered = coverage[item.segmentID] ?? 0
+            guard covered * 2 < words else { return nil }
+            guard !item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
             return UnassignedStatement(
                 text: item.text,
                 speakerRole: item.role,
@@ -598,6 +604,7 @@ enum NoteDrafter {
             unassigned: unassigned,
             generatedAt: formatter.string(from: Date()),
             engine: "apple-foundation-models-phlox",
+            render: template.render,
             reviewState: "draft",
             missingRequired: missingRequired,
             machineGenerated: true

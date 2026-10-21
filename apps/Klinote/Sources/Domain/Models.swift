@@ -38,13 +38,34 @@ struct ClinicalNote: Codable, Identifiable, Hashable {
     let templateId: String
     var sections: [NoteSection]
     var unassigned: [UnassignedStatement]
-    let generatedAt: String
-    let engine: String
-    let reviewState: String
+    /// Unfiled statements the clinician excluded. Optional so notes saved
+    /// before exclusions existed decode.
+    var excluded: [ExcludedStatement]?
+    /// The revision stamp. The engine sets it at draft time; the shell
+    /// restamps it on every human edit (`AppModel.markEdited`), because the
+    /// copied receipt compares exactly this field to decide whether the
+    /// clipboard still describes the note on screen. A `var` for the same
+    /// reason `reviewState` is.
+    var generatedAt: String
+    var engine: String
+    /// "sections" or "letter". Carried from the template through the engine so
+    /// `to_record_text` can still lay a referral letter out as a letter after
+    /// the shell has held it. It used to be dropped by this struct, and the
+    /// Rust side defaulted it back to sections on every save and every copy.
+    var render: String?
+    /// Where this revision sits in human review. A `var` because approval is
+    /// a clinician act on a revision, and the stored JSON is what a relaunch
+    /// reads: when this was a `let` and only the shell's encounter state
+    /// moved, an approved note reopened as a draft and the decision was
+    /// quietly gone.
+    var reviewState: String
     /// Keys of required sections with nothing in them. `var` because a
     /// clinician writing a line into an empty section is what clears one.
     var missingRequired: [String]
-    let machineGenerated: Bool
+    /// True only while this revision is still entirely machine-written. A
+    /// human edit clears it; the field is the record's provenance, not a
+    /// permanent label saying a model was involved at some point.
+    var machineGenerated: Bool
 
     static func == (lhs: ClinicalNote, rhs: ClinicalNote) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -63,7 +84,9 @@ struct NoteSection: Codable, Identifiable, Hashable {
     let key: String
     let title: String
     var body: String
-    let evidence: [String]
+    /// Recomputed from the present sentences by `NoteEditing.rebuildSection`
+    /// on every mutation: evidence follows content, including exclusions.
+    var evidence: [String]
     var sentences: [NoteSentence]
     /// Whether this section counts as documented. `var` for the same reason.
     var complete: Bool
@@ -73,34 +96,61 @@ struct NoteSection: Codable, Identifiable, Hashable {
 
 struct NoteSentence: Codable, Hashable, Identifiable {
     var text: String
-    let evidence: [String]
+    /// `var` because moving a sentence between sections legitimately carries
+    /// its evidence to a new home. Nothing writes evidence that the words
+    /// did not come from; every writer either keeps the original or copies
+    /// the item's own when the clinician files an unfiled statement.
+    var evidence: [String]
     let ambiguous: Bool
     /// "supported" or "unverified". Set by the engine's grounding check.
+    /// Nil on a line a person wrote: the machine never judged their words.
     var support: String?
     /// "plain" or "jargon". Set only on patient-facing documents.
     var wording: String?
-    /// "clinician" when a person wrote this line rather than the engine
-    /// drafting it from the recording. Nil for everything the engine wrote.
-    ///
-    /// Optional so a note saved before a clinician could add lines still
-    /// decodes — the same reason `Transcript.heldMs` is optional.
+    /// How a person produced this line: "clinician" when typed outright,
+    /// "clinician-edited" when they rewrote a line the engine drafted. Nil
+    /// for everything the engine wrote. Optional so a note saved before
+    /// provenance existed still decodes — the same reason `heldMs` is.
     var authored: String?
-    /// Stable identity for a line a clinician added, so two identical lines in
-    /// one note do not collide. Nil on engine-written sentences, which are
-    /// identified by the words they came from.
+    /// Stable identity across edits. Nil on engine-written sentences that
+    /// have never been touched; minted on first mutation so selection, undo
+    /// and redraft protection keep following the same line after its text
+    /// changes.
     var lineId: String?
+    /// Removed from the note by the clinician. The sentence stays in the
+    /// note with its evidence — a decision, reversible, not a drop — while
+    /// rendering, completeness and the clipboard skip it. Optional so older
+    /// notes decode.
+    var excluded: Bool?
 
     var isUnverified: Bool { support == "unverified" }
     var isJargon: Bool { wording == "jargon" }
-    /// A person wrote this. It has no words behind it, and the margin says so
-    /// rather than letting it look like everything else.
+    /// A person wrote or rewrote this. The margin says so rather than
+    /// letting it look like everything else.
     var isAuthored: Bool { authored != nil }
+    /// The clinician removed this from the note. Visible in review, absent
+    /// from the copy.
+    var isExcluded: Bool { excluded == true }
+    /// What review shows: the sentences the note actually consists of.
+    var isPresent: Bool { !isExcluded }
 
-    /// Stable within a note: the sentence text plus its first evidence id.
+    /// Stable within a note: the minted identity when there is one, the
+    /// words plus first evidence when not.
     var id: String { lineId ?? "\(evidence.first ?? "none")::\(text)" }
 }
 
 struct UnassignedStatement: Codable, Identifiable, Hashable {
+    let text: String
+    let speakerRole: String
+    let evidence: [String]
+
+    var id: String { "\(evidence.first ?? "none")::\(text)" }
+}
+
+/// An unfiled statement the clinician decided is not part of the note. Kept
+/// on the note so the decision survives a relaunch and a redraft — otherwise
+/// the next model pass would quietly revive content a clinician excluded.
+struct ExcludedStatement: Codable, Identifiable, Hashable {
     let text: String
     let speakerRole: String
     let evidence: [String]
@@ -204,3 +254,18 @@ struct TemplateSectionSummary: Codable, Identifiable, Hashable {
     }
 }
 
+
+/// One recognised span: the shell's side of the ASR boundary. Milliseconds
+/// from the start of the recording, because that is the unit `AsrSegment`
+/// and the diariser work in.
+///
+/// Lives in Domain because the capture pipeline carries it across actors and
+/// (sealed) across restarts; it is a value, not a service. `Codable` because
+/// a failed capture stores the words recognition already produced, so a
+/// drafting retry never re-runs the recogniser.
+struct RecognisedSegment: Codable {
+    let startMs: UInt64
+    let endMs: UInt64
+    let text: String
+    let confidence: Double?
+}
