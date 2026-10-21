@@ -3,8 +3,9 @@
 The marketing site for Klinote, served at [klinote.one](https://klinote.one).
 
 TanStack Start (React 19, Tailwind v4) deployed to Netlify as an SSR function.
-Built to the Pelmatech design spec: exact tokens, responsive zoom below 1728px,
-masked image reveals, the blur-puck carousel. Copy is PAS and lives in
+Built to the Pelmatech design spec: exact tokens, real responsive breakpoints
+(no document-wide zoom), reliable images, and a carousel whose controls are
+always reachable. Copy is PAS and lives in
 `docs/marketing/LANDING-COPY.md`, governed by `docs/product/PRODUCT-TRUTH.md`.
 
 ## Deploy
@@ -21,7 +22,11 @@ linking step is needed. The site is linked to Netlify project
 ## The contact form
 
 `/contact` posts to a server function (`src/server/contact.ts`) that writes the
-enquiry to Netlify Blobs.
+enquiry to Netlify Blobs, then tries to announce it. The page reports those as
+two separate facts: a stored enquiry with a failed notice is shown as
+"Stored — but the notice did not go out", with a mailto fallback, never as
+"Received". The handler also throttle-repeats per email and stores honeypot
+submissions under a `spam-` key instead of discarding them silently.
 
 Read every enquiry, newest first:
 
@@ -70,12 +75,12 @@ container, because this sharp build has no `.ico()` output.
 
 ## Two traps worth knowing
 
-**Responsive zoom must not touch `element.style`.** `hydrateRoot(document)` in
-React 19 compares the `<html>` element's attributes against the server markup,
-and an inline `style.zoom` set before hydration is a mismatch it throws #418 on.
-Worse, React's SSR renderer strips `suppressHydrationWarning`, so that prop
-cannot paper over it. Zoom is applied through a `<style>` rule instead, which
-changes computed style without touching the attribute.
+**No document-wide zoom.** The template authored everything at 1728 px and
+scaled the whole document down; on a 390 px phone that rendered 16 px text at
+3.6 px. It is replaced with breakpoints (the five steps become a list on a
+phone). Do not put `style.zoom` on `<html>` either: `hydrateRoot(document)`
+compares the element's attributes with the server markup, and React throws #418.
+`suppressHydrationWarning` cannot fix that — React's SSR renderer strips it.
 
 **Images load from `qclay.design`.** The template's asset bundle is hot-linked
 rather than vendored. That is fine for a marketing site and is not a product

@@ -11,7 +11,6 @@ export const heroImage = `${BASE}doctor-computer.png`
 export const appVersion = '0.1.6'
 export const downloadUrl =
   'https://github.com/amitashwinibhagat/Klinote/releases/download/v0.1.6/Klinote-0.1.6.zip'
-export const releasesUrl = 'https://github.com/amitashwinibhagat/Klinote/releases'
 
 export const clockLamp = `${BASE}clock-lamp.png`
 export const pills = `${BASE}pills.png`

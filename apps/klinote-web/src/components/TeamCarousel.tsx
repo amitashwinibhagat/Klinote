@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { AnimatePresence, motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { MaskedImage } from './AnimatedHeading'
 import { cite, record, route, sign, transcribe } from '~/assets'
@@ -20,19 +20,19 @@ const STEPS = [
     img: transcribe,
     role: 'STEP 02',
     name: 'Transcribe',
-    desc: 'Speech recognition runs on the Mac with the system’s own engine. Nothing downloads, and nothing leaves the room.',
+    desc: 'Speech recognition runs on the Mac with the system’s own engine. No speech model downloads; the optional note model is one download, on first use if you choose it.',
   },
   {
     img: route,
     role: 'STEP 03',
     name: 'Route',
-    desc: 'Each statement is filed into the structure your discipline documents in, whether that is DAP, BIRP or SOAP.',
+    desc: 'Each statement is filed into the structure your discipline documents in — SOAP, a therapy note, physiotherapy, dentistry or veterinary.',
   },
   {
     img: cite,
     role: 'STEP 04',
     name: 'Cite',
-    desc: 'Every sentence carries the words that produced it. A quote that is not in the transcript does not enter the note. This step is the product.',
+    desc: 'Every sentence carries the words it came from. Figures and drug names that are not in those words are flagged. This step is the product.',
   },
   {
     img: sign,
@@ -49,20 +49,39 @@ const MAX_INDEX = Math.max(0, Math.ceil(STEPS.length - VISIBLE))
 
 export function TeamCarousel({ intro }: { intro: React.ReactNode }) {
   const [index, setIndex] = React.useState(0)
-  const [hovered, setHovered] = React.useState(false)
+  const reduceMotion = useReducedMotion()
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <div className="flex" style={{ gap: GAP }}>
-        <div className="shrink-0" style={{ width: INTRO_WIDTH }}>
-          {intro}
+    <>
+      {/* Phones get the five steps as a readable list. The desktop carousel is
+          a 1728 px composition; shrinking it to 390 px was a 22% miniature. */}
+      <div className="lg:hidden">
+        <div className="mb-10">{intro}</div>
+        <div className="space-y-12">
+          {STEPS.map((step) => (
+            <div key={step.name}>
+              <div className="aspect-[4/3] overflow-hidden bg-muted">
+                <MaskedImage src={step.img} alt={step.name} className="w-full h-full" />
+              </div>
+              <p className="text-xs tracking-[0.2em] text-muted-foreground uppercase font-mono mt-5">
+                {step.role}
+              </p>
+              <p className="text-xl mt-2 font-medium">{step.name}</p>
+              <p className="text-sm text-muted-foreground leading-relaxed mt-3">
+                {step.desc}
+              </p>
+            </div>
+          ))}
         </div>
+      </div>
 
-        <div className="relative overflow-hidden flex-1 min-w-0">
+      <div className="hidden lg:block relative">
+        <div className="flex" style={{ gap: GAP }}>
+          <div className="shrink-0" style={{ width: INTRO_WIDTH }}>
+            {intro}
+          </div>
+
+          <div className="relative overflow-hidden flex-1 min-w-0">
           <motion.div
             className="flex"
             style={{
@@ -70,7 +89,7 @@ export function TeamCarousel({ intro }: { intro: React.ReactNode }) {
               width: `calc(${STEPS.length} * ((100% - ${(VISIBLE - 1) * GAP}px) / ${VISIBLE}) + ${(STEPS.length - 1) * GAP}px)`,
             }}
             animate={{ x: `calc(${-index} * (100% + ${GAP}px) / ${STEPS.length})` }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: reduceMotion ? 0 : 0.7, ease: [0.22, 1, 0.36, 1] }}
           >
             {STEPS.map((m, i) => (
               <div
@@ -99,49 +118,38 @@ export function TeamCarousel({ intro }: { intro: React.ReactNode }) {
                 </div>
               </div>
             ))}
-          </motion.div>
+            </motion.div>
+          </div>
         </div>
-      </div>
 
-      <AnimatePresence>
-        {hovered && (
-          <motion.div
-            className="absolute top-[35%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-10"
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.85 }}
-            transition={{ duration: 0.25 }}
+        {/* Always visible, not on hover: a keyboard or touch user could not
+            reach steps four and five when the controls only existed under the
+            pointer. */}
+        <div className="mt-8 flex items-center justify-center gap-4 rounded-full px-3 py-2 bg-black/35 backdrop-blur-md w-fit mx-auto">
+          <button
+            className="flex items-center justify-center text-white disabled:opacity-30 transition cursor-pointer"
+            disabled={index === 0}
+            onClick={() => setIndex((i) => Math.max(0, i - 1))}
+            aria-label="Previous step"
           >
-            <div
-              className="flex items-center justify-center gap-4 rounded-full cursor-pointer"
-              style={{
-                width: 126,
-                height: 126,
-                background: 'rgba(72, 72, 72, 0.16)',
-                backdropFilter: 'blur(84px)',
-                WebkitBackdropFilter: 'blur(84px)',
-              }}
-            >
-              <button
-                className="flex items-center justify-center text-white disabled:opacity-30 transition cursor-pointer"
-                disabled={index === 0}
-                onClick={() => setIndex((i) => Math.max(0, i - 1))}
-                aria-label="Previous step"
-              >
-                <ArrowLeft className="w-7 h-7" />
-              </button>
-              <button
-                className="flex items-center justify-center text-white disabled:opacity-30 transition cursor-pointer"
-                disabled={index >= MAX_INDEX}
-                onClick={() => setIndex((i) => Math.min(MAX_INDEX, i + 1))}
-                aria-label="Next step"
-              >
-                <ArrowRight className="w-7 h-7" />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+            <ArrowLeft className="w-6 h-6" />
+          </button>
+          <span className="font-mono text-[11px] tracking-[0.18em] text-white/80">
+            {String(index + 1).padStart(2, '0')} / {String(STEPS.length).padStart(2, '0')}
+          </span>
+          <button
+            className="flex items-center justify-center text-white disabled:opacity-30 transition cursor-pointer"
+            disabled={index >= MAX_INDEX}
+            onClick={() => setIndex((i) => Math.min(MAX_INDEX, i + 1))}
+            aria-label="Next step"
+          >
+            <ArrowRight className="w-6 h-6" />
+          </button>
+        </div>
+        <p className="sr-only" aria-live="polite">
+          Step {index + 1} of {STEPS.length}
+        </p>
+      </div>
+    </>
   )
 }

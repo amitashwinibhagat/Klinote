@@ -20,3 +20,11 @@
   for = "/site.webmanifest"
   [headers.values]
     Content-Type = "application/manifest+json"
+
+# The page has no forms that need device permissions and no reason to leak a
+# referrer to the image host. HSTS and nosniff are Netlify defaults.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"

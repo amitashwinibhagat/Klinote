@@ -5,36 +5,8 @@ import {
   createRootRoute,
 } from '@tanstack/react-router'
 import * as React from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import appCss from '~/styles.css?url'
-
-// The whole document is uniformly downscaled below 1728px so the layout can be
-// authored once, at the 1728px reference width. Duplicated in a useEffect below
-// so it re-applies after hydration.
-//
-// IMPORTANT: zoom is applied through a <style> rule, not element.style.zoom.
-// hydrateRoot(document) compares the <html> element's attributes against the
-// server markup, and an inline style set before hydration is a mismatch React
-// throws #418 on. A stylesheet rule changes computed style without touching the
-// attribute, so React sees the same element both sides. React's SSR also strips
-// suppressHydrationWarning, so that prop cannot be used to paper over it.
-const ZOOM_STYLE_ID = 'klinote-responsive-zoom'
-const ZOOM_SCRIPT = `(function(){
-  function u(){
-    var w = document.documentElement.clientWidth;
-    var z = w < 1728 ? w / 1728 : 1;
-    var s = document.getElementById('${ZOOM_STYLE_ID}');
-    if (!s) {
-      s = document.createElement('style');
-      s.id = '${ZOOM_STYLE_ID}';
-      document.head.appendChild(s);
-    }
-    s.textContent = 'html{zoom:' + z + '}';
-  }
-  u();
-  window.addEventListener('resize', u);
-})();`
 
 export const Route = createRootRoute({
   head: () => ({
@@ -81,16 +53,6 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: 'stylesheet', href: appCss },
-      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-      {
-        rel: 'preconnect',
-        href: 'https://fonts.gstatic.com',
-        crossOrigin: 'anonymous',
-      },
-      {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Schibsted+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap',
-      },
 
       // Icons. Generated from src/assets/icon-source.svg by generate.mjs.
       { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
@@ -103,42 +65,29 @@ export const Route = createRootRoute({
       },
       { rel: 'manifest', href: '/site.webmanifest' },
     ],
-    scripts: [
-      { children: ZOOM_SCRIPT },
-    ],
   }),
   shellComponent: RootDocument,
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  React.useEffect(() => {
-    const apply = () => {
-      const w = document.documentElement.clientWidth
-      const z = w < 1728 ? w / 1728 : 1
-      let s = document.getElementById(ZOOM_STYLE_ID)
-      if (!s) {
-        s = document.createElement('style')
-        s.id = ZOOM_STYLE_ID
-        document.head.appendChild(s)
-      }
-      s.textContent = `html{zoom:${z}}`
-    }
-    apply()
-    window.addEventListener('resize', apply)
-    return () => window.removeEventListener('resize', apply)
-  }, [])
-
   return (
     <html lang="en">
       <head>
         <HeadContent />
+        {/* If the bundle never runs, Motion's initial opacity/clip styles are
+            still in the SSR markup. This is the no-JS fallback: the copy is
+            readable even when hydration fails. */}
+        <noscript
+          dangerouslySetInnerHTML={{
+            __html:
+              '<style>.klinote-motion{opacity:1!important;transform:none!important;clip-path:none!important;filter:none!important}</style>',
+          }}
+        />
       </head>
       <body>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        {children}
         <Scripts />
       </body>
     </html>
   )
 }
-
-const queryClient = new QueryClient()

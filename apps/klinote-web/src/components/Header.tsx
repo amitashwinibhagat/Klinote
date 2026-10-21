@@ -27,7 +27,17 @@ export function Header() {
   }, [])
 
   return (
-    <header className="fixed top-6 left-0 right-0 z-50 px-8 flex items-center justify-between">
+    <>
+      {/* The hero image is light at the top; a white wordmark needs a scrim.
+          Once the page has scrolled, the header sits on the page colour and
+          the scrim would just be a grey band. */}
+      {!scrolled ? (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-x-0 top-0 z-40 h-28 bg-gradient-to-b from-black/45 to-transparent"
+        />
+      ) : null}
+      <header className="fixed top-6 left-0 right-0 z-50 px-8 flex items-center justify-between">
       <a href="#" aria-label="Klinote — home">
         <img
           src={scrolled ? logoDark : logo}
@@ -36,15 +46,16 @@ export function Header() {
         />
       </a>
 
-      <nav className="flex items-center gap-1 bg-[var(--header-bg)] backdrop-blur-md text-white rounded-full pl-2 pr-2 py-2">
+      <nav aria-label="Primary" className="flex items-center gap-1 bg-[var(--header-bg)] backdrop-blur-md text-white rounded-full pl-2 pr-2 py-2">
         {NAV_ITEMS.map((item) => (
           <a
             key={item.label}
             href={item.href}
             className={
-              item.href === '#'
+              (item.href === '#'
                 ? 'px-5 py-2 text-sm rounded-full bg-white/10 font-medium'
-                : 'px-5 py-2 text-sm rounded-full opacity-80 hover:opacity-100 transition'
+                : 'px-5 py-2 text-sm rounded-full opacity-80 hover:opacity-100 transition') +
+              ' hidden md:inline-block'
             }
           >
             {item.label}
@@ -59,6 +70,7 @@ export function Header() {
           Download
         </a>
       </nav>
-    </header>
+      </header>
+    </>
   )
 }

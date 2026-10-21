@@ -16,6 +16,37 @@ function clean(value: unknown, limit = 300): string {
   return String(value ?? '').trim().slice(0, limit)
 }
 
+/// Header-safe single-line fields. A newline in a name went into the Resend
+/// subject; a malformed email made Resend reject the notice while the page
+/// still said "Received".
+function oneLine(value: unknown, limit = 300): string {
+  return clean(value, limit).replace(/[\r\n]+/g, ' ').trim()
+}
+
+function validEmail(value: string): boolean {
+  return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+}
+
+/// Instance-local throttle. Netlify may run several instances, so this is not
+/// a hard guarantee; it stops a single page being hammered from one address
+/// and costs nothing. A production deployment should pair it with an edge
+/// limit or Turnstile.
+const recent = new Map<string, number[]>()
+const WINDOW_MS = 10 * 60 * 1000
+const MAX_PER_WINDOW = 3
+
+function throttled(email: string, now = Date.now()): boolean {
+  const key = email.toLowerCase()
+  const seen = (recent.get(key) ?? []).filter((at) => now - at < WINDOW_MS)
+  if (seen.length >= MAX_PER_WINDOW) {
+    recent.set(key, seen)
+    return true
+  }
+  seen.push(now)
+  recent.set(key, seen)
+  return false
+}
+
 function summary(data: ContactInput): string {
   const lines = [
     `New Klinote enquiry: ${data.name}${data.practice ? ` (${data.practice})` : ''}`,
@@ -59,6 +90,7 @@ async function notify(data: ContactInput): Promise<'sent' | 'skipped' | 'failed'
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, content: text }),
+        signal: AbortSignal.timeout(10_000),
       })
       if (!res.ok) {
         console.error('contact: webhook rejected the notice', res.status)
@@ -83,6 +115,7 @@ async function notify(data: ContactInput): Promise<'sent' | 'skipped' | 'failed'
           subject: `Klinote enquiry from ${data.name}`,
           text,
         }),
+        signal: AbortSignal.timeout(10_000),
       })
       if (!res.ok) {
         console.error('contact: resend rejected the notice', res.status, await res.text())
@@ -111,34 +144,50 @@ async function notify(data: ContactInput): Promise<'sent' | 'skipped' | 'failed'
  *   netlify blobs:get klinote-contact <key>
  */
 export const submitContact = createServerFn({ method: 'POST' })
-  .inputValidator((input: unknown): ContactInput => {
+  .validator((input: unknown): ContactInput => {
     const raw = (input ?? {}) as Record<string, unknown>
     return {
-      name: clean(raw.name, 120),
-      practice: clean(raw.practice, 160),
-      email: clean(raw.email, 200),
-      topic: clean(raw.topic, 40) || 'other',
+      name: oneLine(raw.name, 120),
+      practice: oneLine(raw.practice, 160),
+      email: oneLine(raw.email, 254),
+      topic: oneLine(raw.topic, 40) || 'other',
       message: clean(raw.message, MAX_MESSAGE),
-      website: clean(raw.website, 200),
+      website: oneLine(raw.website, 200),
     }
   })
   .handler(async ({ data }) => {
-    if (data.website) {
-      return { ok: true as const, notified: 'skipped' as const }
-    }
-
-    if (!data.name || !data.message) {
-      return { ok: false as const, error: 'missing_fields' as const }
-    }
-    if (!data.email.includes('@') || data.email.length < 5) {
-      return { ok: false as const, error: 'invalid_email' as const }
-    }
-
     try {
       const { getStore } = await import('@netlify/blobs')
       const store = getStore('klinote-contact')
       const receivedAt = new Date().toISOString()
       const key = `${receivedAt}-${crypto.randomUUID()}`
+
+      if (data.website) {
+        // A bot, or a person whose password manager filled a hidden field.
+        // Keep it under a separate key so a false positive is recoverable,
+        // and do not tell the visitor the human notice went out.
+        await store.setJSON(`spam-${key}`, {
+          name: data.name,
+          practice: data.practice,
+          email: data.email,
+          topic: data.topic,
+          message: data.message,
+          receivedAt,
+          spam: true,
+        })
+        return { ok: false as const, error: 'spam' as const }
+      }
+
+      if (!data.name || !data.message) {
+        return { ok: false as const, error: 'missing_fields' as const }
+      }
+      if (!validEmail(data.email)) {
+        return { ok: false as const, error: 'invalid_email' as const }
+      }
+      if (throttled(data.email)) {
+        return { ok: false as const, error: 'rate_limited' as const }
+      }
+
       await store.setJSON(key, {
         name: data.name,
         practice: data.practice,
@@ -149,6 +198,7 @@ export const submitContact = createServerFn({ method: 'POST' })
       })
 
       // Stored first, so a failed notice still leaves the enquiry on record.
+      // The client is told which of those two things happened.
       const notified = await notify(data)
       return { ok: true as const, notified }
     } catch (error) {

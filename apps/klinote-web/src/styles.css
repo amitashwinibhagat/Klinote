@@ -1,3 +1,4 @@
+@import "./fonts.css";
 @import "tailwindcss" source(none);
 @source "../";
 @import "tw-animate-css";
@@ -49,4 +50,17 @@ h1, h2, h3, h4 {
 
 * {
   border-color: var(--color-border);
+}
+
+/* Motion is an enhancement, never the only way to see the page. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

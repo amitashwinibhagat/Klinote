@@ -28,6 +28,9 @@ const PROBLEMS = [
 ] as const
 
 export const Route = createFileRoute('/')({
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://klinote.one/' }],
+  }),
   component: HomePage,
 })
 
@@ -52,35 +55,37 @@ function Hero() {
   // only honest version is a working "next" and a count of the sections below.
   const SECTIONS_AHEAD = ['the-cost', 'how-it-works', 'support', 'faq', 'start']
   return (
-    <section className="relative h-screen min-h-[780px] w-full overflow-hidden">
+    <section className="relative h-screen min-h-[600px] md:min-h-[780px] w-full overflow-hidden">
       <img
         src={heroImage}
         alt="A clinician at a Mac, drafting a note"
         className="absolute inset-0 w-full h-full object-cover"
+        referrerPolicy="no-referrer"
       />
-      <div className="absolute inset-0 bg-black/25" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-black/45" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
 
       <div className="absolute inset-0 flex flex-col justify-end pb-16 px-8 md:px-12">
-        <div className="flex items-end justify-between gap-8">
+        <div className="flex flex-col items-start gap-8 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <AnimatedHeading
               as="h1"
               className="text-white font-medium leading-[1.05]"
             >
-              <span style={{ fontSize: '72.73px', lineHeight: 1.05, display: 'block' }}>
+              <span style={{ fontSize: 'clamp(1.35rem, 5.5vw, 72.73px)', lineHeight: 1.05, display: 'block' }}>
                 The session stays in the room.<br />The note still gets written.
               </span>
             </AnimatedHeading>
 
-            <div className="mt-8 w-max">
+            <div className="mt-8 w-full max-w-xl">
               <AnimatedText className="text-white/85 max-w-xl leading-relaxed">
                 <span
                   style={{
-                    fontSize: '20.99px',
-                    lineHeight: '28.21px',
+                    fontSize: 'clamp(1rem, 1.2vw, 20.99px)',
+                    lineHeight: '1.4',
                     display: 'block',
-                    width: '608px',
+                    width: '100%',
+                    maxWidth: '608px',
                   }}
                 >
                   Klinote turns a session, recorded or dictated, into a
@@ -95,7 +100,7 @@ function Hero() {
           <div className="flex items-center gap-6 shrink-0 pb-1">
             <a
               href={downloadUrl}
-              className="bg-white text-foreground rounded-full pl-6 pr-2 py-2 flex items-center gap-3 font-medium text-sm hover:bg-white/90 transition"
+              className="bg-white text-foreground rounded-full pl-6 pr-2 py-2 flex items-center gap-3 font-medium text-sm hover:bg-white/90 transition whitespace-nowrap"
             >
               Download for Mac
               <span className="w-9 h-9 rounded-full bg-foreground text-white flex items-center justify-center">
@@ -104,7 +109,7 @@ function Hero() {
             </a>
             <a
               href="#how-it-works"
-              className="text-white flex items-center gap-1 text-sm font-medium"
+              className="text-white flex items-center gap-1 text-sm font-medium whitespace-nowrap"
             >
               How it works <ArrowUpRight className="w-4 h-4" />
             </a>
@@ -112,17 +117,20 @@ function Hero() {
         </div>
 
         <div
-          className="mt-12 pt-5 border-t border-white/20 flex items-center justify-between tracking-[0.2em] text-white/70 uppercase font-mono"
-          style={{ fontSize: '12px' }}
+          className="mt-12 pt-5 border-t border-white/20 flex flex-wrap items-center justify-between gap-3 tracking-[0.2em] text-white/70 uppercase font-mono text-[10px] sm:text-xs"
         >
-          <span>No account · No upload · Encrypted at rest</span>
+          <span>No account · No upload · Encrypted at rest · The machine drafts, you sign</span>
           <span className="flex items-center gap-6">
             <span>
               <span className="text-white">01</span> / {String(SECTIONS_AHEAD.length).padStart(2, '0')}
             </span>
             <button
               onClick={() =>
-                document.getElementById(SECTIONS_AHEAD[0])?.scrollIntoView({ behavior: 'smooth' })
+                document.getElementById(SECTIONS_AHEAD[0])?.scrollIntoView({
+                  behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                    ? 'auto'
+                    : 'smooth',
+                })
               }
               className="hover:text-white transition cursor-pointer"
               aria-label="Continue to the next section"
@@ -130,7 +138,7 @@ function Hero() {
               Next
             </button>
           </span>
-          <span>Scroll to explore</span>
+          <span className="hidden sm:inline">Scroll to explore</span>
         </div>
       </div>
     </section>
@@ -143,10 +151,9 @@ function TeamSection() {
       className="py-32 px-8 md:px-12 scroll-mt-24"
       id="how-it-works"
     >
-      <div style={{ paddingLeft: '335.26px' }}>
+      <div className="lg:pl-[335px]">
         <div
-          className="mb-16 flex gap-24 tracking-[0.2em] uppercase text-muted-foreground font-mono"
-          style={{ fontSize: '11.26px' }}
+          className="mb-16 flex flex-wrap gap-8 md:gap-24 tracking-[0.2em] uppercase text-muted-foreground font-mono text-[11px]"
         >
           <span>Klinote</span>
           <span>How it works</span>
@@ -155,7 +162,7 @@ function TeamSection() {
         <AnimatedHeading className="font-medium leading-[1.05]">
           <span
             style={{
-              fontSize: '58.55px',
+              fontSize: 'clamp(2rem, 3.4vw, 58.55px)',
               lineHeight: 1.05,
               display: 'block',
             }}
@@ -171,10 +178,10 @@ function TeamSection() {
             <AnimatedText className="text-muted-foreground leading-relaxed">
               <span
                 style={{
-                  fontSize: '16.89px',
+                  fontSize: 'clamp(1rem, 1vw, 16.89px)',
                   lineHeight: 1.5,
                   display: 'block',
-                  width: '270px',
+                  maxWidth: '270px',
                 }}
               >
                 Writing a note is the small part of the work. Deciding where each
@@ -192,7 +199,7 @@ function TeamSection() {
 function BenefitsSection() {
   return (
     <section className="py-32 px-8 md:px-12 bg-surface scroll-mt-24" id="the-cost">
-      <div className="grid grid-cols-12 gap-12 mb-24">
+      <div className="grid grid-cols-12 gap-4 md:gap-12 mb-24">
         <div className="col-span-12 md:col-span-7">
           <AnimatedHeading className="text-5xl md:text-6xl font-medium leading-[1.05]">
             What a cloud scribe<br />costs you
@@ -287,11 +294,11 @@ function CardContent({
 const FAQS = [
   {
     q: 'Does the recording leave my Mac?',
-    a: 'No. The Rust engine has no HTTP client, and that is checked on every build. Speech recognition is the system’s own SpeechAnalyzer, so listening makes no request either. The one download the app ever makes is the note model, once, on first use. Audio and notes never leave.',
+    a: 'No. The Rust engine has no HTTP client, and that is checked on every build. Klinote ships no speech model; macOS may fetch its speech asset once on first use. The only download Klinote itself makes is the optional note model, once. Audio and notes never leave.',
   },
   {
     q: 'Will it invent findings my client didn’t mention?',
-    a: 'It is built not to, and the refusal is mechanical rather than a promise: a quote must exist in the transcript or it does not enter the note, risk is never generated, and anything the generator cannot confidently route lands in an "unfiled" list for you to place. Nothing goes to the bin.',
+    a: 'Every sentence carries the words it came from, and figures or drug names that are not in those words are flagged. Machine-written text is marked as such; anything the generator cannot confidently route lands in an "unfiled" list for you to place. Nothing goes to the bin.',
   },
   {
     q: 'Is it HIPAA or GDPR compliant?',
@@ -310,7 +317,7 @@ const FAQS = [
 function FaqSection() {
   return (
     <section className="py-32 px-8 md:px-12" id="faq">
-      <div className="grid grid-cols-12 gap-12">
+      <div className="grid grid-cols-12 gap-4 md:gap-12">
         <div className="col-span-12 md:col-span-7">
           <AnimatedHeading className="text-5xl md:text-6xl font-medium leading-[1.05]">
             The questions a<br />therapist asks first
@@ -324,7 +331,7 @@ function FaqSection() {
         </div>
       </div>
 
-      <div className="mt-20 grid grid-cols-12 gap-12">
+      <div className="mt-20 grid grid-cols-12 gap-4 md:gap-12">
         <div className="col-span-12 md:col-span-8 md:col-start-3">
           <dl className="border-t border-border">
             {FAQS.map((f, i) => (
@@ -336,12 +343,14 @@ function FaqSection() {
                 >
                   {f.q}
                 </AnimatedHeading>
-                <AnimatedText
-                  className="text-sm text-muted-foreground leading-relaxed mt-4 max-w-2xl"
-                  delay={0.1 + i * 0.06}
-                >
-                  {f.a}
-                </AnimatedText>
+                <dd className="mt-4 max-w-2xl">
+                  <AnimatedText
+                    className="text-sm text-muted-foreground leading-relaxed"
+                    delay={0.1 + i * 0.06}
+                  >
+                    {f.a}
+                  </AnimatedText>
+                </dd>
               </div>
             ))}
           </dl>
@@ -390,7 +399,7 @@ const SUPPORT_TIERS = [
     title: 'A template built for you',
     price: 'from $600',
     note: 'One-off, no subscription',
-    desc: 'For a practice whose notes do not fit a built-in shape. Your template is written and tuned to the way your clinicians document, tested against notes you have already signed, and handed back as a file you own. It is template work, and it buys no promise about transcription.',
+    desc: 'For a practice whose notes do not fit a built-in shape. Your template is written and tuned to the way your clinicians document, tested against de-identified examples you choose to share, and handed back as a file you own. It is template work, and it buys no promise about transcription.',
     cta: 'Commission a template',
     href: '/contact?topic=template',
   },
@@ -399,7 +408,7 @@ const SUPPORT_TIERS = [
 function SupportSection() {
   return (
     <section className="py-32 px-8 md:px-12 bg-surface" id="support">
-      <div className="grid grid-cols-12 gap-12 mb-24">
+      <div className="grid grid-cols-12 gap-4 md:gap-12 mb-24">
         <div className="col-span-12 md:col-span-7">
           <AnimatedHeading className="text-5xl md:text-6xl font-medium leading-[1.05]">
             Help that doesn’t cost<br />you the room
@@ -421,7 +430,7 @@ function SupportSection() {
             key={t.num}
             className="p-10 flex flex-col border border-border rounded-lg bg-background"
           >
-            <div className="flex items-baseline justify-between gap-4 mb-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-4 mb-6">
               <div className="flex items-start gap-3">
                 <span className="text-xs text-muted-foreground mt-2 font-mono">({t.num})</span>
                 <AnimatedHeading as="h3" className="text-3xl font-medium" delay={i * 0.1}>
@@ -478,7 +487,7 @@ function SupportSection() {
 function FinalCta() {
   return (
     <section className="py-32 px-8 md:px-12 bg-ink" id="start">
-      <div className="grid grid-cols-12 gap-12">
+      <div className="grid grid-cols-12 gap-4 md:gap-12">
         <div className="col-span-12 md:col-span-7">
           <AnimatedHeading className="text-5xl md:text-6xl font-medium leading-[1.05] text-white">
             See if the draft is one<br />you would have signed
@@ -495,7 +504,7 @@ function FinalCta() {
           <div className="mt-12 flex flex-wrap items-center gap-6">
             <a
               href={downloadUrl}
-              className="bg-white text-foreground rounded-full pl-6 pr-2 py-2 flex items-center gap-3 font-medium text-sm hover:bg-white/90 transition"
+              className="bg-white text-foreground rounded-full pl-6 pr-2 py-2 flex items-center gap-3 font-medium text-sm hover:bg-white/90 transition whitespace-nowrap"
             >
               Download for Mac
               <span className="w-9 h-9 rounded-full bg-foreground text-white flex items-center justify-center">

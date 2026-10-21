@@ -12,10 +12,28 @@ export const Route = createFileRoute('/contact')({
         ? search.topic
         : undefined,
   }),
+  head: () => ({
+    meta: [
+      { title: 'Contact — Klinote' },
+      {
+        name: 'description',
+        content:
+          'Enquiries about the Klinote founding cohort, a template build, or anything else on the page. Replies come from the person who wrote the app.',
+      },
+      { property: 'og:title', content: 'Contact — Klinote' },
+      {
+        property: 'og:description',
+        content:
+          'Enquiries about the founding cohort, a template build, or anything else on the page.',
+      },
+      { property: 'og:url', content: 'https://klinote.one/contact' },
+    ],
+    links: [{ rel: 'canonical', href: 'https://klinote.one/contact' }],
+  }),
   component: ContactPage,
 })
 
-type Status = 'idle' | 'sending' | 'sent' | 'failed'
+type Status = 'idle' | 'sending' | 'sent' | 'unnotified' | 'failed'
 
 const TOPIC_LABELS: Record<string, string> = {
   cohort: 'Founding cohort',
@@ -29,6 +47,14 @@ function ContactPage() {
   const { topic } = Route.useSearch()
   const [status, setStatus] = React.useState<Status>('idle')
   const [draft, setDraft] = React.useState<Record<string, string>>({})
+  const [error, setError] = React.useState<string>('')
+  const resultRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (status === 'sent' || status === 'unnotified' || status === 'failed') {
+      resultRef.current?.focus()
+    }
+  }, [status])
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -53,8 +79,23 @@ function ContactPage() {
           website: String(data.get('website') ?? ''),
         },
       })
-      setStatus(result.ok ? 'sent' : 'failed')
+      if (!result.ok) {
+        setError(
+          result.error === 'invalid_email'
+            ? 'Check the email address and try again.'
+            : result.error === 'rate_limited'
+              ? 'That address has sent several messages recently. Please email instead.'
+              : result.error === 'spam'
+                ? 'That looked automated and was not sent. Please email instead.'
+                : 'That did not send. Nothing was received.'
+        )
+        setStatus('failed')
+        return
+      }
+      setError('')
+      setStatus(result.notified === 'sent' ? 'sent' : 'unnotified')
     } catch {
+      setError('That did not send. Nothing was received.')
       setStatus('failed')
     }
   }
@@ -97,13 +138,48 @@ function ContactPage() {
             else on the page. Replies come from me, not a ticketing system.
           </AnimatedText>
 
-          {status === 'sent' ? (
-            <div className="mt-16 border-t border-border pt-10">
-              <p className="text-2xl font-medium">Received.</p>
-              <p className="text-sm text-muted-foreground leading-relaxed mt-4 max-w-lg">
-                It comes straight to me and I reply to the address you gave
-                {draft.email ? <> ({draft.email})</> : null}.
+          <p className="mt-6 border-l-2 border-border pl-4 text-sm text-muted-foreground leading-relaxed max-w-xl">
+            Please do not include patient names, record numbers or other
+            identifying details. This form is for enquiries about Klinote, not
+            for clinical records.
+          </p>
+
+          {status === 'sent' || status === 'unnotified' ? (
+            <div
+              ref={resultRef}
+              tabIndex={-1}
+              role="status"
+              aria-live="polite"
+              className="mt-16 border-t border-border pt-10 outline-none"
+            >
+              <p className="text-2xl font-medium">
+                {status === 'sent' ? 'Received.' : 'Stored — but the notice did not go out.'}
               </p>
+              <p className="text-sm text-muted-foreground leading-relaxed mt-4 max-w-lg">
+                {status === 'sent' ? (
+                  <>
+                    It comes straight to me and I reply to the address you gave
+                    {draft.email ? <> ({draft.email})</> : null}.
+                  </>
+                ) : (
+                  <>
+                    Your message is saved, but the automatic notification failed,
+                    so it may not be seen quickly. Please send it by email as well
+                    to be sure. Nothing will be sent unless you choose to send it.
+                  </>
+                )}
+              </p>
+              {status === 'unnotified' ? (
+                <a
+                  href={fallbackMailto}
+                  className="mt-6 inline-flex items-center gap-3 font-medium text-sm bg-foreground text-background rounded-full pl-6 pr-2 py-2 hover:opacity-90 transition"
+                >
+                  Send it by email as well
+                  <span className="w-9 h-9 rounded-full bg-background text-foreground flex items-center justify-center">
+                    <ArrowUpRight className="w-4 h-4" />
+                  </span>
+                </a>
+              ) : null}
               <Link
                 to="/"
                 className="mt-8 inline-flex items-center gap-3 font-medium text-sm bg-foreground text-background rounded-full pl-6 pr-2 py-2 hover:opacity-90 transition"
@@ -119,7 +195,6 @@ function ContactPage() {
               name="klinote-contact"
               onSubmit={onSubmit}
               className="mt-16"
-              noValidate
             >
               <p className="hidden" aria-hidden="true">
                 <label>
@@ -141,9 +216,15 @@ function ContactPage() {
               </noscript>
 
               {status === 'failed' ? (
-                <div className="mb-10 border border-border rounded-lg p-6 bg-surface">
+                <div
+                  ref={resultRef}
+                  tabIndex={-1}
+                  role="alert"
+                  aria-live="assertive"
+                  className="mb-10 border border-border rounded-lg p-6 bg-surface outline-none"
+                >
                   <p className="text-sm text-foreground font-medium">
-                    That did not send. Nothing was received.
+                    {error || 'That did not send. Nothing was received.'}
                   </p>
                   <p className="text-sm text-muted-foreground leading-relaxed mt-2">
                     Your message is kept below. Send it by email instead and it
