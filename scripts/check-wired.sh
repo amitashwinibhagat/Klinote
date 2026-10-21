@@ -29,8 +29,18 @@ for path in domain.rglob("*.swift"):
         declared[name] = path
 
 
+def code_only(source: str) -> str:
+    # Comments and string literals are not call sites. A comment that names a
+    # type used to satisfy this guard, which is exactly the failure it exists
+    # to catch.
+    source = re.sub(r"//.*", "", source)
+    source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    source = re.sub(r'"(?:\\.|[^"\\])*"', '""', source)
+    return source
+
+
 def mentions(path: Path, name: str) -> bool:
-    return bool(re.search(rf"\b{name}\b", path.read_text()))
+    return bool(re.search(rf"\b{name}\b", code_only(path.read_text())))
 
 
 test_files = list(tests_dir.rglob("*.swift"))

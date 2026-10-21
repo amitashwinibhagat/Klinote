@@ -15,9 +15,9 @@ traceable to what was said. Nothing leaves the Mac.
 - **Engine:** Rust, Cargo workspace under `crates/`. Complete and tested.
 - **Shell:** Swift/SwiftUI under `apps/Klinote/`. M1 complete: menu bar, recording
   strip, review window with evidence margin, settings. Builds and launches.
-- **Status:** speech recognition is the system's `SpeechAnalyzer` (no model
-  download), SQLCipher at rest, Quire on device, sandboxed and notarized. Latest
-  release is v0.1.6. Concierge validation is still outstanding, now recast to
+- **Status:** speech recognition is the system's `SpeechAnalyzer` (Klinote ships
+  no speech model; macOS may fetch its asset once), SQLCipher at rest, Quire on
+  device, sandboxed and notarized. Latest release is v0.1.6. Concierge validation is still outstanding, now recast to
   therapists (`docs/product/PRODUCT-TRUTH.md`).
 - **Marketing site:** `apps/klinote-web/` — the public page at
   [klinote.one](https://klinote.one). TanStack Start on Netlify, a separate
@@ -54,10 +54,12 @@ cannot mask a product call. When you touch the product the contract is absolute;
 when you touch the site, keep its network use to the list above and say so here
 if you add a fourth.
 
-There is exactly one exception in the product, it is named and it is checked: the
-Swift shell downloads the note model once, on first use, in one file —
-`Sources/Core/ModelDownloader.swift` — and `scripts/check-network-surface.sh`
-fails the build if a second file reaches the network or if anything ever uploads.
+There are exactly two named outbound paths in the product, both downloads and
+both checked: the Swift shell downloads the note model once, on first use, in
+`Sources/Core/ModelDownloader.swift`, and asks macOS to fetch its speech asset
+once in `Sources/Core/Transcriber.swift`. `scripts/check-network-surface.sh`
+fails the build if either API appears in another file, if any other network
+primitive appears, or if anything ever uploads.
 **The note model is permanent**, decided 2026-09-15: it is what polishes a draft,
 and the app does not try to do without it. So this is not a temporary state to be
 engineered away, and nobody should propose removing it without reading
@@ -112,7 +114,7 @@ cargo run -p scribe-cli -- audit --db ./scribe.db --subject <note-id>
 
 # Build the macOS app (XcodeGen generates the project; do not commit it)
 cd apps/Klinote && xcodegen generate
-xcodebuild -project apps/Klinote/Klinote.xcodeproj -scheme Klinote \
+xcodebuild -project Klinote.xcodeproj -scheme Klinote \
   -configuration Release -derivedDataPath /tmp/klinote-dd build CODE_SIGNING_ALLOWED=NO
 ```
 
@@ -139,8 +141,10 @@ in `target/` and cannot run anywhere else.
 
 CI and `cargo test --workspace` must pass with no model, no network and no
 audio device. The app downloads Quire on first run into the container; it is not
-in the repository or the release zip. Speech recognition has no model at all —
-it is the system's `SpeechAnalyzer`, in `Sources/Core/Transcriber.swift`.
+in the repository or the release zip. Speech recognition has no model **from
+Klinote**: it is the system's `SpeechAnalyzer`, in `Sources/Core/Transcriber.swift`.
+On a Mac that has never used dictation, the app asks macOS to fetch its speech asset
+once (`AssetInventory`); audio is never uploaded.
 
 ## How we know a change worked
 
@@ -194,6 +198,8 @@ trusting the response. Two rules came out of it:
 | `crates/scribe-store/` | SQLite (rusqlite, bundled) + append-only `audit_log` | JSON blobs for transcripts/notes. |
 | `crates/scribe-ffi/` | C ABI, JSON envelopes | `crate-type = ["staticlib","cdylib","rlib"]`. |
 | `crates/scribe-cli/` | `scribe` binary | Also the concierge tool. |
+| `crates/scribe-llm/` | Quire GGUF drafter (`scribe-llm` helper) | llama.cpp; separate binary so ggml does not clash with whisper.cpp. |
+| `crates/scribe-asr-whisper/` | whisper.cpp engine | `scribe-cli` only; never linked into the app. |
 | `apps/Klinote/` | Swift/SwiftUI shell | `project.yml` is the source of truth; the `.xcodeproj` is generated and gitignored. |
 | `apps/klinote-web/` | Marketing site at klinote.one | TanStack Start + Tailwind v4 on Netlify. Its own README covers deploy, the contact form, and two traps. **Not part of the product's Cargo build.** |
 | `templates/` | TOML note templates | Add a discipline here, then register it in `TemplateLibrary::BUILTIN`. |
@@ -277,11 +283,10 @@ trusting the response. Two rules came out of it:
   writing down. Hit for real going from Xcode 26.6 to 27.0 on 2026-09-15.
 
 - **Never set `style` on `<html>` before hydration.** The site hydrates the
-  whole document (`hydrateRoot(document, …)`), so an inline `style.zoom` applied
-  by the responsive-zoom script is an attribute mismatch React throws #418 on.
-  `suppressHydrationWarning` cannot fix it: React's SSR renderer strips the
-  attribute, so it never reaches the client. Zoom goes through a `<style>` rule,
-  which changes computed style without touching the element.
+  whole document (`hydrateRoot(document, …)`), so an inline style applied by a
+  script is an attribute mismatch React throws #418 on. A global `zoom` to fit a
+  1728 px composition onto a phone was removed for this reason and because it
+  made the page unreadable; use breakpoints, never document-wide scaling.
 - **`~/.netlify/netlify.toml` is inherited by every project run below `$HOME`.**
   The global file's `publish` was leaking the home directory into unrelated
   deploys; that key is deliberately absent there. Keep project config in the

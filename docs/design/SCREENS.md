@@ -31,8 +31,9 @@ at all kills screens 2–3, not the letter.
 | Process note that cannot paste into the record | Adjacent, unbuilt, unasked. A second output on S4 later — not a home. |
 | Settings, templates, retention | Maintenance. Not the struggling moment. |
 
-The current app is **S4 + S6 fused into one window, with S2 as the only
-capture, and no S0/S1/S3/S5.** That fusion is why it feels like an EHR.
+The current app has **S1 as home, S2 as the only capture, and S4 + S6 fused into
+one window.** S0, S3 and S5 are not separate screens; the fusion is why it feels
+like an EHR.
 
 ---
 

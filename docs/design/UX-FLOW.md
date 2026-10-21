@@ -73,7 +73,7 @@ product. Upheal does not do this. That is why they are here.
 Then, and only then: Copy is visible. “This never left the Mac.”
 
 Download the note model only if they want a polished draft. Dictate and paste
-never wait on a download, and speech recognition needs none at all. The teaching
+never wait on a speech-model download; macOS may fetch its own speech asset once. The teaching
 checkbox (“I will tell the client”) lives on the record path, not in front of the
 sample.
 

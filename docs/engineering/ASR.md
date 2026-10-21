@@ -14,7 +14,7 @@ The reason the app does not use whisper.cpp any more: it cost a 465 MB download
 before a clinician could record anything, it put a large C++ model parser in an
 app that holds clinical records, and `SpeechAnalyzer` is already on the Mac and
 runs an 80-second consultation in about a second. What whisper.cpp gave us that
-this does not is speaker-boundary detection; `TurnTakingDiarizer` in the core
+this does not is speaker-boundary detection; `AcousticDiarizer` in the core
 takes that over, from the gaps between segments, and the margin still offers
 Swap.
 
@@ -30,7 +30,7 @@ pub trait AsrEngine {
 
 | Backend | Language | Where | Why | Why not |
 |---|---|---|---|---|
-| **Apple `SpeechAnalyzer`** | Swift | **macOS 26+** | **Shipped in the app.** Streaming, on-device, no model download, ~1 s for an 80 s consult. | No speaker labels: `TurnTakingDiarizer` guesses turns from gaps, and the margin has to offer Swap. |
+| **Apple `SpeechAnalyzer`** | Swift | **macOS 26+** | **Shipped in the app.** Streaming, on-device; Klinote ships no model, and macOS may fetch its speech asset once. ~1 s for an 80 s consult. | No speaker labels: `AcousticDiarizer` clusters pitch (with a gap fallback), and the margin has to offer Swap. |
 | **whisper.cpp + tinydiarize SBD** (`scribe-asr-whisper`) | Rust | any macOS | **Shipped in `scribe-cli`.** Open-source, Metal-accelerated, two-speaker SBD. | 465 MB model; SBD is A/B not identity; role mapping is a clinician judgment. **No longer in the app** — nothing in `scribe-ffi` links it. |
 | **sherpa-onnx** (`sherpa-rs`) | Rust | any macOS | Streaming, small models, has diarisation and VAD models in the same runtime. | More integration work; ONNX Runtime dependency. |
 | **Parakeet TDT** | Rust/ONNX | any macOS | Very fast, small, strong English accuracy. | Needs ONNX runtime; fewer languages. |

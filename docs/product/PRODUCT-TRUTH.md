@@ -1,6 +1,6 @@
 # Product Truth — Local Clinical Scribe
 
-Last updated: 2026-09-12 · Verified against: Klinote 0.1.6 (notarized)
+Last updated: 2026-10-21 · Verified against: Klinote 0.1.6 (notarized)
 
 This document is the single source of truth for what this product **is**, what
 it **does today**, and what may be **claimed externally**. If marketing copy,
@@ -18,12 +18,12 @@ was said and every draft requiring human review before it enters the record.
 
 | Claim | Status | Evidence |
 |---|---|---|
-| Runs entirely on-device; no network | ✅ true of audio and notes | The Rust engine has no HTTP client (CI). The shell's only network is the first-use download of Quire. Speech recognition makes no request at all — it is the system's `SpeechAnalyzer`. Audio and notes never leave. |
-| Produces structured notes from a transcript | ✅ true | `scribe note` on a real transcript, five built-in templates. |
+| Runs entirely on-device; no network | ✅ true of audio and notes | The Rust engine has no HTTP client (CI). The shell's only outbound request is the first-use download of Quire. Klinote ships no speech model; macOS may fetch its own speech asset once. Audio and notes never leave. |
+| Produces structured notes from a transcript | ✅ true | `scribe note` on a real transcript, seven built-in templates (five note structures plus a referral letter and a client summary). |
 | Notes are traceable to transcript segments | ✅ true | `NoteSection::evidence`; markdown output. |
 | Flags missing required sections | ✅ true | `ClinicalNote::missing_required`. |
 | Never silently drops transcript content | ✅ true | `unassigned` list + regression test. |
-| Supports SOAP, physio, psychology, dental, veterinary structures | ✅ true (structures) | `templates/*.toml`. The *structures* are implemented; clinical validation of each is not. |
+| Supports SOAP, physio, psychology, dental, veterinary structures | ✅ true (structures) | `templates/*.toml`, plus the two derived documents. The *structures* are implemented; clinical validation of each is not. |
 | Mac-only | ✅ true by design | Swift shell + Apple platform APIs. |
 | Encrypted at rest | ✅ true of the store | SQLCipher, key in Keychain. Not a HIPAA determination. |
 
@@ -32,7 +32,7 @@ was said and every draft requiring human review before it enters the record.
 | Do not claim | Why |
 |---|---|
 | "Accurate" / "clinically validated" | No clinical evaluation has been performed. Accuracy has been tested on synthetic fixtures only. |
-| "Works with your dictation/audio" | Speech recognition is the system's `SpeechAnalyzer` and runs with no download, but a real consult through the *sandboxed* app with a real microphone has not been verified (dev Mac defaulted to BlackHole). |
+| "Works with your dictation/audio" | Speech recognition is the system's `SpeechAnalyzer`; Klinote ships no model and makes no request for it, though macOS may fetch its asset once. A real consult through the *sandboxed* app with a real microphone has not been verified (dev Mac defaulted to BlackHole). |
 | "Saves you X minutes per patient" | Not measured on real encounters yet. This is exactly what the validation sprint measures. |
 | "HIPAA / GDPR compliant" | Not assessed. Strong privacy *posture* is not a determination. |
 | "Integrates with Epic / Cerner / your EHR" | No EHR integration exists. Today the output is Markdown/JSON for copy-paste. |
@@ -75,3 +75,4 @@ and open models are a download away. The product is:
 | Date | Change |
 |---|---|
 | 2026-09-11 | Initial truth snapshot for engine v0. |
+| 2026-10-21 | Seven templates (five notes + two documents); speech asset wording; delivery checks; recovery vault. |

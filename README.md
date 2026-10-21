@@ -18,7 +18,7 @@ build if anyone quietly breaks it.
 ```
  recording ──► SpeechAnalyzer ──► diarisation ──► note engine ──► review ──► clinician
                (system API)       (in scribe-core)  (Quire, or     (evidence   signs.
-                no download,                         on-device      margin)    the
+                OS-owned,                            on-device      margin)    the
                 no upload                            Apple model)              machine
                                                                               never does.
 ```
@@ -28,7 +28,7 @@ build if anyone quietly breaks it.
 | **Platform** | macOS 15+. On-device speech and the Apple note model need macOS 26+. |
 | **Stack** | Rust engine (11 crates) + SwiftUI shell, over a hand-written C ABI |
 | **Privacy** | Audio and text never leave the Mac. Enforced by a script you can run yourself |
-| **Tests** | 98 Rust, 51 Swift, 7 gate checks, green under `./scripts/gate.sh` |
+| **Tests** | 113 Rust, 88 Swift, 7 gate checks, green under `./scripts/gate.sh` |
 | **Size** | 17 MB app bundle, 6.5 MB archive. The optional note model is a separate 1.9 GB download |
 | **Licence** | Apache-2.0 |
 | **Status** | A working app. Not a validated product. [See exactly which is which](#what-is-done-and-what-is-not) |
@@ -122,8 +122,8 @@ page, and "we take your privacy seriously" is not evidence.
 | Claim | Check it yourself |
 |---|---|
 | The engine cannot make a network request | No HTTP client in any Rust crate, and no dependency that could supply one. A gate step asserts it; run it yourself. |
-| The app has exactly one documented outbound path | `scripts/check-network-surface.sh` fails the build if the sandbox grows a second call site. [ADR-0002](docs/engineering/ADR/0002-local-only-privacy-posture.md) explains why it exists and what it fetches. |
-| Speech recognition makes no request at all | It is `SpeechAnalyzer`, a system API. There is no model to download for it and no code path from audio to a socket. |
+| The app has two named download paths and no third | `scripts/check-network-surface.sh` allows `URLSession` only in `ModelDownloader.swift` and `AssetInventory` only in `Transcriber.swift`, and fails on any other network primitive. [ADR-0002](docs/engineering/ADR/0002-local-only-privacy-posture.md) explains the posture. |
+| Speech recognition needs no model from Klinote | It is `SpeechAnalyzer`, a system API. Klinote ships no speech model and makes no request for one; macOS may fetch its speech asset once, on the system's own behalf. Audio has no path to a socket. |
 | The store is encrypted, key in the Keychain | `crates/scribe-store` uses SQLCipher; the Swift side only ever holds a Keychain reference. |
 | No telemetry, no analytics, no crash reporting | Search for a beacon host or support endpoint. There is none — [and that is a real cost](#what-is-done-and-what-is-not), not a virtue. |
 | Nothing is silently dropped from a session | Unroutable statements are listed as *unfiled* rather than discarded. There is a regression test for exactly that. |
@@ -321,9 +321,9 @@ because a claim failed to survive one.
 | [`note-bench`](scripts/note-bench.py) | Does a drafted note have every required section, are its citations real, and does any sentence fail its own grounding check? Headless, no download, and it now grounds the draft exactly as the shipped app does. |
 | [`diarize-bench`](scripts/diarize-bench.py) | How often does the diariser attribute a line to the right speaker, on a two-voice consult where the harness already knows who said what? |
 | [`engine-compare`](scripts/engine-compare.py) | The same transcript and template through both note engines, and end to end from real audio. |
-| [`check-design-tokens.sh`](scripts/check-design-tokens.sh) | Does the interface use only documented colours, type roles and spacing? |
+| [`check-design-tokens.sh`](scripts/check-design-tokens.sh) | Are fonts, radii, spacing and modal chrome from the named system? (Colour is reviewed by eye; the script does not check it.) |
 | [`check-network-surface.sh`](scripts/check-network-surface.sh) | Has the app grown a second outbound path? |
-| [`check-wired.sh`](scripts/check-wired.sh) | Does every screen still render a live object rather than a placeholder? |
+| [`check-wired.sh`](scripts/check-wired.sh) | Does a Domain type that Tests mention have a code mention outside its declaring file? |
 
 Two of these have already earned their place. The design-token check had been rejecting every
 *valid* spacing value and accepting only zero, which meant `gate.sh` was red on `main` and
@@ -353,7 +353,7 @@ one that does not exist.
   skip it entirely.
 - Sandboxed, Developer ID signed, hardened runtime, notarized releases, nested executables
   verified. Settings, a patient-facing document mode, print and copy guards.
-- 98 Rust and 51 Swift tests behind a 7-check gate, green when you run `./scripts/gate.sh`.
+- 113 Rust and 88 Swift tests behind a 7-check gate, green when you run `./scripts/gate.sh`.
 
 **Not done**
 
@@ -363,20 +363,21 @@ one that does not exist.
 - **Two similar voices are not separated.** Pitch clustering reports one speaker rather than
   inventing a turn. Fixing it needs speaker embeddings, i.e. a model download — a real
   decision about the posture, not a TODO.
-- **No EHR integration. No retention policy. No support path, no crash reporting** — the last
-  one by design: with no telemetry, a failure in somebody else's practice reaches you only if
-  they write to you.
-- **The optional model download is not pinned by checksum.** It arrives over HTTPS from a
-  public host and is trusted on transport alone. Verifying a hash before the file is used is a
-  small change with a large trust payoff, and it is exactly the kind of thing a closed product
-  never has to answer for.
-- **Hosted CI has never gone green.** The workflow needs the macOS 26 image, because the app
-  compiles Apple's Foundation Models and an older SDK cannot resolve the import. No macOS 26
-  runner has picked the job up: one label fails in ten seconds, the explicit `macos-26-arm64`
-  label queues until cancelled. So every enforcement claim in this file is about the gate, not
-  a badge — which is the better bargain anyway, since the gate runs on your Mac.
-- **No clinical validation of any of the five templates.** The structures are implemented and
-  editable; whether each is what that discipline documents is for a clinician to judge.
+- **No EHR integration. No support path, no crash reporting** — the last one by design:
+  with no telemetry, a failure in somebody else's practice reaches you only if they write to
+  you. Retention and deletion are implemented; the *policy wording* a practice should choose
+  is still to write.
+- **The optional model download is pinned by size, GGUF magic and SHA-256** before the file is
+  allowed to become the model. That closes the old transport-only trust gap; the remaining
+  supply-chain question is who publishes the weights.
+- **CI needs the macOS 26 image.** The app compiles Apple's Foundation Models, and an older
+  SDK cannot resolve the import. GitHub now publishes macOS 26 runners, and the workflow
+  targets `macos-26-arm64`; if that image is unavailable in an organisation, `./scripts/gate.sh`
+  on a Mac is the enforcement. Every claim in this file is still about the gate, not a badge —
+  which is the better bargain, because the gate runs on the machine you have.
+- **No clinical validation of any of the seven templates.** Five are note structures and two
+  are derived documents; the structures are implemented and editable, and whether each is what
+  that discipline documents is for a clinician to judge.
 
 ## The privacy model
 
@@ -384,9 +385,9 @@ one that does not exist.
   this architecture to trust or to subpoena.
 - **One download, once, for optional higher quality.** The note model comes over HTTPS from a
   public open-weights host. Without it, the system's own model writes the note. That single
-  call site is the entire network surface, isolated in one file that CI watches. It is **not
-  pinned by checksum today**, which is a real gap rather than a nuance — see
-  [not done](#what-is-done-and-what-is-not), and it is a good first contribution.
+  call site is the note-model half of the app's network surface, isolated in one file that CI watches. The other is the OS speech-asset install in `Transcriber.swift`; neither uploads anything.
+  The download is checked for HTTP status, exact size, GGUF magic and the pinned SHA-256 before
+  it is used. Speech recognition is separate: the system may fetch its own asset once.
 - **Pseudonymous by construction.** There is no patient name field anywhere in the product.
   Records key on an opaque `patient_ref`, which is also why the output is a document to be
   pasted into a record rather than a record.

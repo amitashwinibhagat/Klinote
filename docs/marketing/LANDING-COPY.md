@@ -17,7 +17,7 @@ asks for social proof, this page substitutes *checkable engineering facts* —
 each one verifiable in this repository:
 
 - The Rust engine has no HTTP client (CI-enforced by `scripts/check-network-surface.sh`).
-- Speech recognition is the system's `SpeechAnalyzer` — it makes no request at all.
+- Speech recognition is the system's `SpeechAnalyzer`; Klinote ships no speech model, though macOS may fetch its asset once.
 - Notes at rest are SQLCipher-encrypted; the key is in the Keychain.
 - Nothing the generator cannot route is dropped — it goes to `unassigned`, with a regression test.
 
@@ -43,7 +43,7 @@ Subheadline: Klinote turns a session — recorded or dictated — into a
 structured progress-note draft entirely on your Mac. Every sentence cites the words that
 produced it. Nothing is uploaded, because there is nothing to upload to.
 
-CTA Button: "Request early access"
+CTA Button: "Download for Mac"
 Secondary:  "How it works"
 
 Trust Bar: No account · No upload · Encrypted at rest · The machine drafts, you sign
@@ -89,15 +89,16 @@ Step 1 — Record
 
 Step 2 — Transcribe
   Speech recognition runs on the Mac itself — the system's own engine. No
-  download to wait for, no request to leave the room.
+  speech model downloads; the optional note model is one download, on first
+  use if you choose it.
 
 Step 3 — Route
-  Each statement is filed into the structure your discipline documents in,
-  whether that is DAP, BIRP or SOAP.
+  Each statement is filed into the structure your discipline documents in —
+  SOAP, a therapy note, physiotherapy, dentistry or veterinary.
 
 Step 4 — Cite
-  Every sentence carries the words that produced it. A quote that is not in
-  the transcript does not enter the note. This step is the product.
+  Every sentence carries the words it came from. Figures and drug names that
+  are not in those words are flagged. This step is the product.
 
 Step 5 — Sign
   You review, correct and file. Required sections you didn't cover are named
@@ -119,15 +120,15 @@ FAQ
 
 Q: Does the recording leave my Mac?
 A: No. The Rust engine has no HTTP client — it is checked on every build.
-   Speech recognition is the system's own SpeechAnalyzer, so listening makes
-   no request either. The one download the app ever makes is the note model,
-   once, on first use. Audio and notes never leave.
+   Klinote ships no speech model; macOS may fetch its speech asset once on the
+   system's own behalf. The only download Klinote itself makes is the optional
+   note model, once. Audio and notes never leave.
 
 Q: Will it invent findings my client didn't mention?
-A: It is built not to, and the refusal is mechanical rather than a promise: a
-   quote must exist in the transcript or it does not enter the note, risk is
-   never generated, and anything the generator cannot confidently route lands
-   in an "unfiled" list for you to place — never in the bin.
+A: Every sentence carries the words it came from, and figures or drug names
+   that are not in those words are flagged. Machine-written text is marked as
+   such; anything the generator cannot confidently route lands in an "unfiled"
+   list for you to place — never in the bin.
 
 Q: Is it HIPAA / GDPR compliant?
 A: That has not been assessed, so it is not claimed. What is true today: no
@@ -202,14 +203,12 @@ The promise that bounds all of it:
   template, and it buys no promise about accuracy, compliance or time saved.
 ========================================
 
-Not built. The Pelmatech design ships exactly three sections and adding a
-fourth would mean inventing design tokens the spec forbids. When the site
-grows, the honest final CTA is:
+Now shipped as a quiet final section, because the page needs a roof:
 
   Urgency:    Klinote is in validation with a small number of practices.
   Reversal:   If the draft puts words in a client's mouth, or reviewing it
               takes longer than typing it, stop using it and say so.
-  Button:     "Request early access"
+  Button:     "Download for Mac" / "Apply for the cohort"
 
 ========================================
 OPTIMIZATION NOTES
@@ -219,7 +218,7 @@ A/B Test Ideas:
 - Headline variant: "Your session. Your Mac. Your note." (shorter, weaker on
   the specific promise — test against the positioning line, not beside it)
 - CTA variant: "Start with a transcript" (lower commitment, true today: the
-  plain-text path needs no model at all) vs "Request early access"
+  plain-text path needs no model at all) vs "Download for Mac"
 - Problem card order: lead with "Invented" rather than "Uploaded" — for
   therapists who already left a cloud scribe, the invented finding is the
   fire they name, and the disk is settled law

@@ -6,9 +6,9 @@ members = ["crates/*"]
 version = "0.0.1"
 edition = "2024"
 rust-version = "1.85"
-license = "LicenseRef-Proprietary"
+license = "Apache-2.0"
 authors = ["Amit Ashwini Bhagat"]
-repository = "https://github.com/amitashwinibhagat/local-clinical-scribe"
+repository = "https://github.com/amitashwinibhagat/Klinote"
 description = "On-device ambient clinical documentation for macOS. Nothing leaves the Mac."
 
 [workspace.dependencies]

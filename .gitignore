@@ -34,3 +34,18 @@ xcuserdata/
 # Build output and packaged releases
 /build/
 /dist/
+
+# Agent/tool state
+.commandcode/
+
+# Go-to-market collateral (sales playbook, personas, battle cards, competitor
+# research). Deliberately not in the public repository — the same boundary as
+# the earlier go-to-market removal. It lives on this machine, not on GitHub.
+docs/marketing/collateral/
+
+# Python caches anywhere, not only under scripts/
+__pycache__/
+*.pyc
+
+# Local model weights
+*.gguf

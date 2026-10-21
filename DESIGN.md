@@ -48,7 +48,7 @@ without a second palette.
 | `ink.rule` | `#16324F` @ 22% | `#9CC3E5` @ 28% | The 2 pt letterhead rule |
 | **`record`** | `#C0392B` | `#FF6B5E` | The act of recording — lamp, trace, strip border. Nothing else, ever |
 | **`caution`** | `#A86400` | `#FFB340` | Something a clinician must look at before the note is signed — a missing required section, a sentence whose figures were not heard, shorthand the client would decode. One meaning, several sites; the word beside it says which |
-| `verified` | `#1E7A4B` | `#5FD08A` | Evidence present. Only as a margin mark, never as text colour alone |
+| `ink.fill` | `#16324F` | `#2E5F8F` | Solid fill for the primary action; white text in both appearances |
 
 **Contrast.** All text meets WCAG AA against its own ground in both
 appearances. `ink` on `ground.document` is 13.1:1. `caution` is **4.68:1** on

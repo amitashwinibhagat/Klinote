@@ -10,7 +10,8 @@ Australian Privacy Act or any other regime is a separate assessment that has
 
 | Data | Where it lives | Notes |
 |---|---|---|
-| Audio | Never persisted by the engine | Buffered in memory for ASR, then dropped. The shell decides whether to retain a recording — v0 does not. |
+| Audio | A temporary WAV in the app's container while the note is written; deleted after success. On a failed capture, sealed into the recovery vault for up to 24 hours. | Never uploaded. The vault's audio is AES-GCM sealed. |
+| Recovery words | The recovery vault (`Recovery/*.segments`, sealed) | When recognition succeeded but drafting failed, the timed segments are kept sealed so a retry does not re-run the microphone. Removed after a successful retry, an explicit discard, or 24 hours. |
 | Transcript | SQLite (`transcripts.json`) in the local app database | Contains clinical content. |
 | Note | SQLite (`notes.json`) in the local app database | Contains clinical content and template structure. |
 | Encounter metadata | SQLite (`encounters`), including `patient_ref` | `patient_ref` is an opaque pseudonym. |
@@ -51,10 +52,10 @@ repository or in the app database.
 
 | Property | How |
 |---|---|
-| **Encryption at rest** | SQLCipher. Key in the Keychain (`one.klinote.mac` / `sqlite-key`). Teaching-era plaintext files are renamed `*.unencrypted-bak` and a new ciphertext database is created. |
+| **Encryption at rest** | SQLCipher. Key in the Keychain (`one.klinote.mac` / `sqlite-key`). The recovery vault has its own Keychain key (`capture-vault-key`); every vault file, including the recognised words and metadata, is AES-GCM sealed. Teaching-era plaintext files are renamed `*.unencrypted-bak` and a new ciphertext database is created. |
 | **Retention policy** | Per practice: keep forever, or 3 / 12 / 36 months. Expired notes are purged at launch, and the setting says which. |
-| **Real delete** | Hard `DELETE`, then `VACUUM`, so the freed pages are not left in the database file, plus an audit entry recording the count and the cutoff and never the content. The app tells the clinician "this is a real delete, not a flag", and a test reads the database file to check that the text is actually gone. |
-| **Sandboxed** | The app runs inside `~/Library/Containers/one.klinote.mac` with three entitlements: the microphone, the network client used for the note-model download, and nothing else. It exists because Klinote reads input it does not control with a large C++ parser — llama.cpp on a downloaded GGUF, in the `scribe-llm` helper — and the sandbox is what limits what a memory-safety bug there can reach. That is now the *only* such parser in the bundle: audio no longer goes through whisper.cpp, and speech recognition is the system's own. Verified by running it: the store opens with its existing Keychain key, and the `scribe-llm` helper spawns. |
+| **Real delete** | The row delete and its audit entry commit in one transaction; `VACUUM` then reclaims the freed pages so they are not left in the database file. The audit records the count and cutoff, never the content. A test reads the database file to check that the text is actually gone; a failed audit rolls the delete back rather than reporting failure after the row is gone. |
+| **Sandboxed** | The app runs inside `~/Library/Containers/one.klinote.mac` with three entitlement keys: the app sandbox, the microphone, and the network client used for the note-model download. It exists because Klinote reads input it does not control with a large C++ parser — llama.cpp on a downloaded GGUF, in the `scribe-llm` helper — and the sandbox is what limits what a memory-safety bug there can reach. That is now the *only* such parser in the bundle: audio no longer goes through whisper.cpp, and speech recognition is the system's own. Verified by running it: the store opens with its existing Keychain key, and the `scribe-llm` helper spawns. |
 
 ## What is missing, and blocks real patient data
 
@@ -93,7 +94,7 @@ consultations, so:
 
 None. No analytics, no crash reporting, no usage statistics, no "phone home on
 first launch". The absence is a product feature and is enforced by
-[ADR 0002](engineering/ADR/0002-local-only-privacy-posture.md).
+[ADR 0002](../engineering/ADR/0002-local-only-privacy-posture.md).
 
 ## Incident response
 

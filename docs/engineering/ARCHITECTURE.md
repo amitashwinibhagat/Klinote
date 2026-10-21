@@ -24,7 +24,7 @@ alternatives we rejected: [ADR 0001](ADR/0001-rust-core-swift-shell.md).
 │      │                                                             │
 │  scribe-audio   WAV ingest · downmix · resample · energy VAD       │
 │  scribe-asr     AsrEngine trait · MockAsrEngine                    │
-│  scribe-diarize Diarizer trait · TurnTakingDiarizer                │
+│  scribe-diarize Diarizer trait · AcousticDiarizer                 │
 │  scribe-note    TemplateLibrary · RuleBasedGenerator               │
 │      │                                                             │
 │      ▼                                                             │
@@ -56,7 +56,7 @@ live buffer / WAV
   → [RecognisedSegment]  (start, end, text, confidence)
         │
         └── FFI ────────────────────────────► ScribePipeline::process_segments
-                                                → Diarizer::diarize_segments()   TurnTakingDiarizer (gaps only)
+                                                → Diarizer::diarize_segments()   AcousticDiarizer (pitch; gap fallback)
                                                 → RoleMap: SpeakerId → Role      {0: Clinician, 1: Patient}
                                                 → Transcript { speakers, segments }
                                                 → NoteGenerator::generate()      RuleBasedGenerator / Quire
@@ -113,6 +113,8 @@ reading that.
 | `scribe-store` | Persistence and the audit log. | Delete audit rows. |
 | `scribe-ffi` | The C ABI and its JSON envelopes. | Panic across the boundary. |
 | `scribe-cli` | Argument parsing and rendering. | Duplicate pipeline logic. |
+| `scribe-llm` | Quire GGUF drafting, isolated in a helper process. | Be linked into the app through `scribe-ffi`, or upload anything. |
+| `scribe-asr-whisper` | whisper.cpp for the CLI/concierge path. | Be linked into the app; the shell uses `SpeechAnalyzer`. |
 
 ## The FFI contract
 

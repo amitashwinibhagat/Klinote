@@ -1,5 +1,10 @@
 # klinote.one — homepage copy
 
+> **Superseded 2026-10-21 by [`LANDING-COPY.md`](LANDING-COPY.md).** This file is
+> kept as history. Several claims below are stale — encryption is shipped, the
+> speech engine is the system's API, and the audience is therapists. Do not
+> publish from this file.
+
 Primary action: **Download for Mac**
 Audience: therapists, psychologists, psychiatrists who will not send a session to a vendor
 Voice: the letter, not the chrome. Calm. Specific. No “AI”.
@@ -78,7 +83,7 @@ Ten minutes after the session. Not an evening of it.
 
 Cloud scribes are good at notes. They are also a second institution in the room.
 
-Klinote runs on the Mac on the desk. The speech engine downloads once. After that, the network is not involved. There is no account. There is no per-clinician seat at a vendor who holds the audio.
+Klinote runs on the Mac on the desk. The optional note model downloads once. After that, the app makes no request; macOS may fetch its speech asset once on the system's own behalf. There is no account. There is no per-clinician seat at a vendor who holds the audio.
 
 If your reason for refusing Upheal, Mentalyc, or Heidi is the session leaving the room — or a line it invented — this is the product that reason was looking for.
 
@@ -86,7 +91,7 @@ If your reason for refusing Upheal, Mentalyc, or Heidi is the session leaving th
 
 ## Who it is for
 
-GPs, physiotherapists, psychologists, dentists, vets. One to three people in a practice. A Mac on the desk next to the record system. No IT department.
+Therapists, psychologists and psychiatrists in a small practice. One to three people. A Mac on the desk next to the record system. No IT department.
 
 If you are happy sending consult audio to a vendor, you do not need this.
 
@@ -94,7 +99,7 @@ If you are happy sending consult audio to a vendor, you do not need this.
 
 ## What it is not
 
-Not a diagnosis. Not a medical device. Not “your AI copilot”. Not an EHR. Not encrypted at rest yet — which is why this build is teaching-only.
+Not a diagnosis. Not a medical device. Not “your AI copilot”. Not an EHR. Encrypted at rest; the remaining gap is clinical validation, not storage.
 
 It drafts documentation of a consult you already did. You decide what enters the record.
 
@@ -103,13 +108,13 @@ It drafts documentation of a consult you already did. You decide what enters the
 ## FAQ
 
 **Does audio leave the Mac?**
-No. The only download is the speech engine, once. Notes and recordings are not uploaded.
+No. The only download Klinote makes is the optional note model, once. The system may fetch its speech asset once. Notes and recordings are not uploaded.
 
 **Does it type into my EHR?**
 No. You copy the note and paste it. That is slower to demo and faster to trust.
 
 **Can I use it with real patients?**
-Not this build. Encryption at rest is not in yet. Teaching and your own voice only.
+Not this build. Clinical validation is not in yet; the store is encrypted, and teaching or your own voice only.
 
 **What if it invents a finding?**
 You will see the source line, or you will see that there isn’t one. Empty sections are marked missing. Unplaced speech sits in the margin. You still read the letter.

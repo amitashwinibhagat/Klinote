@@ -3,7 +3,8 @@
 Production model: **Qwen3-4B Instruct 2507 Q3_K_S** (1.89 GB), written by `scribe-llm`.
 
 Downloaded once by Settings into
-`~/Library/Application Support/Klinote/Models/quire.gguf`.
+`~/Library/Containers/one.klinote.mac/Data/Library/Application Support/Klinote/Models/quire.gguf`
+(the sandboxed container; the CLI can still use an unsandboxed path).
 The app calls it Quire. Do not surface the upstream model name in UI.
 The Swift shell never talks to the network except for that download. `scribe-llm`
 reads the GGUF and writes a SOAP JSON with evidence indices.
@@ -25,7 +26,7 @@ Not in CI. Needs the GGUF and Metal.
 ## The on-device model, measured
 
 `NoteDrafter.swift` can write the note with Apple's on-device model through the
-Foundation Models framework — no download, no second process, nothing to install.
+Foundation Models framework — no separate app download and no second process; the system's model must be available.
 
 **It is the fallback, not the destination, and that is decided.** Quire is the
 note engine, settled 2026-09-15: it is what polishes a draft, and the app does not

@@ -69,22 +69,25 @@ is looked at afterwards, briefly.
 
 ## Capabilities and Constraints
 
-**Confirmed today.** Five note templates (SOAP, physiotherapy, psychology,
-dentistry, veterinary) as clinician-editable TOML. Rule-based note generation
-with per-sentence evidence links. Required-section completeness checking. A
-plain-text transcript path that works with no model at all. Live capture with
-WAV ingest, VAD, and speech recognition through the system's `SpeechAnalyzer` —
-no model to download, nothing to install (two-speaker turns are a heuristic, and
-the margin offers Swap). A Swift/SwiftUI macOS shell: menu bar,
+**Confirmed today.** Seven templates: five note structures (SOAP,
+physiotherapy, psychology, dentistry, veterinary) plus a referral letter and a
+client summary, all as clinician-editable TOML. Rule-based note generation with
+per-sentence evidence links. Required-section completeness checking. A plain-text
+transcript path that works with no model at all. Live capture with WAV ingest,
+VAD, and speech recognition through the system's `SpeechAnalyzer` — Klinote ships
+no speech model, and macOS may fetch its asset once (two-speaker turns are a
+heuristic, and the margin offers Swap). A Swift/SwiftUI macOS shell: menu bar,
 patient-visible recording strip, review window with evidence margin, settings.
-SQLite storage with an append-only audit log. A C ABI for the shell.
+SQLite storage with an append-only audit log, retention, and a real delete. A C
+ABI for the shell.
 
-**Not built.** EHR integration. Retention and deletion.
+**Not built.** EHR integration.
 
 **Constraints.**
 
-- On-device only. No telemetry. The only inbound network is the first-use
-  speech-engine download; audio and notes never leave the Mac.
+- On-device only. No telemetry. The only inbound network Klinote issues is the
+  first-use note-model download; macOS may fetch its speech asset once. Audio and
+  notes never leave the Mac.
 - No direct patient identifiers anywhere in the product — `patient_ref` is an
   opaque pseudonym.
 - A machine never sets a note to approved. Only a human does.

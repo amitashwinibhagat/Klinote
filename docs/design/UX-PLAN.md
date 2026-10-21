@@ -335,7 +335,7 @@ drops, machine-never-approves, no patient identifiers, no network.
 | macOS 15+ target, macOS 26 for Liquid Glass | Use `#available` for `.glassEffect()` and `scrollEdgeEffectStyle`; the app must be complete and correct without them. |
 | No image generation in this harness | Code-led build; no comps. |
 | No network | Update mechanism and licensing must be resolved without a naive phone-home (see ADR 0002). |
-| Encryption at rest not implemented | The app must refuse, in the UI, to be used with real patient data until it is. |
+| Encryption at rest implemented | SQLCipher with a Keychain key; the recovery vault seals audio, words and metadata. A real patient-data pilot still needs the remaining policy and consent work in PRIVACY.md. |
 
 **Open decisions for the founder:**
 

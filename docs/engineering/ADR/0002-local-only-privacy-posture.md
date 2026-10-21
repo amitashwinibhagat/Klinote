@@ -1,8 +1,17 @@
 # ADR 0002 — Local-only as an architectural property, not a policy
 
-- **Status:** Accepted
+- **Status:** Accepted; amended 2026-10-21 (see the note below)
 - **Date:** 2026-09-11
 - **Deciders:** founder
+
+> **Amendment, 2026-10-21.** Two statements in the original decision are no
+> longer literally true, and the product still keeps the promise they were
+> protecting. (1) The shell downloads the optional note model once on first use
+> (`Sources/Core/ModelDownloader.swift`); that is the app's only outbound
+> request. (2) Speech recognition is the system's `SpeechAnalyzer`; Klinote ships
+> no speech model and makes no request for it, but macOS may fetch its own speech
+> asset once. Audio, transcripts and notes still never leave the Mac. The Rust
+> engine remains network-free and the CI denylist is in place.
 
 ## Context
 
@@ -21,10 +30,12 @@ destroy the only thing the product has.
 **Make local-only a structural property of the codebase that a reviewer can
 verify mechanically.**
 
-1. No networking code exists anywhere in the workspace, and no dependency in
-   the graph provides an HTTP client.
-2. Models are never downloaded at runtime. A model is either a system API or
-   shipped with the app.
+1. No networking code exists in the Rust engine, and no dependency in its graph
+   provides an HTTP client. The Swift shell has one named download; the web app
+   is a separate surface.
+2. The note model is downloaded once, on first use, in one named file. Speech
+   recognition is the system's own API; Klinote ships no speech model. No audio,
+   transcript or note is ever uploaded.
 3. No telemetry, analytics, crash reporting or "anonymous usage statistics" —
    in the app, the shell, or the website's app-facing endpoints.
 4. `Encounter::patient_ref` is an opaque pseudonym. Direct identifiers are
@@ -57,7 +68,8 @@ verify mechanically.**
 
 - `cargo tree` is reviewed when adding dependencies. A network client is a
   blocking review failure.
-- CI should fail on a denylist of networking crates (to be added).
+- CI fails on a denylist of networking crates (`.github/workflows/ci.yml`, and
+  `scripts/check-network-surface.sh` locally).
 - `PatientRef` is a newtype-by-convention; any new field that could carry an
   identifier requires review.
 - Template and error strings are included in this repo — they must never

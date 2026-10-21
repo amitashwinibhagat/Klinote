@@ -74,7 +74,7 @@ $(scan '(padding\(\.[a-zA-Z]+, [0-9]+\)|spacing: [0-9]+)')
 EOF
 
 # 4. Modal chrome: one family, one width and one inset.
-for sheet in SetupSheet PasteTranscriptSheet CopyConfirmSheet; do
+for sheet in SetupSheet PasteTranscriptSheet CopyConfirmSheet OutputRefusalSheet; do
   hits=$(scan "\.frame\(width: [0-9]+\)" | grep "/$sheet.swift:" || true)
   [ -n "$hits" ] && violations+="$sheet.swift has its own width — use KlinoteMetrics.sheetWidth"$'\n'"$hits"$'\n'
 done
